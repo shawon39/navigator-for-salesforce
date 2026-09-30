@@ -1,0 +1,641 @@
+/* settings.css
+   Full-page Settings screen (options page). Colors, fonts and themes come from
+   tokens.css; the theme class (nv-light / nv-dark) sits on <html>. */
+
+[hidden] {
+    display: none !important;
+}
+
+html {
+    background: var(--nv-bg);
+}
+
+body {
+    margin: 0;
+    background: var(--nv-bg);
+    color: var(--nv-text);
+    font-family: "Figtree", "Segoe UI", sans-serif;
+}
+
+button,
+input {
+    font-family: inherit;
+}
+
+:focus-visible {
+    outline: 2px solid var(--nv-focus);
+    outline-offset: 2px;
+}
+
+/* ---------- Header ---------- */
+
+.st-header {
+    background: var(--nv-surface);
+    border-bottom: 1px solid var(--nv-border);
+}
+
+.st-header-inner,
+.st-layout {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 1048px;
+    margin: 0 auto;
+    padding: 0 24px;
+}
+
+.st-header-inner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 60px;
+}
+
+.st-logo {
+    flex-shrink: 0;
+}
+
+.st-brand {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.st-brand-sub {
+    font-size: 14px;
+    color: var(--nv-text-3);
+}
+
+.st-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 320px;
+    min-width: 0;
+    height: 36px;
+    box-sizing: border-box;
+    margin-left: auto;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--nv-surface-2);
+    color: var(--nv-text-3);
+}
+
+.st-search svg {
+    flex-shrink: 0;
+}
+
+.st-search:focus-within {
+    border-color: var(--nv-focus);
+    box-shadow: 0 0 0 3px var(--nv-focus-ring);
+    background: var(--nv-surface);
+}
+
+.st-search input {
+    flex-grow: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: 400 14px "Figtree", sans-serif;
+    color: var(--nv-text);
+}
+
+.st-search input::placeholder {
+    color: var(--nv-text-3);
+}
+
+/* ---------- Layout ---------- */
+
+.st-layout {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 48px;
+    padding-top: 40px;
+    padding-bottom: 48px;
+}
+
+.st-nav {
+    position: sticky;
+    top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-self: start;
+}
+
+.st-nav a {
+    display: flex;
+    align-items: center;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 8px;
+    color: var(--nv-text-2);
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.st-nav a:hover {
+    background: var(--nv-surface-2);
+}
+
+.st-nav a[aria-current="page"] {
+    background: var(--nv-sel);
+    color: var(--nv-primary-text);
+    font-weight: 600;
+}
+
+.st-main {
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+    min-width: 0;
+}
+
+.st-intro {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.st-intro h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.st-intro p,
+.st-no-results {
+    margin: 0;
+    font-size: 14px;
+    color: var(--nv-text-3);
+}
+
+/* ---------- Sections and rows ---------- */
+
+.st-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-margin-top: 24px;
+}
+
+.st-section-head {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.st-section-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.st-section-desc,
+.st-row-desc {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--nv-text-3);
+}
+
+/* Rows draw a top border and pull it under the card's own border, so the
+   first visible row never shows a double line (rows can be hidden by search). */
+.st-card {
+    overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid var(--nv-border);
+    background: var(--nv-surface);
+}
+
+.st-card > .st-row,
+.st-card > .st-key-row,
+.st-card > .st-org-head,
+.st-org-row,
+.st-empty {
+    margin-top: -1px;
+    border-top: 1px solid var(--nv-border);
+}
+
+.st-row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    min-height: 64px;
+    box-sizing: border-box;
+    padding: 12px 20px;
+}
+
+.st-row-lg {
+    padding: 16px 20px;
+}
+
+.st-row-text {
+    flex-grow: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.st-row-title {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.st-row-key {
+    color: var(--nv-text-3);
+    font-weight: 400;
+}
+
+/* ---------- Theme segmented control ---------- */
+
+.st-segmented {
+    display: inline-flex;
+    flex-shrink: 0;
+    padding: 3px;
+    gap: 2px;
+    border-radius: 9px;
+    background: var(--nv-surface-2);
+}
+
+.st-segmented button {
+    height: 30px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--nv-text-3);
+    font: 500 13px "Figtree", sans-serif;
+    cursor: pointer;
+}
+
+.st-segmented button:hover {
+    color: var(--nv-text);
+}
+
+.st-segmented button[aria-checked="true"] {
+    background: var(--nv-surface);
+    box-shadow: var(--nv-shadow-sm), 0 0 0 1px var(--nv-border);
+    color: var(--nv-text);
+    font-weight: 600;
+}
+
+/* ---------- Switch ---------- */
+
+.st-switch {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--nv-surface-3);
+    cursor: pointer;
+}
+
+.st-switch span {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--nv-surface);
+    box-shadow: var(--nv-shadow-sm), 0 0 0 1px var(--nv-border);
+    transition: left 0.15s ease;
+}
+
+.st-switch[aria-checked="true"] {
+    background: var(--nv-primary);
+}
+
+.st-switch[aria-checked="true"] span {
+    left: 18px;
+    box-shadow: var(--nv-shadow-sm);
+}
+
+.st-switch:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ---------- Buttons and links ---------- */
+
+.st-btn {
+    flex-shrink: 0;
+    height: 32px;
+    padding: 0 14px;
+    border: 1px solid var(--nv-border);
+    border-radius: 8px;
+    background: var(--nv-surface);
+    color: var(--nv-text);
+    font: 600 13px "Figtree", sans-serif;
+    cursor: pointer;
+}
+
+.st-btn:hover {
+    background: var(--nv-surface-2);
+}
+
+.st-btn-primary {
+    border-color: var(--nv-primary);
+    background: var(--nv-primary);
+    color: var(--nv-on-primary);
+}
+
+.st-btn-primary:hover {
+    border-color: var(--nv-primary-hover);
+    background: var(--nv-primary-hover);
+}
+
+.st-btn-danger {
+    color: var(--nv-danger);
+}
+
+.st-btn-danger:hover {
+    background: var(--nv-danger-soft);
+}
+
+.st-icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--nv-text-3);
+    cursor: pointer;
+}
+
+.st-icon-btn:hover {
+    background: var(--nv-danger-soft);
+    color: var(--nv-danger);
+}
+
+.st-link {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--nv-primary-text);
+    text-decoration: none;
+}
+
+.st-link:hover {
+    text-decoration: underline;
+}
+
+/* ---------- Orgs table ---------- */
+
+.st-org-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px 110px 60px;
+    align-items: center;
+    gap: 16px;
+    padding: 0 20px;
+}
+
+.st-org-head {
+    height: 40px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--nv-text-3);
+}
+
+.st-org-row {
+    height: 56px;
+}
+
+.st-org-name {
+    min-width: 0;
+    height: 34px;
+    box-sizing: border-box;
+    padding: 0 10px;
+    border: 1px solid var(--nv-border);
+    border-radius: 8px;
+    background: var(--nv-surface);
+    font: 400 14px "Figtree", sans-serif;
+    color: var(--nv-text);
+}
+
+.st-org-name::placeholder {
+    color: var(--nv-text-3);
+}
+
+.st-org-name:focus {
+    outline: 0;
+    border-color: var(--nv-focus);
+    box-shadow: 0 0 0 3px var(--nv-focus-ring);
+}
+
+.st-org-host {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: var(--nv-text-3);
+}
+
+.st-org-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    color: var(--nv-text-2);
+}
+
+.st-org-type::before {
+    content: "";
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--dot);
+}
+
+.st-org-actions {
+    display: inline-flex;
+    justify-content: flex-end;
+}
+
+.st-empty {
+    margin-bottom: 0;
+    padding: 18px 20px;
+    font-size: 13px;
+    color: var(--nv-text-3);
+}
+
+/* ---------- Shortcuts ---------- */
+
+.st-key-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 48px;
+    padding: 0 20px;
+    font-size: 14px;
+}
+
+.st-key-row > span:first-child {
+    flex-grow: 1;
+}
+
+.st-key {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--nv-text-2);
+}
+
+.st-key.is-unset {
+    font-weight: 400;
+    color: var(--nv-text-3);
+}
+
+.st-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: var(--nv-surface-2);
+    color: var(--nv-text-2);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.st-banner > span {
+    flex-grow: 1;
+}
+
+.st-key-foot {
+    height: 56px;
+}
+
+.st-key-foot > span:first-child {
+    font-size: 13px;
+    color: var(--nv-text-3);
+}
+
+/* ---------- About ---------- */
+
+.st-about {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+    border-radius: 12px;
+    border: 1px solid var(--nv-border);
+    background: var(--nv-surface);
+}
+
+.st-about svg {
+    flex-shrink: 0;
+}
+
+.st-about .st-row-text {
+    gap: 2px;
+}
+
+.st-about-title {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.st-about-version {
+    font-weight: 400;
+    color: var(--nv-text-3);
+}
+
+.st-about-links {
+    display: flex;
+    flex-shrink: 0;
+    gap: 26px;
+}
+
+/* ---------- Status toast ---------- */
+
+.st-status {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: calc(100% - 48px);
+    box-sizing: border-box;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--nv-border);
+    background: var(--nv-surface);
+    box-shadow: var(--nv-shadow-md);
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 8px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.st-status::before {
+    content: "";
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--nv-success);
+}
+
+.st-status.is-error::before {
+    background: var(--nv-danger);
+}
+
+.st-status.is-visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+/* ---------- Narrower windows ---------- */
+
+@media (max-width: 980px) {
+    .st-org-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 180px) 100px 28px;
+        gap: 12px;
+    }
+}
+
+@media (max-width: 760px) {
+    .st-layout {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 24px;
+        padding-top: 24px;
+    }
+
+    .st-nav {
+        position: static;
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .st-brand-sub {
+        display: none;
+    }
+
+    .st-org-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
+    }
+
+    .st-org-grid > :nth-child(3) {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .st-switch span,
+    .st-status {
+        transition: none;
+    }
+}

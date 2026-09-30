@@ -1,0 +1,438 @@
+/* setupStyle.css
+   Setup quick tabs: the row injected under the Salesforce Setup header and
+   its dialogs. This file is injected into Salesforce pages, so every rule is
+   scoped to the extension's own ids and sfen-qt-* classes. The design tokens
+   (same values as styles/tokens.css) live on the theme classes that
+   contentSetup.js puts on each dialog overlay. */
+
+/* Design tokens */
+.sfen-qt-light {
+    color-scheme: light;
+    --nv-surface: #FFFFFF;
+    --nv-surface-2: #F3F5F8;
+    --nv-surface-3: #E7EBF0;
+    --nv-border: #E4E8EE;
+    --nv-border-strong: #8A94A3;
+    --nv-text: #1F2937;
+    --nv-text-2: #4B5563;
+    --nv-text-3: #5F6B7A;
+    --nv-primary: #0073A8;
+    --nv-primary-hover: #00669A;
+    --nv-on-primary: #FFFFFF;
+    --nv-primary-text: #0073A8;
+    --nv-focus: #0082B8;
+    --nv-focus-ring: rgba(0, 130, 184, 0.18);
+    --nv-danger: #B42318;
+    --nv-danger-soft: #FEF2F2;
+    --nv-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.10), 0 1px 3px rgba(15, 23, 42, 0.06);
+    --nv-shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.06);
+    --nv-scrim: rgba(15, 23, 42, 0.28);
+}
+
+.sfen-qt-dark {
+    color-scheme: dark;
+    --nv-surface: #1A1F28;
+    --nv-surface-2: #222834;
+    --nv-surface-3: #2B3240;
+    --nv-border: #2A303B;
+    --nv-border-strong: #6B7686;
+    --nv-text: #E5E9F0;
+    --nv-text-2: #B6BFCC;
+    --nv-text-3: #8C97A7;
+    --nv-primary: #33B3E6;
+    --nv-primary-hover: #5CC4EE;
+    --nv-on-primary: #0B1320;
+    --nv-primary-text: #5CC4EE;
+    --nv-focus: #33B3E6;
+    --nv-focus-ring: rgba(51, 179, 230, 0.25);
+    --nv-danger: #F87171;
+    --nv-danger-soft: #2A1A1D;
+    --nv-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --nv-shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+    --nv-scrim: rgba(0, 0, 0, 0.45);
+}
+
+.sfen-qt-light,
+.sfen-qt-dark {
+    font-family: "Figtree", "Segoe UI", system-ui, sans-serif;
+    color: var(--nv-text);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Quick-tab row: a plain strip under the Salesforce Setup tab bar that
+   inherits Salesforce's font and colors. It stays light in every theme. */
+#sfNGTabsURL {
+    display: flex;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    overflow-x: auto;
+    border-bottom: 1px solid #ccc;
+}
+
+#sfNGTabsURL li {
+    border-right: 1px solid #ccc;
+    cursor: pointer;
+    max-width: 200px;
+    min-width: 30px;
+}
+
+#sfNGTabsURL li a {
+    display: block;
+    padding: 8px 10px;
+    text-decoration: none;
+    color: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#sfNGTabsURL li a:hover {
+    background: rgb(243, 243, 243);
+}
+
+/* Plus and Edit LI items (buttons) */
+#sfenQtPlusLi button,
+#sfenQtEditLi button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 8px 10px;
+    background: #fff;
+    border: none;
+    cursor: pointer;
+    border-left: none;
+    color: #5c5c5c;
+}
+
+#sfenQtPlusLi button:hover,
+#sfenQtEditLi button:hover {
+    background: rgb(243, 243, 243);
+    color: #181818;
+}
+
+#sfenQtPlusLi button svg,
+#sfenQtEditLi button svg {
+    display: block;
+}
+
+#sfenQtEditLi button {
+    gap: 6px;
+    border-radius: 0;
+    margin-right: 5px;
+    font: inherit;
+}
+
+#sfenQtEditLi {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+}
+
+#sfenQtPlusLi,
+#sfenQtEditLi {
+    border: none;
+}
+
+/* Overlay for dialogs */
+.sfen-qt-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: var(--nv-scrim);
+}
+
+.sfen-qt-overlay.sfen-qt-overlay-clear {
+    background: transparent;
+}
+
+.sfen-qt-overlay .sfen-qt-modal {
+    box-sizing: border-box;
+    background: var(--nv-surface);
+    border: 1px solid var(--nv-border);
+    color: var(--nv-text);
+    font-size: 14px;
+    line-height: 1.4;
+    text-align: left;
+}
+
+/* Edit quick tabs dialog */
+.sfen-qt-overlay .sfen-qt-dialog {
+    display: flex;
+    flex-direction: column;
+    width: 500px;
+    max-width: calc(100vw - 32px);
+    max-height: 80vh;
+    margin: 96px auto 0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--nv-shadow-lg);
+}
+
+.sfen-qt-overlay .sfen-qt-head {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 12px;
+    height: 56px;
+    padding: 0 12px 0 20px;
+    border-bottom: 1px solid var(--nv-border);
+}
+
+.sfen-qt-overlay .sfen-qt-title {
+    flex-grow: 1;
+    margin: 0;
+    color: var(--nv-text);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.sfen-qt-overlay .sfen-qt-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 8px;
+    list-style: none;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.sfen-qt-overlay .sfen-qt-item {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    margin: 0;
+    padding: 0 4px 0 10px;
+    border-radius: 8px;
+}
+
+.sfen-qt-overlay .sfen-qt-item:hover {
+    background: var(--nv-surface-2);
+}
+
+.sfen-qt-overlay .sfen-qt-name {
+    flex-grow: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sfen-qt-overlay .sfen-qt-handle {
+    display: inline-grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 16px;
+    height: 30px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--nv-text-3);
+    cursor: grab;
+}
+
+.sfen-qt-overlay .sfen-qt-input.sfen-qt-rename {
+    flex-grow: 1;
+    min-width: 0;
+    width: auto;
+    height: 32px;
+    font-weight: 500;
+}
+
+/* While renaming, the input replaces the name and the row actions hide */
+.sfen-qt-overlay .sfen-qt-renaming .sfen-qt-note,
+.sfen-qt-overlay .sfen-qt-renaming .sfen-qt-icon-btn {
+    display: none;
+}
+
+.sfen-qt-overlay .sfen-qt-note {
+    font-size: 12px;
+    color: var(--nv-text-3);
+}
+
+.sfen-qt-overlay .sfen-qt-empty {
+    padding: 12px 10px;
+    color: var(--nv-text-3);
+}
+
+.sfen-qt-overlay .sfen-qt-foot {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--nv-border);
+}
+
+.sfen-qt-overlay .sfen-qt-hint {
+    font-size: 12px;
+    color: var(--nv-text-3);
+}
+
+.sfen-qt-overlay .sfen-qt-foot .sfen-qt-btn-primary {
+    height: 32px;
+    margin-left: auto;
+    padding: 0 16px;
+}
+
+/* Small form dialogs: add this page (popover) and edit one tab */
+.sfen-qt-overlay .sfen-qt-popover {
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 320px;
+    padding: 14px;
+    border-radius: 10px;
+    box-shadow: var(--nv-shadow-md);
+}
+
+.sfen-qt-overlay .sfen-qt-popover.sfen-qt-centered {
+    position: static;
+    width: 360px;
+    max-width: calc(100vw - 32px);
+    margin: 96px auto 0;
+    box-shadow: var(--nv-shadow-lg);
+}
+
+.sfen-qt-overlay .sfen-qt-label {
+    margin: 0;
+    color: var(--nv-text-3);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.sfen-qt-overlay .sfen-qt-input {
+    box-sizing: border-box;
+    width: 100%;
+    height: 34px;
+    margin: 0;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    outline: 0;
+    box-shadow: none;
+    background: var(--nv-surface-2);
+    color: var(--nv-text);
+    font: 400 14px "Figtree", "Segoe UI", system-ui, sans-serif;
+}
+
+.sfen-qt-overlay .sfen-qt-input.sfen-qt-input-mono {
+    font: 400 13px "JetBrains Mono", ui-monospace, monospace;
+}
+
+.sfen-qt-overlay .sfen-qt-input:focus {
+    border-color: var(--nv-focus);
+    box-shadow: 0 0 0 3px var(--nv-focus-ring);
+    background: var(--nv-surface);
+}
+
+.sfen-qt-overlay .sfen-qt-input::placeholder {
+    color: var(--nv-text-3);
+    opacity: 1;
+}
+
+.sfen-qt-overlay .sfen-qt-error {
+    color: var(--nv-danger);
+    font-size: 12px;
+}
+
+.sfen-qt-overlay .sfen-qt-error:empty {
+    display: none;
+}
+
+.sfen-qt-overlay .sfen-qt-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Buttons: quiet by default, one filled primary per dialog */
+.sfen-qt-overlay .sfen-qt-btn {
+    height: 30px;
+    margin: 0;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--nv-text-2);
+    font: 600 13px "Figtree", "Segoe UI", system-ui, sans-serif;
+    cursor: pointer;
+}
+
+.sfen-qt-overlay .sfen-qt-btn:hover {
+    background: var(--nv-surface-2);
+}
+
+.sfen-qt-overlay .sfen-qt-btn.sfen-qt-btn-primary {
+    padding: 0 14px;
+    background: var(--nv-primary);
+    color: var(--nv-on-primary);
+}
+
+.sfen-qt-overlay .sfen-qt-btn.sfen-qt-btn-primary:hover {
+    background: var(--nv-primary-hover);
+}
+
+.sfen-qt-overlay .sfen-qt-icon-btn {
+    display: inline-grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--nv-text-3);
+    cursor: pointer;
+}
+
+.sfen-qt-overlay .sfen-qt-icon-btn:hover {
+    background: var(--nv-surface-3);
+    color: var(--nv-text);
+}
+
+.sfen-qt-overlay .sfen-qt-close:hover {
+    background: var(--nv-surface-2);
+}
+
+.sfen-qt-overlay .sfen-qt-icon-btn.sfen-qt-remove:hover {
+    background: var(--nv-danger-soft);
+    color: var(--nv-danger);
+}
+
+/* Row actions show on hover or keyboard focus */
+.sfen-qt-overlay .sfen-qt-item .sfen-qt-icon-btn {
+    opacity: 0;
+}
+
+.sfen-qt-overlay .sfen-qt-item:hover .sfen-qt-icon-btn,
+.sfen-qt-overlay .sfen-qt-item:focus-within .sfen-qt-icon-btn {
+    opacity: 1;
+}
+
+.sfen-qt-overlay .sfen-qt-modal button:focus-visible {
+    outline: 2px solid var(--nv-focus);
+    outline-offset: 2px;
+}
+
+/* Navigator button in the Lightning global header (headerButton.js). It uses SLDS's
+   own classes, so size and hover color come from Salesforce. The "N" is a
+   stroke icon: keep it outlined when SLDS sets a fill on hover. */
+.sfen-header-nav-btn svg,
+.sfen-header-nav-btn:hover svg,
+.sfen-header-nav-btn:focus svg {
+    fill: none !important;
+    stroke: currentColor;
+}

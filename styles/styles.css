@@ -1,0 +1,981 @@
+/* styles.css
+   Popup styles (420 × 600). Colors come from tokens.css (--nv-*). */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    width: 420px;
+    height: 600px;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--nv-surface);
+    color: var(--nv-text);
+    font: 400 13px "Figtree", "Segoe UI", system-ui, sans-serif;
+}
+
+/* Hide until the saved tab is painted (avoids a tab flash on open). */
+body.sfen-booting .nv-main,
+body.sfen-booting .nv-tabs {
+    visibility: hidden;
+}
+
+button,
+input {
+    font-family: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+:focus-visible {
+    outline: 2px solid var(--nv-focus);
+    outline-offset: 2px;
+}
+
+.nv-icon {
+    flex-shrink: 0;
+}
+
+.nv-mono {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 400;
+}
+
+/* ---- Buttons ---------------------------------------------------------- */
+.nv-icon-btn {
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--nv-text-3);
+}
+
+.nv-icon-btn:hover {
+    background: var(--nv-surface-3);
+    color: var(--nv-text);
+}
+
+.nv-btn-link {
+    height: 28px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--nv-primary-text);
+    font: 600 12px "Figtree", sans-serif;
+    white-space: nowrap;
+}
+
+.nv-btn-link:hover {
+    background: var(--nv-surface-3);
+}
+
+.nv-with-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.nv-btn-primary,
+.nv-btn-secondary,
+.nv-btn-quiet,
+.nv-btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 8px;
+    font: 600 13px "Figtree", sans-serif;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.nv-btn-primary {
+    background: var(--nv-primary);
+    color: var(--nv-on-primary);
+}
+
+.nv-btn-primary:hover {
+    background: var(--nv-primary-hover);
+}
+
+.nv-btn-secondary {
+    border: 1px solid var(--nv-border);
+    background: var(--nv-surface);
+    color: var(--nv-text);
+}
+
+.nv-btn-secondary:hover {
+    background: var(--nv-surface-2);
+}
+
+.nv-btn-quiet {
+    background: transparent;
+    color: var(--nv-text-2);
+}
+
+.nv-btn-quiet:hover {
+    background: var(--nv-surface-3);
+}
+
+.nv-btn-danger {
+    background: var(--nv-danger-soft);
+    color: var(--nv-danger);
+}
+
+.nv-row .nv-btn-quiet,
+.nv-row .nv-btn-danger {
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.nv-row .nv-btn-danger {
+    padding: 0 10px;
+}
+
+/* ---- Header ----------------------------------------------------------- */
+.nv-header {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 12px 10px;
+}
+
+.nv-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+}
+
+.nv-logo {
+    flex-shrink: 0;
+}
+
+.nv-brand {
+    flex-grow: 1;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.nv-org-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    max-width: 220px;
+    padding: 0 6px 0 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--nv-text-2);
+    font: 500 12px "Figtree", sans-serif;
+}
+
+.nv-org-switch:hover {
+    background: var(--nv-surface-3);
+}
+
+.nv-org-switch-name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.nv-org-switch .nv-icon {
+    color: var(--nv-text-3);
+}
+
+.nv-dot {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--nv-env-other);
+}
+
+.nv-dot.production { background: var(--nv-env-prod); }
+.nv-dot.sandbox { background: var(--nv-env-sandbox); }
+.nv-dot.scratch { background: var(--nv-env-scratch); }
+.nv-dot.developer { background: var(--nv-env-dev); }
+.nv-dot.trailhead { background: var(--nv-env-other); }
+
+.nv-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 6px 0 12px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--nv-surface-2);
+    color: var(--nv-text-3);
+}
+
+.nv-search:focus-within {
+    border-color: var(--nv-focus);
+    box-shadow: 0 0 0 3px var(--nv-focus-ring);
+    background: var(--nv-surface);
+}
+
+.nv-search input {
+    flex-grow: 1;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--nv-text);
+    font: 400 14px "Figtree", sans-serif;
+}
+
+.nv-search input::placeholder {
+    color: var(--nv-text-3);
+}
+
+.nv-search-clear {
+    width: 26px;
+    height: 26px;
+}
+
+/* Header border shows while searching (tabs are hidden then). */
+body.is-searching .nv-header,
+body.is-off-sf .nv-header {
+    border-bottom: 1px solid var(--nv-border);
+}
+
+body.is-searching .nv-tabs {
+    display: none;
+}
+
+/* ---- Tabs ------------------------------------------------------------- */
+.nv-tabs {
+    display: flex;
+    gap: 22px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--nv-border);
+}
+
+.nv-tab {
+    height: 36px;
+    margin-bottom: -1px;
+    padding: 0;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--nv-text-3);
+    font: 500 13px "Figtree", sans-serif;
+}
+
+.nv-tab:hover {
+    color: var(--nv-text);
+}
+
+.nv-tab[aria-selected="true"] {
+    border-bottom-color: var(--nv-primary);
+    color: var(--nv-primary-text);
+    font-weight: 600;
+}
+
+.nv-tabs-action {
+    height: 36px;
+    margin-left: auto;
+    padding: 0;
+}
+
+.nv-tabs-action:hover {
+    background: transparent;
+    text-decoration: underline;
+}
+
+/* ---- Main area & lists ------------------------------------------------ */
+.nv-main {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--nv-surface-3) transparent;
+}
+
+.nv-group {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    height: 28px;
+    padding: 0 10px;
+    color: var(--nv-text-3);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.nv-group-gap {
+    margin-top: 10px;
+}
+
+.nv-group-count {
+    margin-left: 4px;
+    font-weight: 500;
+}
+
+.nv-group-spread {
+    justify-content: space-between;
+}
+
+.nv-group-bar {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    height: 32px;
+    margin-top: 14px;
+}
+
+.nv-group-bar .nv-group {
+    padding-right: 0;
+}
+
+.nv-row {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 8px;
+    color: var(--nv-text);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.nv-row.has-actions {
+    padding-right: 4px;
+}
+
+.nv-row .nv-icon {
+    color: var(--nv-text-3);
+}
+
+.nv-row:hover,
+.nv-row:focus-within {
+    background: var(--nv-surface-2);
+}
+
+.nv-row.is-sel {
+    background: var(--nv-sel);
+    color: var(--nv-on-sel);
+}
+
+.nv-row.is-sel .nv-icon {
+    color: var(--nv-sel-icon);
+}
+
+.nv-row.is-sel .nv-row-sub,
+.nv-row.is-sel .nv-row-meta {
+    color: var(--nv-on-sel-2);
+}
+
+.nv-row-link {
+    display: flex;
+    flex-grow: 1;
+    align-items: center;
+    align-self: stretch;
+    gap: 10px;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+.nv-row-link:focus-visible {
+    outline-offset: -2px;
+    border-radius: 6px;
+}
+
+.nv-row-label {
+    flex-grow: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.nv-row-label .nv-mono {
+    margin-left: 4px;
+    color: var(--nv-text-3);
+}
+
+.nv-row-sep {
+    color: var(--nv-text-3);
+}
+
+.nv-row-meta {
+    flex-shrink: 0;
+    color: var(--nv-text-3);
+    font-size: 12px;
+}
+
+.nv-row-enter {
+    display: none;
+}
+
+.nv-row.is-sel .nv-row-enter {
+    display: block;
+}
+
+/* Two-line rows (search objects, orgs). */
+.nv-row.is-tall {
+    height: 44px;
+}
+
+.nv-row.is-org {
+    gap: 12px;
+    height: 46px;
+    padding: 0 10px 0 12px;
+}
+
+.nv-row.is-org.has-actions {
+    padding-right: 4px;
+}
+
+.nv-row-text {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    gap: 2px;
+    min-width: 0;
+}
+
+.nv-row-text .nv-row-label {
+    flex-grow: 0;
+}
+
+.nv-row-sub {
+    overflow: hidden;
+    color: var(--nv-text-3);
+    font-size: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.nv-row-badge {
+    flex-shrink: 0;
+    color: var(--nv-sel-icon);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Row actions appear on hover, keyboard focus, or selection. */
+.nv-row-actions {
+    display: none;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0;
+}
+
+.nv-row:hover .nv-row-actions,
+.nv-row:focus-within .nv-row-actions,
+.nv-row.is-sel .nv-row-actions,
+.nv-row.menu-open .nv-row-actions {
+    display: inline-flex;
+}
+
+.nv-row-actions .nv-btn-link:hover,
+.nv-row-actions .nv-icon-btn:hover {
+    background: var(--nv-surface-3);
+}
+
+.nv-row-actions .nv-icon-btn .nv-icon {
+    color: currentColor;
+}
+
+.nv-row.menu-open .nv-act-more {
+    background: var(--nv-surface-3);
+    color: var(--nv-text);
+}
+
+.nv-row.is-confirm {
+    gap: 8px;
+    background: transparent;
+}
+
+.nv-confirm-text {
+    flex-grow: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--nv-text-2);
+    font-size: 13px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.nv-row-input {
+    flex-grow: 1;
+    min-width: 0;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--nv-focus);
+    border-radius: 6px;
+    outline: 0;
+    background: var(--nv-surface);
+    box-shadow: 0 0 0 3px var(--nv-focus-ring);
+    color: var(--nv-text);
+    font: 500 13px "Figtree", sans-serif;
+}
+
+.nv-row.is-org .nv-row-input {
+    height: 28px;
+    margin-left: -9px;
+}
+
+.nv-row.is-editing {
+    background: transparent;
+    padding-right: 6px;
+}
+
+.nv-row.is-dragging {
+    opacity: 0.5;
+}
+
+.nv-footnote {
+    margin-top: auto;
+    padding: 8px 10px 2px;
+    color: var(--nv-text-3);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.nv-footnote b {
+    color: var(--nv-text-2);
+    font-weight: 400;
+}
+
+.nv-note {
+    padding: 8px 10px;
+    color: var(--nv-text-3);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* ---- Navigate --------------------------------------------------------- */
+.nv-navigate {
+    padding: 12px 12px 8px;
+}
+
+.nv-quick-grid {
+    display: grid;
+    flex-shrink: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.nv-quick-grid a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 62px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--nv-surface-2);
+    color: var(--nv-text);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
+    text-decoration: none;
+}
+
+.nv-quick-grid a .nv-icon {
+    color: var(--nv-primary-text);
+}
+
+.nv-quick-grid a:hover,
+.nv-quick-grid a:focus-visible {
+    background: var(--nv-sel);
+    box-shadow: inset 0 0 0 1px var(--nv-focus);
+    color: var(--nv-on-sel);
+    outline: 0;
+}
+
+.nv-quick-grid a:hover .nv-icon,
+.nv-quick-grid a:focus-visible .nv-icon {
+    color: var(--nv-sel-icon);
+}
+
+/* ---- Objects kebab menu ----------------------------------------------- */
+.nv-menu {
+    position: fixed;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    width: 220px;
+    padding: 6px;
+    border: 1px solid var(--nv-border);
+    border-radius: 10px;
+    background: var(--nv-surface);
+    box-shadow: var(--nv-shadow-md);
+}
+
+.nv-menu-item {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    height: 32px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--nv-text);
+    font: 400 13px "Figtree", sans-serif;
+    text-align: left;
+    text-decoration: none;
+}
+
+.nv-menu-item:hover,
+.nv-menu-item:focus-visible {
+    background: var(--nv-sel);
+    color: var(--nv-on-sel);
+    outline: 0;
+}
+
+.nv-menu-sep {
+    height: 1px;
+    margin: 5px 4px;
+    background: var(--nv-border);
+}
+
+/* ---- Search results --------------------------------------------------- */
+.nv-result-foot {
+    margin-top: auto;
+    padding: 8px 10px 2px;
+    color: var(--nv-text-3);
+    font-size: 12px;
+}
+
+.nv-result-foot b {
+    color: var(--nv-text-2);
+    font-weight: 400;
+}
+
+mark {
+    padding: 0 1px;
+    border-radius: 3px;
+    background: var(--nv-mark);
+    color: inherit;
+}
+
+/* ---- States: empty, loading, error ------------------------------------ */
+.nv-empty {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    justify-content: space-between;
+    padding: 8px;
+}
+
+.nv-empty-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 56px 24px 0;
+    text-align: center;
+}
+
+.nv-empty-body .nv-icon {
+    color: var(--nv-text-3);
+}
+
+.nv-empty-title {
+    margin-top: 6px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.nv-empty-text {
+    max-width: 280px;
+    color: var(--nv-text-3);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.nv-empty-body .nv-btn-primary {
+    margin-top: 12px;
+}
+
+.nv-empty-tip {
+    padding: 0 4px;
+    color: var(--nv-text-3);
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.nv-empty-tip b {
+    color: var(--nv-text-2);
+    font-weight: 600;
+}
+
+.nv-banner {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+    margin: 2px 2px 8px;
+    padding: 10px 8px 10px 12px;
+    border-radius: 8px;
+    background: var(--nv-surface-2);
+}
+
+.nv-banner .nv-icon {
+    color: var(--nv-text-3);
+}
+
+.nv-banner span {
+    flex-grow: 1;
+    color: var(--nv-text-2);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.nv-loading {
+    gap: 8px;
+}
+
+.nv-spinner {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--nv-surface-3);
+    border-top-color: var(--nv-primary);
+    border-radius: 50%;
+    animation: nv-spin 0.8s linear infinite;
+}
+
+@keyframes nv-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.nv-skeleton {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 10px;
+    height: 36px;
+    padding: 0 10px;
+}
+
+.nv-skeleton span {
+    height: 10px;
+    border-radius: 5px;
+    background: var(--nv-surface-2);
+}
+
+.nv-skeleton span:first-child {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+}
+
+/* ---- Add an org ------------------------------------------------------- */
+.nv-subheader {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 52px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--nv-border);
+}
+
+.nv-subheader .nv-icon-btn {
+    color: var(--nv-text-2);
+}
+
+.nv-subheader-title {
+    flex-grow: 1;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.nv-add-org {
+    padding: 12px 8px;
+}
+
+.nv-row .nv-btn-add {
+    height: 30px;
+    padding: 0 12px;
+    font-size: 12px;
+}
+
+.nv-divider {
+    flex-shrink: 0;
+    height: 1px;
+    margin: 16px 10px;
+    background: var(--nv-border);
+}
+
+.nv-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 10px;
+}
+
+.nv-field label {
+    color: var(--nv-text-3);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.nv-input {
+    height: 38px;
+    padding: 0 12px;
+    border: 1px solid var(--nv-border);
+    border-radius: 8px;
+    outline: 0;
+    background: var(--nv-surface);
+    color: var(--nv-text);
+    font: 400 13px "JetBrains Mono", ui-monospace, monospace;
+}
+
+.nv-input:focus {
+    border-color: var(--nv-focus);
+    box-shadow: 0 0 0 3px var(--nv-focus-ring);
+}
+
+.nv-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 24px;
+    color: var(--nv-text-3);
+    font-size: 12px;
+}
+
+.nv-preview b {
+    color: var(--nv-text);
+    font-weight: 600;
+}
+
+.nv-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.nv-add-org .nv-footnote {
+    padding: 16px 10px 0;
+}
+
+/* ---- Toast ------------------------------------------------------------ */
+.nv-toast {
+    position: fixed;
+    z-index: 30;
+    left: 50%;
+    bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 36px;
+    padding: 0 6px 0 14px;
+    transform: translateX(-50%);
+    border: 1px solid var(--nv-border);
+    border-radius: 10px;
+    background: var(--nv-surface);
+    box-shadow: var(--nv-shadow-md);
+    color: var(--nv-text);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    animation: nv-toast-in 0.15s ease-out;
+}
+
+.nv-toast.no-action {
+    padding-right: 14px;
+}
+
+.nv-toast .nv-btn-link {
+    height: 26px;
+}
+
+@keyframes nv-toast-in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 6px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nv-spinner,
+    .nv-toast {
+        animation: none;
+    }
+}
+
+/* ---- Orgs extras ------------------------------------------------------ */
+.nv-pinned-mark {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--nv-text-3);
+}
+
+.nv-row.is-sel .nv-pinned-mark {
+    color: var(--nv-on-sel-2);
+}
+
+.nv-row:hover .nv-pinned-mark,
+.nv-row:focus-within .nv-pinned-mark {
+    display: none;
+}
+
+body.is-adding .nv-header,
+body.is-adding .nv-tabs,
+body.is-adding > main {
+    display: none !important;
+}
+
+.nv-add-view {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-height: 0;
+}
+
+.nv-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: default;
+}

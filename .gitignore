@@ -1,0 +1,14 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Node (only used for tests; there are no dependencies)
+node_modules/
+npm-debug.log*
+
+# Local builds (release zips are committed under store/v<version>/ on purpose)
+*.crx
+*.pem

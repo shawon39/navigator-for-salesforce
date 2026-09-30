@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Navigator for Salesforce</title>
+        <script src="src/shared/themeBoot.js"></script>
+        <link rel="stylesheet" href="styles/tokens.css" />
+        <link rel="stylesheet" href="styles/styles.css" />
+        <!-- Script files in proper order -->
+        <script src="src/shared/sfUrl.js"></script>
+        <script src="src/shared/settings.js"></script>
+        <script src="src/shared/orgs.js"></script>
+        <script src="src/popup/ui.js"></script>
+        <script src="src/popup/popup.js"></script>
+        <script src="src/popup/event.js"></script>
+        <script src="src/popup/bookmarks.js"></script>
+        <script src="src/popup/logins.js"></script>
+        <script src="src/shared/setupPages.js"></script>
+        <script src="src/shared/recents.js"></script>
+        <script src="src/popup/popupCatalog.js"></script>
+        <script src="src/popup/popupUI.js"></script>
+    </head>
+    <body class="sfen-booting">
+        <header class="nv-header">
+            <div class="nv-titlebar">
+                <svg class="nv-logo" width="22" height="22" viewBox="0 0 128 128" aria-hidden="true"><rect x="3" y="3" width="122" height="122" rx="28" fill="#FFFFFF" stroke="#111111" stroke-width="6"/><path d="M32 94V38L84 90V36M68 52L84 36L100 52" fill="none" stroke="#111111" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="nv-brand">Navigator</span>
+                <button id="orgSwitch" type="button" class="nv-org-switch" hidden>
+                    <span class="nv-dot"></span><span class="nv-org-switch-name"></span><span data-icon="chevronDown" data-size="14" data-stroke="2"></span>
+                </button>
+                <button id="headerAddOrg" type="button" class="nv-btn-link nv-with-icon" hidden><span data-icon="plus" data-size="14" data-stroke="2.2"></span>Add org</button>
+                <button id="settingsBtn" type="button" class="nv-icon-btn" aria-label="Settings" title="Settings"><span data-icon="gear" data-size="17"></span></button>
+            </div>
+            <label class="nv-search">
+                <span data-icon="search" data-stroke="2"></span>
+                <input id="popupSearch" type="text" aria-label="Search" placeholder="Search Setup and objects" autocomplete="off" spellcheck="false" />
+                <button id="searchClear" type="button" class="nv-icon-btn nv-search-clear" aria-label="Clear search" hidden><span data-icon="x" data-size="14" data-stroke="2"></span></button>
+            </label>
+        </header>
+
+        <!-- Section tabs -->
+        <nav class="nv-tabs" role="tablist" aria-label="Sections">
+            <button type="button" class="nv-tab" id="tabbtn-recent" data-tab="recent" role="tab" aria-selected="false" aria-controls="tab-recent">Recent</button>
+            <button type="button" class="nv-tab" id="tabbtn-navigate" data-tab="navigate" role="tab" aria-selected="false" aria-controls="tab-navigate">Navigate</button>
+            <button type="button" class="nv-tab" id="tabbtn-objects" data-tab="objects" role="tab" aria-selected="false" aria-controls="tab-objects">Objects</button>
+            <button type="button" class="nv-tab" id="tabbtn-orgs" data-tab="orgs" role="tab" aria-selected="false" aria-controls="tab-orgs">Orgs</button>
+            <button id="tabAddOrg" type="button" class="nv-btn-link nv-with-icon nv-tabs-action" hidden><span data-icon="plus" data-size="14" data-stroke="2.2"></span>Add org</button>
+        </nav>
+
+        <!-- Search results (cover the tabs while searching) -->
+        <main id="searchResults" class="nv-main nv-list" role="listbox" aria-label="Results" hidden></main>
+
+        <!-- Tab panels -->
+        <main id="tab-recent" class="nv-main nv-list tab-panel" role="tabpanel" aria-labelledby="tabbtn-recent" hidden>
+            <div id="recentSetupLabel" class="nv-group" hidden>Setup</div>
+            <div id="recentSetup"></div>
+            <div id="recentRecordsLabel" class="nv-group nv-group-gap" hidden>Recently viewed</div>
+            <div id="recentList"></div>
+            <div id="recentEmpty" class="nv-empty" hidden>
+                <div class="nv-empty-body">
+                    <span data-icon="clock" data-size="28" data-stroke="1.6"></span>
+                    <span class="nv-empty-title">Nothing recent yet</span>
+                    <span class="nv-empty-text">Setup pages you open and records you view will show up here.</span>
+                    <a id="recentOpenSetup" href="#" class="nv-btn-primary">Open Setup</a>
+                </div>
+                <div class="nv-empty-tip">Tip: press <b>⌥K</b> on any Salesforce page to search without opening this popup.</div>
+            </div>
+        </main>
+
+        <main id="tab-navigate" class="nv-main nv-list tab-panel nv-navigate" role="tabpanel" aria-labelledby="tabbtn-navigate" hidden>
+            <div class="nv-quick-grid">
+                <a id="home" href="#"><span data-icon="home" data-size="18"></span>Home</a>
+                <a id="setup" href="#"><span data-icon="wrench" data-size="18"></span>Setup</a>
+                <a id="objManager" href="#"><span data-icon="box" data-size="18"></span>Object Manager</a>
+                <a id="devConsole" href="#"><span data-icon="terminal" data-size="18"></span>Dev Console</a>
+                <a id="flows" href="#"><span data-icon="flow" data-size="18"></span>Flows</a>
+                <a id="users" href="#"><span data-icon="users" data-size="18"></span>Users</a>
+                <a id="inChangeSets" href="#" data-label="Inbound Change Sets" title="Inbound Change Sets"><span data-icon="download" data-size="18"></span>Inbound</a>
+                <a id="outChangeSets" href="#" data-label="Outbound Change Sets" title="Outbound Change Sets"><span data-icon="upload" data-size="18"></span>Outbound</a>
+            </div>
+            <div class="nv-group-bar">
+                <span class="nv-group">Bookmarks <span id="bookmarkCount" class="nv-group-count"></span></span>
+                <button id="addBookmark" type="button" class="nv-btn-link nv-with-icon"><span data-icon="plus" data-size="14" data-stroke="2.2"></span>Add this page</button>
+            </div>
+            <div id="bookmarksContainer"></div>
+        </main>
+
+        <main id="tab-objects" class="nv-main nv-list tab-panel" role="tabpanel" aria-labelledby="tabbtn-objects" hidden>
+            <div id="objectList"></div>
+        </main>
+
+        <main id="tab-orgs" class="nv-main nv-list tab-panel" role="tabpanel" aria-labelledby="tabbtn-orgs" hidden>
+            <!-- Saved orgs. Populated by logins.js. -->
+            <div id="quickLogin"></div>
+        </main>
+    </body>
+</html>

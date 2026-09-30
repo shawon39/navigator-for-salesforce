@@ -1,0 +1,36 @@
+# Changelog
+
+## Unreleased
+
+## 5.0.0
+
+A full redesign, plus new ways to search.
+
+### Added
+- App search: type an app name, or `app` to list all your apps in App Launcher order.
+- Field search: `fields account indus` opens the Industry field's Setup page.
+- Orgs tab: rename and pin orgs, colored dots for org type, "This tab" marker, add orgs that are open in the browser.
+- N button in the Salesforce header that opens the popup (can be turned off).
+- Home opens the current app's own start page, so apps without a Home tab don't get an extra Home tab.
+- Full Settings page: theme (light, dark, system), popup tabs, features, org names, shortcuts, import and export.
+- Record inspector: field labels, Copy Id and Copy JSON.
+- "Log in as" mode in the command palette (`login jane`).
+
+### Changed
+- New look for the popup, command palette, Settings and Setup quick-tab dialogs.
+- Search ranks exact and prefix matches first, so "users" finds Users.
+- Mac shortcuts use Option: Option+E (popup), Option+K (palette), Option+S (Setup), Option+L (Home).
+
+### Security
+- The background worker only accepts messages from the extension itself, for Salesforce hosts, and only for the org of the page that asks.
+- "Log in as" validates the user Id and target page.
+- Host permissions are https only, and the `tabs` permission is no longer needed.
+
+### Fixed
+- Installing on a second computer no longer overwrites synced settings.
+- Failed saves now show an error instead of looking saved.
+- "Close the popup after opening a page" now applies everywhere.
+
+## 4.x and earlier
+
+See the git history.

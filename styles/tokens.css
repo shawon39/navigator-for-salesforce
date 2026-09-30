@@ -1,0 +1,117 @@
+/* tokens.css
+   Navigator design tokens (light + dark) and the bundled fonts. Shared by the
+   popup and the Settings page. A screen opts into a theme with class="nv-light"
+   or class="nv-dark". The command palette and Setup quick tabs carry the same
+   values in their own embedded CSS (content scripts can't link this file). */
+
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("../fonts/Figtree.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url("../fonts/JetBrainsMono.woff2") format("woff2");
+}
+
+.nv-light {
+  color-scheme: light;
+  --nv-bg: #F8FAFC;
+  --nv-surface: #FFFFFF;
+  --nv-surface-2: #F3F5F8;
+  --nv-surface-3: #E7EBF0;
+  --nv-border: #E4E8EE;
+  --nv-border-strong: #8A94A3;
+  --nv-text: #1F2937;
+  --nv-text-2: #4B5563;
+  --nv-text-3: #5F6B7A;
+
+  --nv-brand: #00A1E0;
+  --nv-primary: #0073A8;
+  --nv-primary-hover: #00669A;
+  --nv-on-primary: #FFFFFF;
+  --nv-primary-text: #0073A8;
+  --nv-sel: #E6F5FC;
+  --nv-on-sel: #1F2937;
+  --nv-on-sel-2: #5F6B7A;
+  --nv-sel-icon: #0073A8;
+  --nv-focus: #0082B8;
+  --nv-focus-ring: rgba(0, 130, 184, 0.18);
+  --nv-mark: #CCEEFB;
+
+  --nv-danger: #B42318;
+  --nv-danger-soft: #FEF2F2;
+  --nv-success: #15803D;
+
+  --nv-env-prod: #E5484D;
+  --nv-env-sandbox: #F59E0B;
+  --nv-env-scratch: #8B5CF6;
+  --nv-env-dev: #14B8A6;
+  --nv-env-other: #94A3B8;
+
+  --nv-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --nv-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.10), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --nv-shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.06);
+  --nv-scrim: rgba(15, 23, 42, 0.28);
+}
+
+.nv-dark {
+  color-scheme: dark;
+  --nv-bg: #14181F;
+  --nv-surface: #1A1F28;
+  --nv-surface-2: #222834;
+  --nv-surface-3: #2B3240;
+  --nv-border: #2A303B;
+  --nv-border-strong: #6B7686;
+  --nv-text: #E5E9F0;
+  --nv-text-2: #B6BFCC;
+  --nv-text-3: #8C97A7;
+
+  --nv-brand: #33B3E6;
+  --nv-primary: #33B3E6;
+  --nv-primary-hover: #5CC4EE;
+  --nv-on-primary: #0B1320;
+  --nv-primary-text: #5CC4EE;
+  --nv-sel: #1C3342;
+  --nv-on-sel: #E5E9F0;
+  --nv-on-sel-2: #B6BFCC;
+  --nv-sel-icon: #5CC4EE;
+  --nv-focus: #33B3E6;
+  --nv-focus-ring: rgba(51, 179, 230, 0.25);
+  --nv-mark: rgba(51, 179, 230, 0.28);
+
+  --nv-danger: #F87171;
+  --nv-danger-soft: #2A1A1D;
+  --nv-success: #4ADE80;
+
+  --nv-env-prod: #F87171;
+  --nv-env-sandbox: #FBBF24;
+  --nv-env-scratch: #A78BFA;
+  --nv-env-dev: #2DD4BF;
+  --nv-env-other: #8C97A7;
+
+  --nv-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --nv-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --nv-shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --nv-scrim: rgba(0, 0, 0, 0.45);
+}
+
+.nv-light,
+.nv-dark {
+  font-family: "Figtree", "Segoe UI", system-ui, sans-serif;
+  color: var(--nv-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.nv-light mark,
+.nv-dark mark {
+  background: var(--nv-mark);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}

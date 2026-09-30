@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Navigator Settings</title>
+    <script src="src/shared/themeBoot.js"></script>
+    <link rel="stylesheet" href="styles/tokens.css">
+    <link rel="stylesheet" href="styles/settings.css">
+</head>
+<body>
+    <header class="st-header">
+        <div class="st-header-inner">
+            <svg class="st-logo" width="26" height="26" viewBox="0 0 128 128" aria-hidden="true"><rect x="3" y="3" width="122" height="122" rx="28" fill="#FFFFFF" stroke="#111111" stroke-width="6"/><path d="M32 94V38L84 90V36M68 52L84 36L100 52" fill="none" stroke="#111111" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="st-brand">Navigator</span>
+            <span class="st-brand-sub">Settings</span>
+            <label class="st-search">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+                <input type="search" id="search" aria-label="Search settings" placeholder="Search settings" autocomplete="off">
+            </label>
+        </div>
+    </header>
+
+    <div class="st-layout">
+        <nav class="st-nav" aria-label="Settings sections">
+            <a href="#appearance" aria-current="page">Appearance</a>
+            <a href="#popup-tabs">Popup tabs</a>
+            <a href="#salesforce-pages">On Salesforce pages</a>
+            <a href="#behavior">Behavior</a>
+            <a href="#orgs">Orgs</a>
+            <a href="#shortcuts">Shortcuts</a>
+            <a href="#data">Data</a>
+            <a href="#about">About</a>
+        </nav>
+
+        <main class="st-main">
+            <div class="st-intro">
+                <h1>Settings</h1>
+                <p>Changes save as you make them and sync across your Chrome profile.</p>
+            </div>
+
+            <p id="noResults" class="st-no-results" hidden>No settings match your search.</p>
+
+            <section id="appearance" class="st-section" aria-labelledby="s-appearance">
+                <div class="st-section-head"><h2 id="s-appearance">Appearance</h2></div>
+                <div class="st-card">
+                    <div class="st-row st-row-lg st-item">
+                        <div class="st-row-text"><span class="st-row-title">Theme</span><span class="st-row-desc">System follows your computer's light or dark setting.</span></div>
+                        <div class="st-segmented" role="radiogroup" aria-label="Theme">
+                            <button type="button" role="radio" aria-checked="true" data-theme-option="light">Light</button>
+                            <button type="button" role="radio" aria-checked="false" data-theme-option="dark">Dark</button>
+                            <button type="button" role="radio" aria-checked="false" data-theme-option="system">System</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="popup-tabs" class="st-section" aria-labelledby="s-tabs">
+                <div class="st-section-head"><h2 id="s-tabs">Popup tabs</h2><span class="st-section-desc">Hide the tabs you don't use.</span></div>
+                <div class="st-card">
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Recent</span><span class="st-row-desc">Setup pages you opened and records you viewed.</span></div>
+                        <button type="button" class="st-switch" role="switch" aria-checked="true" aria-label="Recent tab" data-popup-tab="recent"><span></span></button>
+                    </div>
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Navigate</span><span class="st-row-desc">Quick links and your bookmarks.</span></div>
+                        <button type="button" class="st-switch" role="switch" aria-checked="true" aria-label="Navigate tab" data-popup-tab="navigate"><span></span></button>
+                    </div>
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Objects</span><span class="st-row-desc">Every object with list, new, fields and Object Manager pages.</span></div>
+                        <button type="button" class="st-switch" role="switch" aria-checked="true" aria-label="Objects tab" data-popup-tab="objects"><span></span></button>
+                    </div>
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Orgs</span><span class="st-row-desc">Your saved orgs, with names, pins and one-click open.</span></div>
+                        <button type="button" class="st-switch" role="switch" aria-checked="true" aria-label="Orgs tab" data-popup-tab="orgs"><span></span></button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="salesforce-pages" class="st-section" aria-labelledby="s-pages">
+                <div class="st-section-head"><h2 id="s-pages">On Salesforce pages</h2></div>
+                <div class="st-card">
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Command palette <span id="paletteKey" class="st-row-key"></span></span><span class="st-row-desc">Jump to Setup, objects, flows and profiles without leaving the page.</span></div>
+                        <button type="button" class="st-switch" role="switch" aria-checked="true" aria-label="Command palette" data-setting="commandPalette"><span></span></button>
+                    </div>
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Setup quick tabs</span><span class="st-row-desc">A row of your favorite Setup pages under the Setup header.</span></div>
+                        <button type="button" class="st-switch" role="switch" aria-checked="true" aria-label="Setup quick tabs" data-setting="setupTabs"><span></span></button>
+                    </div>
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Navigator button in the header</span><span class="st-row-desc">An N icon in Salesforce's top-right header that opens the Navigator popup.</span></div>
+                        <button type="button" class="st-switch" role="switch" aria-checked="true" aria-label="Navigator button in the header" data-setting="headerPopupButton"><span></span></button>
+                    </div>
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Load data from your org</span><span class="st-row-desc">Objects, flows, profiles, permission sets and recently viewed records, loaded with the access token already in your browser. No sign-in needed.</span></div>
+                        <button type="button" class="st-switch" role="switch" aria-checked="true" aria-label="Load data from your org" data-setting="liveOrgAccess"><span></span></button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="behavior" class="st-section" aria-labelledby="s-behavior">
+                <div class="st-section-head"><h2 id="s-behavior">Behavior</h2></div>
+                <div class="st-card">
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Close the popup after opening a page</span><span class="st-row-desc">Turn off to open several pages in a row.</span></div>
+                        <button type="button" class="st-switch" role="switch" aria-checked="true" aria-label="Close the popup after opening a page" data-setting="autoClose"><span></span></button>
+                    </div>
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Ask before removing</span><span class="st-row-desc">Confirm before a bookmark, org or quick tab is removed.</span></div>
+                        <button type="button" class="st-switch" role="switch" aria-checked="true" aria-label="Ask before removing" data-setting="confirmDelete"><span></span></button>
+                    </div>
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Show managed-package objects</span><span class="st-row-desc">Include objects from installed packages in the Objects tab.</span></div>
+                        <button type="button" class="st-switch" role="switch" aria-checked="false" aria-label="Show managed-package objects" data-setting="showManaged"><span></span></button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="orgs" class="st-section" aria-labelledby="s-orgs">
+                <div class="st-section-head"><h2 id="s-orgs">Orgs</h2><span class="st-section-desc">Give each org a name you'll recognize. Leave it blank to use a cleaned-up My Domain name.</span></div>
+                <div class="st-card">
+                    <div id="orgHead" class="st-org-grid st-org-head"><span>Name</span><span>My Domain</span><span>Type</span><span></span></div>
+                    <div id="orgList"></div>
+                    <p id="orgEmpty" class="st-empty" hidden>No saved orgs yet. Add orgs from the Orgs tab in the Navigator popup.</p>
+                </div>
+            </section>
+
+            <section id="shortcuts" class="st-section" aria-labelledby="s-keys">
+                <div class="st-section-head"><h2 id="s-keys">Shortcuts</h2></div>
+                <div id="keysBanner" class="st-banner" role="status" hidden>
+                    <span>Some shortcuts aren't set. Chrome skips a default shortcut when another extension or Chrome already uses it.</span>
+                    <button type="button" id="setKeys" class="st-btn st-btn-primary">Set shortcuts</button>
+                </div>
+                <div class="st-card">
+                    <div class="st-key-row st-item"><span>Open the Navigator popup</span><span class="st-key" data-command="_execute_action"></span></div>
+                    <div class="st-key-row st-item"><span>Open the command palette</span><span class="st-key" data-command="open_command_palette"></span></div>
+                    <div class="st-key-row st-item"><span>Go to Setup</span><span class="st-key" data-command="navigate_to_setup"></span></div>
+                    <div class="st-key-row st-item"><span>Go to Home</span><span class="st-key" data-command="navigate_to_home"></span></div>
+                    <div class="st-key-row st-key-foot st-item"><span>Chrome manages these keys.</span><a id="changeKeys" class="st-link" href="chrome://extensions/shortcuts">Change in Chrome</a></div>
+                </div>
+            </section>
+
+            <section id="data" class="st-section" aria-labelledby="s-data">
+                <div class="st-section-head"><h2 id="s-data">Data</h2></div>
+                <div class="st-card">
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Export</span><span class="st-row-desc">Bookmarks, quick tabs, orgs and settings in one JSON file.</span></div>
+                        <button type="button" id="exportBtn" class="st-btn">Export</button>
+                    </div>
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Import</span><span class="st-row-desc">Replace your data with a file you exported earlier.</span></div>
+                        <button type="button" id="importBtn" class="st-btn">Import</button>
+                        <input type="file" id="importFile" accept=".json,application/json" hidden>
+                    </div>
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Reset settings</span><span class="st-row-desc">Turn every option back to its default. Your bookmarks and orgs are kept.</span></div>
+                        <button type="button" id="resetBtn" class="st-btn">Reset</button>
+                    </div>
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Clear all data</span><span class="st-row-desc">Delete everything Navigator stores in this browser.</span></div>
+                        <button type="button" id="clearBtn" class="st-btn st-btn-danger">Clear…</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="about" class="st-section" aria-labelledby="s-about">
+                <div class="st-section-head"><h2 id="s-about">About</h2></div>
+                <div class="st-about st-item">
+                    <svg width="36" height="36" viewBox="0 0 128 128" aria-hidden="true"><rect x="3" y="3" width="122" height="122" rx="28" fill="#FFFFFF" stroke="#111111" stroke-width="6"/><path d="M32 94V38L84 90V36M68 52L84 36L100 52" fill="none" stroke="#111111" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <div class="st-row-text"><span class="st-about-title">Navigator for Salesforce <span id="version" class="st-about-version"></span></span><span class="st-row-desc">Runs entirely in your browser. Nothing is sent anywhere except your own org.</span></div>
+                    <div class="st-about-links">
+                        <a class="st-link" href="https://github.com/shawon39" target="_blank" rel="noopener">GitHub</a>
+                        <a class="st-link" href="https://www.linkedin.com/in/shawon39" target="_blank" rel="noopener">LinkedIn</a>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="status" class="st-status" role="status"></div>
+
+    <script src="src/shared/sfUrl.js"></script>
+    <script src="src/shared/settings.js"></script>
+    <script src="src/shared/orgs.js"></script>
+    <script src="src/settings/settingsPage.js"></script>
+</body>
+</html>
