@@ -100,6 +100,11 @@ async function sfGetUserInfo(host) {
 }
 
 const USER_ID_RE = /^005[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/;
+// Shapes checked before any value goes into a SOQL string or a REST path,
+// including values that came back from Salesforce itself.
+const RECORD_ID_RE = /^[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?$/;
+const ORG_ID_RE = /^00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/;
+const API_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 // "Home" opens the current app's own landing page: the app the user last used
 // on desktop (UserAppInfo) at /lightning/app/<id>, which Salesforce opens on
@@ -136,7 +141,12 @@ const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "admin", 
 // Why a palette message must be refused, or null when it's allowed.
 function paletteDenied(msg, sender) {
     if (!sender || sender.id !== chrome.runtime.id) return "Unknown sender";
-    if (msg.action !== "orgs" && !SFEN_URL.isSalesforceHost(msg.host)) {
+    if (msg.action === "orgs") {
+        // Lists every org with a session: for the popup only, not for pages.
+        return sender.tab ? "Not allowed from a page" : null;
+    }
+    // A bare host name only (no path, port or "@"), on a Salesforce domain.
+    if (typeof msg.host !== "string" || !/^[a-z0-9.-]+$/i.test(msg.host) || !SFEN_URL.isSalesforceHost(msg.host)) {
         return "Not a Salesforce host";
     }
     if (sender.tab) {
@@ -214,7 +224,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 // attached — a raw browser request would 401.
                 const type = msg.recordType;
                 const id = msg.recordId;
-                if (!type || !id) throw new Error("Missing record type or Id");
+                if (!API_NAME_RE.test(type || "") || !RECORD_ID_RE.test(id || "")) {
+                    throw new Error("Invalid record type or Id");
+                }
                 const record = await sfFetch(
                     host,
                     `/services/data/${SF_API_VERSION}/sobjects/${encodeURIComponent(
@@ -225,7 +237,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             } else if (msg.action === "describe") {
                 // Field labels for the record inspector: [{ name, label }] only.
                 const type = msg.recordType;
-                if (!type) throw new Error("Missing record type");
+                if (!API_NAME_RE.test(type || "")) throw new Error("Invalid record type");
                 const data = await sfFetch(
                     host,
                     `/services/data/${SF_API_VERSION}/sobjects/${encodeURIComponent(type)}/describe`
@@ -254,7 +266,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     .filter(
                         (r) =>
                             r.attributes &&
-                            r.attributes.type &&
+                            API_NAME_RE.test(r.attributes.type || "") &&
+                            RECORD_ID_RE.test(r.Id || "") &&
                             !SEARCH_NOISE.test(r.attributes.type)
                     )
                     .slice(0, 30);
@@ -437,7 +450,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 if (!session) throw new Error("No Salesforce session found");
                 const info = await sfGetUserInfo(host);
                 const orgId = info && info.organization_id;
-                if (!orgId) throw new Error("Could not determine org Id");
+                if (!ORG_ID_RE.test(orgId || "")) throw new Error("Could not determine org Id");
                 // Land on the page the user is currently viewing (e.g. an
                 // Opportunity list view), falling back to Home.
                 const targetUrl = SFEN_URL.isSafePath(msg.targetPath)

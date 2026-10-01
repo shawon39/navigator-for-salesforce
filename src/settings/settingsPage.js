@@ -318,7 +318,7 @@
         quickOrgs: (o) => {
             if (!o || !isStr(o.host) || !(o.label == null || isStr(o.label))) return null;
             const host = cleanHost(o.host);
-            if (!/^[A-Za-z0-9.-]+$/.test(host) || !(U.isSalesforceHost(host) || host.includes("."))) return null;
+            if (!U.isOrgHost(host)) return null;
             return {
                 id: isStr(o.id) && o.id ? o.id : crypto.randomUUID(),
                 label: o.label || "",
@@ -330,6 +330,7 @@
         pinnedObjects: (p) => (isStr(p) && /^[A-Za-z0-9_]+$/.test(p) ? p : null),
     };
     const CAPS = { bookmarks: MAX_BOOKMARKS, quickOrgs: MAX_ORGS };
+    const IMPORT_LABELS = { bookmarks: "Bookmarks", sfTabs: "Quick tabs", quickOrgs: "Orgs", pinnedObjects: "Pinned objects" };
 
     // Accepts this page's export (version "2.0") and the older popup export
     // (version "1.0": bookmarks + settings).
@@ -357,6 +358,12 @@
                     }
                     if (!Array.isArray(v)) return;
                     const good = v.map(CLEAN[k]).filter((x) => x !== null).slice(0, CAPS[k]);
+                    // A list with entries but none valid is a broken file:
+                    // keep the current list instead of emptying it.
+                    if (v.length && !good.length) {
+                        skipped += v.length;
+                        return;
+                    }
                     if (k === "quickOrgs") {
                         // Ids must be unique; give duplicates a fresh one.
                         const seen = new Set();
@@ -374,11 +381,20 @@
                 showStatus("That file isn't a Navigator export.", true);
                 return;
             }
-            if (!confirm("Replace your current data with the contents of this file?")) return;
-            cancelSettingsSave(); // the file's settings win over an unsaved change
-            writeSync(next, (ok) => {
-                if (ok) showStatus(`Imported ${kept} item${kept === 1 ? "" : "s"}, skipped ${skipped}.`);
-                renderAll();
+            // Say exactly what will be replaced, with counts, before writing.
+            chrome.storage.sync.get(EXPORT_KEYS, (current) => {
+                const count = (list) => (Array.isArray(list) ? list.length : 0);
+                const lines = Object.keys(IMPORT_LABELS)
+                    .filter((k) => next[k])
+                    .map((k) => `${IMPORT_LABELS[k]}: ${count(current[k])} now → ${next[k].length} from the file`);
+                if (next.settings) lines.push("Settings: replaced by the file's settings");
+                const note = skipped ? `\n\n${skipped} invalid item${skipped === 1 ? "" : "s"} will be skipped.` : "";
+                if (!confirm("Import will replace:\n\n" + lines.join("\n") + note + "\n\nEverything else is kept.")) return;
+                cancelSettingsSave(); // the file's settings win over an unsaved change
+                writeSync(next, (ok) => {
+                    if (ok) showStatus(`Imported ${kept} item${kept === 1 ? "" : "s"}, skipped ${skipped}.`);
+                    renderAll();
+                });
             });
         };
         reader.readAsText(file);
@@ -394,20 +410,27 @@
     }
 
     function clearAll() {
-        if (!confirm("Delete everything Navigator stores in this browser, including bookmarks, orgs and settings? This can't be undone.")) return;
+        if (!confirm("Delete everything Navigator stores, including bookmarks, orgs and settings, on every device synced to this Chrome profile? This can't be undone. Tip: Export first to keep a copy.")) return;
         cancelSettingsSave();
-        chrome.storage.sync.clear(() => {
-            chrome.storage.local.clear(() => {
-                settings = S.normalize(null);
-                renderSettings();
-                renderOrgs([]);
-                // applyTheme remembers the theme for themeBoot.js; forget it too.
-                try {
-                    localStorage.removeItem("nvTheme");
-                } catch (e) {}
-                showStatus("All data cleared.");
-            });
-        });
+        // Queued after any pending write, so a late save can't bring data back.
+        writeQueue = writeQueue.then(
+            () =>
+                new Promise((resolve) =>
+                    chrome.storage.sync.clear(() => {
+                        chrome.storage.local.clear(() => {
+                            settings = S.normalize(null);
+                            renderSettings();
+                            renderOrgs([]);
+                            // applyTheme remembers the theme for themeBoot.js; forget it too.
+                            try {
+                                localStorage.removeItem("nvTheme");
+                            } catch (e) {}
+                            showStatus("All data cleared.");
+                            resolve();
+                        });
+                    })
+                )
+        );
     }
 
     function bindData() {

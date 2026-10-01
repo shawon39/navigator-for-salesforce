@@ -63,6 +63,31 @@
         return !!tab && typeof tab === "object" && typeof tab.name === "string" && SFEN_URL.isSafePath(tab.link);
     }
 
+    // Change the stored tabs from a fresh read, finding `target` by name +
+    // link rather than by its old position, so a change made meanwhile in
+    // another tab or on another device isn't overwritten. change(tabs, i)
+    // edits the array in place; done(false) means the tab is gone.
+    function editTabs(target, change, done) {
+        if (!isExtensionAlive()) return;
+        chrome.storage.sync.get({ sfTabs: [] }, ({ sfTabs }) => {
+            const tabs = Array.isArray(sfTabs) ? sfTabs : [];
+            const i = tabs.findIndex((t) => t && t.name === target.name && t.link === target.link);
+            if (i === -1) return done(false);
+            change(tabs, i);
+            chrome.storage.sync.set({ sfTabs: tabs }, () => done(true));
+        });
+    }
+
+    // Page scripts share this DOM: ignore their synthetic events so they
+    // can't drive the quick-tab buttons and dialogs (e.g. click Remove).
+    function blockUntrusted(el) {
+        ["click", "keydown", "input", "drop", "dragstart"].forEach((type) =>
+            el.addEventListener(type, (e) => {
+                if (!e.isTrusted) e.stopImmediatePropagation();
+            }, true)
+        );
+    }
+
     // Function to check if we should show custom tabs on current page
     function shouldShowCustomTabs() {
         const currentPath = window.location.pathname;
@@ -128,6 +153,7 @@
             ul = document.createElement("ul");
             ul.id = "sfNGTabsURL";
             ul.setAttribute("aria-label", "Navigator quick tabs");
+            blockUntrusted(ul);
             // Any styling for the UL is in setupStyle.css.
             tabBar.appendChild(ul);
         }
@@ -208,14 +234,10 @@
                         const targetIndex = Number(li.dataset.index);
                         if (draggedIndex === null || draggedIndex === targetIndex || !isExtensionAlive())
                             return;
-                        // Reorder the tabs array
-                        const newTabs = [...tabs];
-                        const draggedItem = newTabs.splice(draggedIndex, 1)[0];
-                        newTabs.splice(targetIndex, 0, draggedItem);
-                        // Save the new order and reload the UI
-                        chrome.storage.sync.set({ sfTabs: newTabs }, () => {
-                            loadStoredTabs();
-                        });
+                        // Move the dragged tab to the drop position and reload the UI
+                        editTabs(tabs[draggedIndex], (list, from) => {
+                            list.splice(Math.min(targetIndex, list.length - 1), 0, list.splice(from, 1)[0]);
+                        }, loadStoredTabs);
                         draggedIndex = null;
                     });
 
@@ -241,6 +263,7 @@
             const overlay = document.createElement("div");
             overlay.className = "sfen-qt-overlay";
             applyQuickTabsTheme(overlay);
+            blockUntrusted(overlay);
 
             const onKeydown = (e) => {
                 if (e.key !== "Escape") return;
@@ -355,26 +378,23 @@
                     return;
                 }
                 if (!isExtensionAlive()) return;
-                chrome.storage.sync.get({ sfTabs: [] }, (result) => {
-                    const tabs = result.sfTabs;
-                    // The list changed since the dialog opened (e.g. in another tab).
-                    if (!tabs[index]) {
+                editTabs(tab, (tabs, i) => {
+                    tabs[i] = { name: newTabName, link: newTabLink };
+                }, (ok) => {
+                    // The tab was removed or changed since the dialog opened (e.g. in another tab).
+                    if (!ok) {
                         validationMsg.textContent = "This tab no longer exists.";
                         loadStoredTabs();
                         return;
                     }
-                    tabs[index].name = newTabName;
-                    tabs[index].link = newTabLink;
-                    chrome.storage.sync.set({ sfTabs: tabs }, () => {
-                        loadStoredTabs();
-                        // If the edit modal list is open, update it instantly.
-                        const editListContainer =
-                            document.getElementById("editModalListNG");
-                        if (editListContainer) {
-                            renderEditList(editListContainer);
-                        }
-                        close();
-                    });
+                    loadStoredTabs();
+                    // If the edit modal list is open, update it instantly.
+                    const editListContainer =
+                        document.getElementById("editModalListNG");
+                    if (editListContainer) {
+                        renderEditList(editListContainer);
+                    }
+                    close();
                 });
             });
             btnContainer.appendChild(saveBtn);
@@ -394,10 +414,9 @@
                 // Move one tab to a new position, save, and re-render both lists.
                 let draggedEditIndex = null;
                 const moveTab = (from, to, focusAfter) => {
-                    if (!isExtensionAlive()) return;
-                    const newTabs = [...tabs];
-                    newTabs.splice(to, 0, newTabs.splice(from, 1)[0]);
-                    chrome.storage.sync.set({ sfTabs: newTabs }, () => {
+                    editTabs(tabs[from], (list, i) => {
+                        list.splice(Math.min(to, list.length - 1), 0, list.splice(i, 1)[0]);
+                    }, () => {
                         renderEditList(container, focusAfter);
                         loadStoredTabs();
                     });
@@ -486,9 +505,9 @@
                                     if (focusAfter) editBtn.focus();
                                     return;
                                 }
-                                if (!isExtensionAlive()) return;
-                                tabs[index].name = newName;
-                                chrome.storage.sync.set({ sfTabs: tabs }, () => {
+                                editTabs(tab, (list, i) => {
+                                    list[i] = { name: newName, link: tab.link };
+                                }, () => {
                                     renderEditList(container, focusAfter && `.sfen-qt-item[data-index="${index}"] .sfen-qt-icon-btn`);
                                     loadStoredTabs();
                                 });
@@ -520,8 +539,7 @@
                                 if (!isExtensionAlive()) return;
                                 SFEN_SETTINGS.load((settings) => {
                                     if (settings.confirmDelete && !confirm(`Remove "${tab.name}"?`)) return;
-                                    tabs.splice(index, 1);
-                                    chrome.storage.sync.set({ sfTabs: tabs }, () => {
+                                    editTabs(tab, (list, i) => list.splice(i, 1), () => {
                                         renderEditList(container);
                                         loadStoredTabs();
                                     });
@@ -581,15 +599,13 @@
                     return;
                 }
 
-                // Automatically extract the tab link from the current URL.
-                const currentUrl = window.location.href;
-                const lightningIndex = currentUrl.indexOf("/lightning");
-                if (lightningIndex === -1) {
+                // The tab link is the current page's path (plus query and hash).
+                const tabLink = window.location.pathname + window.location.search + window.location.hash;
+                if (!tabLink.startsWith("/lightning/") || !SFEN_URL.isSafePath(tabLink)) {
                     validationMsg.textContent =
                         "Current URL is not a Lightning page.";
                     return;
                 }
-                const tabLink = currentUrl.substring(lightningIndex);
 
                 if (!isExtensionAlive()) return;
                 chrome.storage.sync.get({ sfTabs: [] }, (result) => {

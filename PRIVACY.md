@@ -6,7 +6,7 @@ Navigator for Salesforce is a browser extension that helps you move around Sales
 
 ## What the extension uses
 
-- **Your Salesforce session.** When you use search features that need live data (objects, fields, records, apps, flows, profiles and permission sets), the extension reads the session cookie of the Salesforce org you are already logged in to. It uses that session only to send read-only requests to that same org's Salesforce API. The cookie is not saved by the extension and is never sent anywhere else.
+- **Your Salesforce session.** When you use search features that need live data (objects, fields, records, apps, flows, profiles and permission sets), the extension reads the session cookie of the Salesforce org you are already logged in to. It uses that session only to send read-only requests to that same org's Salesforce API. The cookie is not saved by the extension and is never sent anywhere else. When you use "Login as" in Incognito, the session is passed in the link to that same org's `frontdoor.jsp` page, because that is the only way to carry it into a private window. The link stays in that window's history until you close the window.
 - **Your settings and saved items.** Settings, bookmarks, Setup quick tabs, pinned objects and saved orgs (a name you choose and the org's web address) are stored with Chrome's storage and synced through your own Chrome profile.
 - **Recent Setup pages.** A short list of Setup pages you opened is kept in your browser's local storage so they can be shown under "Recent".
 

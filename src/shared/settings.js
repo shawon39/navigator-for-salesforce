@@ -18,10 +18,22 @@
         popupTabs: { recent: true, navigate: true, objects: true, orgs: true },
     };
 
+    const THEMES = ["light", "dark", "system"];
+
+    // Only known keys with the right type are kept (settings can come from an
+    // imported file), so unknown keys and wrong types fall back to defaults.
     function normalize(raw) {
-        const s = Object.assign({}, DEFAULTS, raw || {});
-        s.popupTabs = Object.assign({}, DEFAULTS.popupTabs, (raw && raw.popupTabs) || {});
-        if (!raw || !raw.theme) s.theme = raw && raw.darkMode ? "dark" : "light";
+        raw = raw && typeof raw === "object" ? raw : {};
+        const s = {};
+        Object.keys(DEFAULTS).forEach((k) => {
+            s[k] = typeof raw[k] === typeof DEFAULTS[k] ? raw[k] : DEFAULTS[k];
+        });
+        const tabs = raw.popupTabs && typeof raw.popupTabs === "object" ? raw.popupTabs : {};
+        s.popupTabs = {};
+        Object.keys(DEFAULTS.popupTabs).forEach((k) => {
+            s.popupTabs[k] = typeof tabs[k] === "boolean" ? tabs[k] : DEFAULTS.popupTabs[k];
+        });
+        if (!THEMES.includes(raw.theme)) s.theme = raw.darkMode === true ? "dark" : "light";
         return s;
     }
 

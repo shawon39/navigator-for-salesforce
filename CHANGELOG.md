@@ -25,6 +25,13 @@ A full redesign, plus new ways to search.
 - The background worker only accepts messages from the extension itself, for Salesforce hosts, and only for the org of the page that asks.
 - "Log in as" validates the user Id and target page.
 - Host permissions are https only, and the `tabs` permission is no longer needed.
+- Page scripts can't read or drive the command palette or the quick-tab buttons (closed Shadow DOM, real clicks and keys only).
+- Saved orgs can only point at Salesforce domains, so an imported file can't add a look-alike login page.
+- Import shows what it will replace, with counts, and never empties a list because of a broken file.
+- Imported settings keep only known options with the right type.
+- Quick-tab edits re-read the saved list first, so changes from another tab or device aren't lost.
+- Stricter checks on host names, record Ids and object names before any API call, and on encoded slashes in paths.
+- "Clear all data" says it clears every synced device.
 
 ### Fixed
 - Installing on a second computer no longer overwrites synced settings.

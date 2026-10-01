@@ -66,6 +66,29 @@ const H = "acme.my.salesforce.com";
     r = await send({ type: "palette", action: "objects", host: "evil.com" }, popup);
     assert.strictEqual(r.ok, false); console.log("PASS non-Salesforce host rejected:", r.error);
 
+    // host must be a bare host name, not a URL that ends in a Salesforce suffix
+    for (const bad of ["evil.com/x.force.com", "a@evil.com#.force.com", "evil.com:443/.my.salesforce.com", 42]) {
+        r = await send({ type: "palette", action: "objects", host: bad }, popup);
+        assert.deepStrictEqual([r.ok, r.error], [false, "Not a Salesforce host"]);
+    }
+    console.log("PASS host with path, '@' or port rejected");
+
+    // "orgs" lists every logged-in org: popup only, never a page
+    r = await send({ type: "palette", action: "orgs", host: "" }, tab("https://acme.lightning.force.com/lightning/page/home"));
+    assert.deepStrictEqual([r.ok, r.error], [false, "Not allowed from a page"]); console.log("PASS orgs refused from a page");
+
+    // record / describe: type and Id must look like an API name and a record Id
+    fetchCalls = [];
+    r = await send({ type: "palette", action: "record", host: H, recordType: "..", recordId: "001000000000001" }, popup);
+    assert.strictEqual(r.ok, false);
+    r = await send({ type: "palette", action: "record", host: H, recordType: "Account", recordId: "../../x" }, popup);
+    assert.strictEqual(r.ok, false);
+    r = await send({ type: "palette", action: "describe", host: H, recordType: "../limits" }, popup);
+    assert.strictEqual(r.ok, false);
+    assert.strictEqual(fetchCalls.length, 0);
+    r = await send({ type: "palette", action: "record", host: H, recordType: "ns__Thing__c", recordId: "a01000000000001AAA" }, popup);
+    assert.strictEqual(r.ok, true); console.log("PASS record/describe reject '..' paths, accept real names");
+
     // orgs with host "" still works; expired cookie skipped
     cookies = [
         { domain: ".live.my.salesforce.com", value: "x" },

@@ -72,7 +72,8 @@
     // One page-level listener, so the "N" button keeps working even if
     // Lightning re-renders or copies the header markup.
     document.addEventListener("click", (e) => {
-        if (!e.target.closest || !e.target.closest("#sfen-header-nav") || !alive()) return;
+        // isTrusted: only a real click, not a page script's .click().
+        if (!e.isTrusted || !e.target.closest || !e.target.closest("#sfen-header-nav") || !alive()) return;
         chrome.runtime.sendMessage({ type: "openPopup" }, () => void chrome.runtime.lastError);
     });
 

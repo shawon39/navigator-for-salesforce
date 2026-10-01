@@ -69,13 +69,17 @@
     // One click: open the org host. With a live session it lands straight in;
     // without one, Salesforce shows that org's login page.
     function openOrg(host, background) {
+        if (!SFEN_URL.isOrgHost(host)) return toast("That isn't a Salesforce address");
         chrome.tabs.create({ url: "https://" + host, active: !background });
         if (!background) window.SFEN_POPUP_READY.then((r) => r.settings.autoClose && window.close());
     }
 
     function saveOrg(host, isSandbox) {
         host = cleanHost(host);
-        if (!host) return false;
+        if (!SFEN_URL.isOrgHost(host)) {
+            toast("Enter a Salesforce address, like acme.my.salesforce.com");
+            return false;
+        }
         if (isSaved(host)) {
             toast("That org is already saved");
             return false;
@@ -165,7 +169,7 @@
         // (not popup.html#); plain left-clicks are intercepted below.
         const link = document.createElement("a");
         link.className = "nv-row-link";
-        link.href = "https://" + org.host;
+        if (SFEN_URL.isOrgHost(org.host)) link.href = "https://" + org.host;
         link.appendChild(orgText(org.host, name, type));
         link.addEventListener("click", (e) => {
             if (e.button !== 0 || e.shiftKey) return;
@@ -294,7 +298,7 @@
         const input = $("orgUrl");
         const preview = () => {
             const host = cleanHost(input.value);
-            const ok = host.includes(".");
+            const ok = SFEN_URL.isOrgHost(host);
             $("orgSave").disabled = !ok;
             const box = $("orgPreview");
             if (!ok) return (box.innerHTML = "");
@@ -305,7 +309,7 @@
         };
         const save = () => {
             const host = cleanHost(input.value);
-            if (host.includes(".") && saveOrg(host, /--|\.sandbox\./.test(host))) closeAdd();
+            if (saveOrg(host, /--|\.sandbox\./.test(host))) closeAdd();
         };
         input.addEventListener("input", preview);
         input.addEventListener("keydown", (e) => {

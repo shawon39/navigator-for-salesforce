@@ -399,7 +399,14 @@
         SFEN_SETTINGS.injectFonts();
         overlayHost = document.createElement("div");
         overlayHost.id = "sfen-cmdk-host";
-        shadow = overlayHost.attachShadow({ mode: "open" });
+        // Closed, and synthetic events are dropped, so page scripts can't
+        // read the results or drive the palette (search, "Login as").
+        shadow = overlayHost.attachShadow({ mode: "closed" });
+        ["click", "mousedown", "keydown", "input"].forEach((type) =>
+            shadow.addEventListener(type, (e) => {
+                if (!e.isTrusted) e.stopImmediatePropagation();
+            }, true)
+        );
 
         // Inject styles inline so they apply synchronously on first paint.
         const style = document.createElement("style");
@@ -541,6 +548,7 @@
     }
 
     function onInput() {
+        if (!opened) return;
         expandedKey = null;
         clearTimeout(searchTimer);
         // Too short to search: drop the live results (and any search in flight) now.
@@ -936,6 +944,8 @@
             btn.type = "button";
             btn.className = "login-btn" + (incognito ? " secondary" : "");
             btn.textContent = text;
+            if (incognito)
+                btn.title = "Opens a private window. Your session is passed in the link, so it stays in that window's history until you close it.";
             btn.addEventListener("click", (e) => {
                 e.stopPropagation();
                 runAction({ kind: "loginAs", userId: u.Id, incognito });
@@ -1230,6 +1240,7 @@
     }
 
     function runAction(action, newTab) {
+        if (!opened) return;
         if (action.kind === "nav") {
             close();
             navigate(action.url, newTab);
@@ -1258,6 +1269,7 @@
     }
 
     function choose(i, newTab) {
+        if (!opened) return;
         const entry = flatResults[i];
         if (!entry) return;
         if (entry.__action) {
@@ -1371,6 +1383,9 @@
         inspectKey = null; // a late record response is then ignored
         fieldsKey = null; // likewise a late fields response
         setLoading(null);
+        // Don't leave the last results (record values, users) in the page.
+        listEl.textContent = "";
+        flatResults.length = 0;
     }
 
     function toggle() {

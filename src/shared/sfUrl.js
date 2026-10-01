@@ -22,11 +22,21 @@
         }
     }
 
+    // Hosts a saved org may point at: Salesforce login, org and site domains
+    // (login.salesforce.com, *.my.salesforce.com, *.force.com, *.my.site.com).
+    // Anything else could be a look-alike login page.
+    const ORG_HOST_SUFFIXES = [".salesforce.com", ".force.com", ".salesforce-setup.com", ".my.site.com"];
+
+    function isOrgHost(host) {
+        const h = String(host || "").toLowerCase();
+        return /^[a-z0-9.-]+$/.test(h) && ORG_HOST_SUFFIXES.some((s) => h.endsWith(s));
+    }
+
     // A path that is safe to append to an org's origin: starts with a single
-    // "/" (not "//" or "/\", which would point at another host) and has no
-    // whitespace or backslashes.
+    // "/" (not "//" or "/\", which would point at another host, also not
+    // URL-encoded as "/%2F" or "/%5C") and has no whitespace or backslashes.
     function isSafePath(path) {
-        return typeof path === "string" && /^\/(?![/\\])[^\s\\]*$/.test(path);
+        return typeof path === "string" && /^\/(?![/\\]|%2f|%5c)[^\s\\]*$/i.test(path);
     }
 
     // Higher is better; -1 means the query's letters aren't all in the text in order.
@@ -68,5 +78,5 @@
         return fk >= 0 ? Math.min(fk, 99) : -1;
     }
 
-    root.SFEN_URL = { SF_HOST_SUFFIXES, isSalesforceHost, isSalesforceUrl, isSafePath, fuzzy, matchScore };
+    root.SFEN_URL = { SF_HOST_SUFFIXES, isSalesforceHost, isSalesforceUrl, isOrgHost, isSafePath, fuzzy, matchScore };
 })(typeof self !== "undefined" ? self : window);
