@@ -341,7 +341,9 @@
             return;
         }
         setLoading("search", true);
-        ask("search", { term }, (resp) => {
+        // The "login" verb queries users directly; plain search covers all records.
+        const action = activeVerb && VERBS[activeVerb].kind === "login" ? "users" : "search";
+        ask(action, { term }, (resp) => {
             if (seq !== searchSeq) return;
             setLoading("search", false);
             // A failed search counts as "no matches" (so "login" doesn't wait forever).
@@ -898,7 +900,7 @@
         setActive(0);
     }
 
-    // "login" verb: users from the record search. Enter logs in as the user in a
+    // "login" verb: users from the "users" lookup. Enter logs in as the user in a
     // new tab (like the ⋯ "Login as — new tab" action); Ctrl/⌘+Enter uses Incognito.
     function renderLogin(query) {
         panelEl.classList.remove("board-mode");

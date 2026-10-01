@@ -241,7 +241,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         fields: { kind: "object", action: "fields", label: "Fields" },
         app: { kind: "app", label: "App" }, // the user's Lightning apps
         apps: { kind: "app", label: "App" }, // alias of app
-        login: { kind: "login", label: "Log in as" }, // users from the record search
+        login: { kind: "login", label: "Log in as" }, // users from the "users" lookup
         record: { kind: "inspect", label: "Record" },
         json: { kind: "inspect", label: "Record" }, // alias of record
         api: { kind: "inspect", label: "Record" }, // alias of record

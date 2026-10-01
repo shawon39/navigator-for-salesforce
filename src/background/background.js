@@ -86,6 +86,11 @@ function soslEscape(term) {
     return term.replace(/[?&|!{}[\]()^~*:\\"'+\-]/g, "\\$&");
 }
 
+// A term for inside a SOQL LIKE '%…%' literal: quote, backslash and wildcards.
+function soqlLikeEscape(term) {
+    return term.replace(/[\\'%_]/g, "\\$&");
+}
+
 // userinfo (org id + current user id, needed for "Login as"), cached per API
 // host + session token so a re-login or user switch never reuses stale data.
 const userInfoCache = {};
@@ -136,7 +141,7 @@ async function appHomePath(host) {
     }
 }
 // Actions that read org data; all are gated by the liveOrgAccess setting.
-const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "admin", "describe", "context", "apps", "fields"]);
+const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "fields"]);
 
 // Why a palette message must be refused, or null when it's allowed.
 function paletteDenied(msg, sender) {
@@ -335,6 +340,34 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     Id: r.Id,
                     attributes: { type: r.attributes.type },
                     ...(byId[r.Id] || {}),
+                }));
+                sendResponse({ ok: true, records });
+            } else if (msg.action === "users") {
+                // Users for the "login" verb, queried directly: the global
+                // search above keeps only its top 30 hits, so a common name's
+                // Accounts/Contacts/Leads can push every User out. SOQL also
+                // matches Username and Alias and has no search-index lag.
+                const rawTerm = (msg.term || "").trim();
+                if (rawTerm.length < 2) {
+                    sendResponse({ ok: true, records: [] });
+                    return;
+                }
+                const like = `'%${soqlLikeEscape(rawTerm)}%'`;
+                const rows = await sfQueryAll(
+                    host,
+                    "SELECT Id, Name, Username, IsActive, Profile.Name, Alias FROM User " +
+                        `WHERE Name LIKE ${like} OR Username LIKE ${like} OR Alias LIKE ${like} ` +
+                        "ORDER BY IsActive DESC, Name LIMIT 20",
+                    1
+                );
+                const records = rows.map((u) => ({
+                    Id: u.Id,
+                    attributes: { type: "User" },
+                    Name: u.Name,
+                    Username: u.Username,
+                    IsActive: u.IsActive,
+                    Alias: u.Alias,
+                    ProfileName: u.Profile ? u.Profile.Name : null,
                 }));
                 sendResponse({ ok: true, records });
             } else if (msg.action === "appHome") {
