@@ -1,4 +1,5 @@
-// Background worker: the "users" action behind the palette's "login" verb.
+// Background worker: user lookup for the palette ("users" action for the
+// "login" verb, and users merged into plain "search").
 // Queries User directly (not the global search), escapes the term for LIKE,
 // maps rows to the record shape the palette expects, and honors live access.
 const fs = require("fs");
@@ -75,6 +76,46 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     r = await send({ action: "users", term: " a " });
     assert.deepStrictEqual([r.ok, r.records.length, fetchCalls.length], [true, 0, 0]);
     console.log("PASS users short term empty without fetch");
+
+    // Plain search: users come from the User query (first, at most 5), and
+    // User hits from the global search are dropped so they don't repeat.
+    const userRows = Array.from({ length: 7 }, (_, i) => ({
+        Id: `00500000000000${i}AAA`, Name: `Nat ${i}`, Username: `n${i}@acme.com`, IsActive: true, Alias: `n${i}`, Profile: null,
+    }));
+    let usersFail = false;
+    route = (url) => {
+        if (url.includes("/search/"))
+            return json({ searchRecords: [
+                { Id: "001000000000001AAA", attributes: { type: "Account" } },
+                { Id: "005000000000009AAA", attributes: { type: "User" } },
+            ] });
+        const q = soql(url);
+        if (q.includes("FROM User WHERE Name LIKE")) return usersFail ? { ok: false, status: 500, json: async () => [] } : json({ records: userRows });
+        if (q.includes("FROM Account")) return json({ records: [{ Id: "001000000000001AAA", Name: "Nathan Corp" }] });
+        return null;
+    };
+    fetchCalls = [];
+    r = await send({ action: "search", term: "Nat" });
+    assert.strictEqual(r.ok, true);
+    assert.deepStrictEqual(
+        r.records.map((x) => [x.attributes.type, x.Name]),
+        [["User", "Nat 0"], ["User", "Nat 1"], ["User", "Nat 2"], ["User", "Nat 3"], ["User", "Nat 4"], ["Account", "Nathan Corp"]]
+    );
+    assert.ok(!fetchCalls.some((u) => soql(u).includes("WHERE Id IN") && soql(u).includes("FROM User")), "SOSL User hits not resolved");
+    console.log("PASS search lists up to 5 users first, SOSL User hits dropped");
+
+    // A failed user query keeps the rest of the search.
+    usersFail = true;
+    r = await send({ action: "search", term: "Nat" });
+    assert.deepStrictEqual([r.ok, r.records.map((x) => x.Name)], [true, ["Nathan Corp"]]);
+    console.log("PASS search survives a failed user query");
+
+    // No global hits still returns the users.
+    usersFail = false;
+    route = (url) => (url.includes("/search/") ? json({ searchRecords: [] }) : json({ records: userRows.slice(0, 1) }));
+    r = await send({ action: "search", term: "Nat" });
+    assert.deepStrictEqual(r.records.map((x) => x.Name), ["Nat 0"]);
+    console.log("PASS search returns users when the global search finds nothing");
 
     // Gated by live org access like other data actions.
     storage = { settings: { liveOrgAccess: false } }; fetchCalls = [];

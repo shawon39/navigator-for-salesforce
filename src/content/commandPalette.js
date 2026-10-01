@@ -312,6 +312,8 @@
             keywords: `${name} ${type} record`,
         };
         if (type === "User") {
+            // Users are also found by Username and Alias; rank those matches too.
+            item.keywords += ` ${r.Username || ""} ${r.Alias || ""}`;
             item.sub = userSub(r);
             item.actions = userActions(r.Id);
             item.user = r; // raw fields for the "login" verb

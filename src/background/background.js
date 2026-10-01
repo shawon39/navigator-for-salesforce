@@ -91,6 +91,30 @@ function soqlLikeEscape(term) {
     return term.replace(/[\\'%_]/g, "\\$&");
 }
 
+// Users whose Name, Username or Alias contains `rawTerm`, active first, in the
+// palette's record shape. Queried directly rather than via the global SOSL
+// search, which keeps only its top 30 hits: a common name's Accounts,
+// Contacts and Leads can push every User out. SOQL also has no index lag.
+async function sfSearchUsers(host, rawTerm) {
+    const like = `'%${soqlLikeEscape(rawTerm)}%'`;
+    const rows = await sfQueryAll(
+        host,
+        "SELECT Id, Name, Username, IsActive, Profile.Name, Alias FROM User " +
+            `WHERE Name LIKE ${like} OR Username LIKE ${like} OR Alias LIKE ${like} ` +
+            "ORDER BY IsActive DESC, Name LIMIT 20",
+        1
+    );
+    return rows.map((u) => ({
+        Id: u.Id,
+        attributes: { type: "User" },
+        Name: u.Name,
+        Username: u.Username,
+        IsActive: u.IsActive,
+        Alias: u.Alias,
+        ProfileName: u.Profile ? u.Profile.Name : null,
+    }));
+}
+
 // userinfo (org id + current user id, needed for "Login as"), cached per API
 // host + session token so a re-login or user switch never reuses stale data.
 const userInfoCache = {};
@@ -257,6 +281,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     return;
                 }
                 const term = soslEscape(rawTerm);
+                // Users come from their own query (see sfSearchUsers), run
+                // alongside; at most 5, listed first. A failed user query only
+                // drops the users, not the whole search.
+                const usersPromise = sfSearchUsers(host, rawTerm).then(
+                    (users) => users.slice(0, 5),
+                    () => []
+                );
                 // Phase 1 — a global SOSL with no RETURNING finds matching Ids +
                 // types across ALL searchable objects (custom included). It comes
                 // back with only Id + object type, so names are resolved below.
@@ -266,25 +297,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         `FIND {${term}*} IN NAME FIELDS`
                     )}`
                 );
-                // Drop system/non-navigable objects and cap, keeping relevance order.
+                // Drop system/non-navigable objects and Users (queried above),
+                // and cap, keeping relevance order.
                 const hits = (found.searchRecords || [])
                     .filter(
                         (r) =>
                             r.attributes &&
                             API_NAME_RE.test(r.attributes.type || "") &&
                             RECORD_ID_RE.test(r.Id || "") &&
-                            !SEARCH_NOISE.test(r.attributes.type)
+                            !SEARCH_NOISE.test(r.attributes.type) &&
+                            r.attributes.type !== "User"
                     )
                     .slice(0, 30);
                 if (!hits.length) {
-                    sendResponse({ ok: true, records: [] });
+                    sendResponse({ ok: true, records: await usersPromise });
                     return;
                 }
                 // Phase 2 — resolve a display name per matched type, in parallel.
                 // Custom objects always expose Name; SEARCH_NAME_FIELDS covers the
-                // standard exceptions. Users keep the richer query so the palette's
-                // "Login as" / profile sub-line stays populated. Only the 8 most
-                // relevant types are queried; hits of other types are dropped.
+                // standard exceptions. Only the 8 most relevant types are queried;
+                // hits of other types are dropped.
                 const idsByType = {};
                 hits.forEach((r) => {
                     const t = r.attributes.type;
@@ -306,22 +338,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 await Promise.all(
                     Object.keys(idsByType).map(async (type) => {
                         const inList = idsByType[type].map((id) => `'${id}'`).join(",");
-                        if (type === "User") {
-                            const rows = await runQuery(
-                                "SELECT Id, Name, Username, IsActive, Profile.Name, Alias " +
-                                `FROM User WHERE Id IN (${inList})`
-                            );
-                            (rows || []).forEach((u) => {
-                                byId[u.Id] = {
-                                    Name: u.Name,
-                                    Username: u.Username,
-                                    IsActive: u.IsActive,
-                                    Alias: u.Alias,
-                                    ProfileName: u.Profile ? u.Profile.Name : null,
-                                };
-                            });
-                            return;
-                        }
                         const nameField = SEARCH_NAME_FIELDS[type] || "Name";
                         let rows = await runQuery(
                             `SELECT Id, ${nameField} FROM ${type} WHERE Id IN (${inList})`
@@ -341,35 +357,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     attributes: { type: r.attributes.type },
                     ...(byId[r.Id] || {}),
                 }));
-                sendResponse({ ok: true, records });
+                sendResponse({ ok: true, records: (await usersPromise).concat(records) });
             } else if (msg.action === "users") {
-                // Users for the "login" verb, queried directly: the global
-                // search above keeps only its top 30 hits, so a common name's
-                // Accounts/Contacts/Leads can push every User out. SOQL also
-                // matches Username and Alias and has no search-index lag.
+                // Users for the "login" verb.
                 const rawTerm = (msg.term || "").trim();
                 if (rawTerm.length < 2) {
                     sendResponse({ ok: true, records: [] });
                     return;
                 }
-                const like = `'%${soqlLikeEscape(rawTerm)}%'`;
-                const rows = await sfQueryAll(
-                    host,
-                    "SELECT Id, Name, Username, IsActive, Profile.Name, Alias FROM User " +
-                        `WHERE Name LIKE ${like} OR Username LIKE ${like} OR Alias LIKE ${like} ` +
-                        "ORDER BY IsActive DESC, Name LIMIT 20",
-                    1
-                );
-                const records = rows.map((u) => ({
-                    Id: u.Id,
-                    attributes: { type: "User" },
-                    Name: u.Name,
-                    Username: u.Username,
-                    IsActive: u.IsActive,
-                    Alias: u.Alias,
-                    ProfileName: u.Profile ? u.Profile.Name : null,
-                }));
-                sendResponse({ ok: true, records });
+                sendResponse({ ok: true, records: await sfSearchUsers(host, rawTerm) });
             } else if (msg.action === "appHome") {
                 sendResponse({ ok: true, path: await appHomePath(host) });
             } else if (msg.action === "context") {
