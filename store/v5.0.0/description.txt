@@ -12,7 +12,7 @@ Press Alt+K (Option+K on a Mac) on any Salesforce page and start typing:
 
 Results are ranked by how well the name matches, so the page you meant comes first.
 
-The toolbar popup (Alt+N, Option+E on a Mac) has four tabs:
+The toolbar popup (Alt+N, or Option+N on a Mac) has four tabs:
 
 - Recent: Setup pages you opened and records you viewed
 - Navigate: Home, Setup, Object Manager, Dev Console, Flows, Users, change sets, plus up to 10 bookmarks
@@ -24,7 +24,7 @@ A few more things it does:
 - Adds a row of your own Setup quick tabs under the Setup header
 - Adds an N button to the Salesforce header that opens the popup
 - Home takes you to the current app's own start page, so apps without a Home tab stay tidy
-- Alt+S goes to Setup and Alt+H goes to Home (Option+S and Option+L on a Mac)
+- Alt+S goes to Setup and Alt+A goes to Home (Option+S and Option+A on a Mac). You can change any shortcut at chrome://extensions/shortcuts
 - Light, dark or system theme
 - Everything can be switched on or off in Settings
 

@@ -68,9 +68,9 @@ A compact, tabbed control center for the active org.
 
 | Windows / Linux | Mac | Action |
 | --- | --- | --- |
-| `Alt + N` | `⌥ E` | Open the Navigator popup |
+| `Alt + N` | `⌥ N` | Open the Navigator popup |
 | `Alt + S` | `⌥ S` | Jump straight to Setup |
-| `Alt + H` | `⌥ L` | Jump straight to Home |
+| `Alt + A` | `⌥ A` | Jump straight to Home |
 | `Alt + K` | `⌥ K` | Open the in-page command palette |
 
 Chrome skips a default shortcut if Chrome or another extension already uses it. Change or set them at `chrome://extensions/shortcuts` (Navigator's Settings page links there).
@@ -107,8 +107,8 @@ git clone https://github.com/shawon39/navigator-for-salesforce.git
 
 1. Open any **Salesforce Lightning** or **Setup** page.
 2. Press `Alt + K` (`⌥ K` on Mac) to open the command palette and start typing — pages, objects, fields, records and apps show up as you type.
-3. Press `Alt + N` (`⌥ E` on Mac) for the popup to switch orgs, manage bookmarks, or browse objects.
-4. Use `Alt + S` / `Alt + H` (`⌥ S` / `⌥ L` on Mac) to jump to Setup or to the current app's Home.
+3. Press `Alt + N` (`⌥ N` on Mac) for the popup to switch orgs, manage bookmarks, or browse objects.
+4. Use `Alt + S` / `Alt + A` (`⌥ S` / `⌥ A` on Mac) to jump to Setup or to the current app's Home.
 
 ## Permissions & Privacy
 

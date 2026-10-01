@@ -25,7 +25,7 @@
         "_execute_action": {
             "suggested_key": {
                 "default": "Alt+N",
-                "mac": "Alt+E"
+                "mac": "Alt+N"
             },
             "description": "Open Navigator for Salesforce"
         },
@@ -38,8 +38,8 @@
         },
         "navigate_to_home": {
             "suggested_key": {
-                "default": "Alt+H",
-                "mac": "Alt+L"
+                "default": "Alt+A",
+                "mac": "Alt+A"
             },
             "description": "Navigate to Salesforce Home"
         },

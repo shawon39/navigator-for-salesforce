@@ -19,7 +19,7 @@ A full redesign, plus new ways to search.
 ### Changed
 - New look for the popup, command palette, Settings and Setup quick-tab dialogs.
 - Search ranks exact and prefix matches first, so "users" finds Users.
-- Mac shortcuts use Option: Option+E (popup), Option+K (palette), Option+S (Setup), Option+L (Home).
+- Same shortcuts on Windows and Mac (Alt on Windows, Option on Mac): N popup, K palette, S Setup, A Home. Users can change them at chrome://extensions/shortcuts.
 
 ### Security
 - The background worker only accepts messages from the extension itself, for Salesforce hosts, and only for the org of the page that asks.

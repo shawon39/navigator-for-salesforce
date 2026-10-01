@@ -87,6 +87,6 @@ const H = "acme.my.salesforce.com";
     created = [];
     ctx.__cmd("navigate_to_home");
     await new Promise((res) => setTimeout(res, 100));
-    assert.deepStrictEqual(created, ["https://acme.lightning.force.com/lightning/app/06m0N000000Ma7GQAS"]); console.log("PASS ⌥L/Alt+H uses app home");
+    assert.deepStrictEqual(created, ["https://acme.lightning.force.com/lightning/app/06m0N000000Ma7GQAS"]); console.log("PASS ⌥A/Alt+A uses app home");
     console.log("ALL PASS");
 })().catch((e) => { console.error("FAIL", e); process.exit(1); });
