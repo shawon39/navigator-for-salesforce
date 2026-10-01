@@ -31,6 +31,7 @@
         // --- Administration: Users ---
         ["Users", S("ManageUsers"), "Users"],
         ["Profiles", S("EnhancedProfiles"), "Users"],
+        ["Legacy Profiles", S("Profiles"), "Users"],
         ["Permission Sets", S("PermSets"), "Users"],
         ["Permission Set Groups", S("PermSetGroups"), "Users"],
         ["Roles", S("Roles"), "Users"],

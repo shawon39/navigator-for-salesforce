@@ -20,6 +20,7 @@ for (const [query, expected] of [
     ["users", "Users"],
     ["perm sets", "Permission Sets"],
     ["profiles", "Profiles"],
+    ["legacy profiles", "Legacy Profiles"],
     ["login history", "Login History"],
     ["apex class", "Apex Classes"],
 ]) {
