@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added
+- Legacy Profiles in Setup search, for orgs that still use the old profile pages. Profiles keeps opening the enhanced profile pages.
+- Sandboxes in Setup search.
+- Settings → About links to the project, bug reports and the privacy policy.
+
+### Fixed
+- `login` and plain search now find users with common names. Before, Accounts, Contacts and Leads with the same name could crowd them out, and `login` said "No users match".
+- Users can also be found by username or alias.
+- `list contacts`, `new accounts`, `fields contacts` and other plural object names now find the right object when org data is loaded.
+
+### Changed
+- The release zip includes the license files, and the fonts ship with their full license text.
+
 ## 5.0.0
 
 A full redesign, plus new ways to search.
@@ -40,4 +53,4 @@ A full redesign, plus new ways to search.
 
 ## 4.x and earlier
 
-See the git history.
+Published on the Chrome Web Store as Salesforce Easy Navigator. Those versions aren't in this repository.

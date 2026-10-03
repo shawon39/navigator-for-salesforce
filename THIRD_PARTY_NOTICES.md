@@ -31,8 +31,8 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 - **Figtree** (`fonts/Figtree.woff2`), Copyright 2022 The Figtree Project Authors
 - **JetBrains Mono** (`fonts/JetBrainsMono.woff2`), Copyright 2020 The JetBrains Mono Project Authors
 
-Both are licensed under the SIL Open Font License 1.1:
-https://openfontlicense.org/open-font-license-official-text/
+Both are licensed under the SIL Open Font License 1.1. The full license text
+ships next to the fonts: `fonts/Figtree-OFL.txt` and `fonts/JetBrainsMono-OFL.txt`.
 
 ## Trademarks
 
