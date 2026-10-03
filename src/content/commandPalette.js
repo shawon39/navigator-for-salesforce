@@ -20,6 +20,7 @@
         FALLBACK_OBJECTS,
         isRelevantObject,
         objectEntries,
+        objectScore,
         objectVerbEntries,
         iconSvg,
         UI_ICONS,
@@ -35,7 +36,7 @@
 
     // ---- State -----------------------------------------------------------
     let staticCatalog = [];
-    let liveObjects = null; // [{api,label}] once fetched
+    let liveObjects = null; // [{api,label,plural}] once fetched
     let liveRecords = []; // current async search results
     let recents = []; // persisted recently-chosen palette items
     let recentRecords = []; // org "recently viewed" records
@@ -198,7 +199,7 @@
             }
             liveObjects = resp.sobjects
                 .filter(isRelevantObject)
-                .map((s) => ({ api: s.name, label: s.label }));
+                .map((s) => ({ api: s.name, label: s.label, plural: s.labelPlural }));
             catalogCache = null;
             if (opened) render(inputEl.value);
         });
@@ -833,7 +834,8 @@
 
     // "fields" verb, second step: "<object> <field text>" searches that object's
     // fields. The object is the longest run of leading words that exactly names
-    // one (API name first, then label), else the best match for the first word.
+    // one (API name first, then label or plural label), else the best match for
+    // the first word.
     // While the text is still the start of a multi-word object label ("invoice
     // l" -> Invoice Line) it stays in the object step. Returns { obj, text } or
     // null for the object step.
@@ -852,14 +854,14 @@
             const head = lower.slice(0, i);
             const obj =
                 objects.find((o) => o.api.toLowerCase() === head) ||
-                objects.find((o) => labelOf(o) === head);
+                objects.find((o) => labelOf(o) === head || (o.plural || "").toLowerCase() === head);
             if (obj) return { obj, text: text.slice(i).trim() };
         }
         const first = cuts[cuts.length - 1];
         let best = null;
         let bestScore = -1;
         objects.forEach((o) => {
-            const sc = SFEN_URL.matchScore(lower.slice(0, first), o.label || o.api, o.api);
+            const sc = objectScore(lower.slice(0, first), o);
             if (sc > bestScore) {
                 best = o;
                 bestScore = sc;

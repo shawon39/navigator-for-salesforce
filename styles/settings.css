@@ -537,6 +537,7 @@ input {
 }
 
 .st-about .st-row-text {
+    flex: 1;
     gap: 2px;
 }
 
@@ -552,8 +553,10 @@ input {
 
 .st-about-links {
     display: flex;
-    flex-shrink: 0;
-    gap: 26px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px 20px;
+    max-width: 50%;
 }
 
 /* ---------- Status toast ---------- */

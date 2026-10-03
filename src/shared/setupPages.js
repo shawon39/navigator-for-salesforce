@@ -380,6 +380,7 @@
         ["Scale Center Overview", S("ScaleTestOverview"), "Scale"],
 
         // --- Environments (jobs, monitors, deployment) ---
+        ["Sandboxes", S("DataManagementCreateTestInstance"), "Environments"],
         ["Deployment Settings", S("DeploymentSettings"), "Environments"],
         ["Deployment Status", S("DeployStatus"), "Environments"],
         ["Inbound Change Sets", S("InboundChangeSet"), "Environments"],

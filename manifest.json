@@ -3,6 +3,7 @@
     "description": "Open any Salesforce Setup page, object, field, record, app or org in a few keystrokes.",
     "version": "5.0.0",
     "manifest_version": 3,
+    "homepage_url": "https://github.com/shawon39/navigator-for-salesforce",
     "action": {
         "default_popup": "popup.html",
         "default_title": "Navigator for Salesforce",

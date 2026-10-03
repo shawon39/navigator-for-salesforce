@@ -247,12 +247,21 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         api: { kind: "inspect", label: "Record" }, // alias of record
     };
 
+    // How well `q` names object `o`. The plural label counts too, so
+    // "contacts" finds Contact rather than Contact Request.
+    function objectScore(q, o) {
+        return Math.max(
+            SFEN_URL.matchScore(q, o.label || o.api, o.api),
+            o.plural ? SFEN_URL.matchScore(q, o.plural, o.api) : -1
+        );
+    }
+
     // One result per object matching `arg`, navigating to the verb's destination.
     function objectVerbEntries(action, objects, arg) {
         const q = (arg || "").trim().toLowerCase();
         const scored = [];
         objects.forEach((o) => {
-            const sc = q ? SFEN_URL.matchScore(q, o.label || o.api, o.api) : 0;
+            const sc = q ? objectScore(q, o) : 0;
             if (sc < 0) return;
             scored.push({
                 sc,
@@ -358,6 +367,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         VERBS,
         isRelevantObject,
         objectEntries,
+        objectScore,
         objectVerbEntries,
         iconSvg,
         looksLikeRecordId,
