@@ -65,7 +65,7 @@ UI changes can't be fully covered by these tests, so please also try your change
 
 1. Update `version` in both `manifest.json` and `package.json`, and move the "Unreleased" notes in `CHANGELOG.md` under the new version.
 2. Run `npm test`, then `npm run package` to build `store/v<version>/navigator-for-salesforce-<version>.zip`. It refuses to overwrite a zip that already exists.
-3. Copy the listing text and images into `store/v<version>/` (start from the previous version's folder), and upload the zip in the Chrome Web Store dashboard.
+3. Add a `listing.md` to `store/v<version>/` that says what changes in the store dashboard. Copy the listing text and images only when they change (see `store/v5.0.1/` for a package-only update). Then upload the zip in the Chrome Web Store dashboard.
 4. Commit, tag the commit `v<version>`, and create a GitHub release from the tag with the zip attached and the changelog notes.
 
 By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).

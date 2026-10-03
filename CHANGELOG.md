@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 5.0.1
+
 ### Added
 - Legacy Profiles in Setup search, for orgs that still use the old profile pages. Profiles keeps opening the enhanced profile pages.
 - Sandboxes in Setup search.
