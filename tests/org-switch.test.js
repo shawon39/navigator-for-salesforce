@@ -41,6 +41,26 @@ for (const href of ["https://acme.lightning.force.com//evil.com/x", "https://acm
 assert.strictEqual(samePageUrl(null, page), null);
 console.log("PASS sites, other domains and unsafe paths are refused");
 
+// Pages about one record have no "same page" in another org: a record Id in
+// the path or the query (also URL-encoded, as in Setup's ?address=%2F<Id>).
+for (const href of [
+    "https://acme.lightning.force.com/lightning/r/Account/0015e00000ABCDEAA5/view",
+    "https://acme.lightning.force.com/lightning/r/0015e00000ABCDE/view",
+    "https://acme.lightning.force.com/lightning/setup/EnhancedProfiles/page?address=%2F00e5e000000AbCd",
+    "https://acme.lightning.force.com/lightning/o/Account/list?filterName=00B5e00000AbCdE",
+    "https://acme.lightning.force.com/lightning/setup/ObjectManager/01I5e000000AbCd/Details/view",
+])
+    assert.strictEqual(there("acme--uat.sandbox.my.salesforce.com", href), null, href);
+// Object and page names of 15 or 18 letters aren't Ids, nor are 18 characters with a wrong checksum.
+for (const path of [
+    "/lightning/setup/ObjectManager/ServiceAppointment/Details/view",
+    "/lightning/setup/ObjectManager/ContentDocument/FieldsAndRelationships/view",
+    "/lightning/o/Account/list?filterName=AllAccounts",
+    "/lightning/r/Account/0015e00000ABCDEAAA/view",
+])
+    assert.strictEqual(there("acme.my.salesforce.com", "https://x.lightning.force.com" + path), "https://acme.my.salesforce.com" + path, path);
+console.log("PASS pages about one record get no same-page link; object names still do");
+
 // Hosts compare without case: an org saved as "Acme.my.salesforce.com"
 // matches its tabs, so it isn't offered or saved twice.
 const { shortHost } = window.SFEN_ORGS;

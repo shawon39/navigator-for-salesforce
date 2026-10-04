@@ -71,6 +71,18 @@ for (let i = 0; i < 150; i++) many["o" + i] = "teal";
 assert.strictEqual(Object.keys(C.clean(many)).length, 100);
 console.log("PASS imported colors keep only known names on sane keys");
 
+// Importing: the file's color wins where it has one (by id, or by host for
+// orgs saved before ids); other orgs keep theirs. A file without colors, or
+// with an empty map (exported before tab colors were on), changes nothing.
+const imported = [{ id: "a", host: "a.my.salesforce.com" }, { id: "b", host: "b.my.salesforce.com" }, { id: "new", host: "old.my.salesforce.com" }];
+const now = { a: "teal", b: "pink", gone: "gold" };
+assert.deepStrictEqual(C.merge(imported, { a: "sky", "old.my.salesforce.com": "brown", x: "red" }, now), { a: "sky", b: "pink", new: "brown" });
+assert.strictEqual(C.merge(imported, {}, now), null);
+assert.strictEqual(C.merge(imported, undefined, now), null);
+assert.strictEqual(C.merge(imported, { a: "#fff" }, now), null); // nothing valid in the file
+assert.deepStrictEqual(C.merge([null, {}], { a: "sky" }, now), {});
+console.log("PASS importing keeps current colors unless the file has its own");
+
 // ---- Initials ----
 const init = (label, host) => C.initial({ label, host: host || "acme.my.salesforce.com" });
 assert.strictEqual(init("", "acme--uat.sandbox.my.salesforce.com"), "U"); // "Acme · UAT"

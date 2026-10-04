@@ -55,6 +55,14 @@
     function apply() {
         const head = document.head;
         if (!head || !want) return false;
+        // The extension file needs chrome.*, which throws in a tab left open
+        // while the extension was reloaded or updated: stop there and leave
+        // the icon as it is until the tab reloads. Data URLs keep working.
+        if (mode === "file" && !alive()) {
+            want = null;
+            observer.disconnect();
+            return false;
+        }
         let changed = false;
         Array.from(head.children).forEach((el) => {
             if (el === ours || !el.matches(ICON)) return;

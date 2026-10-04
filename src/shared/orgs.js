@@ -67,7 +67,9 @@
 
     // The page at `href` (path and query) in a saved org, to compare the same
     // Setup page or list across orgs. The hash is dropped: login loses it.
-    // null when the org or the path can't be used.
+    // null when the org or the path can't be used, and for pages about one
+    // record (a record Id in the path or query, like /lightning/r/Account/001...
+    // or a profile's ?address=/00e...): that record doesn't exist in another org.
     function samePageUrl(org, href) {
         let u;
         try {
@@ -78,6 +80,13 @@
         const path = u.pathname + u.search;
         const host = String((org && org.host) || "").toLowerCase();
         if (!window.SFEN_URL.isSafePath(path) || !window.SFEN_URL.isOrgHost(host)) return null;
+        let plain = path;
+        try {
+            plain = decodeURIComponent(path);
+        } catch (e) {
+            /* keep it encoded */
+        }
+        if (plain.split(/[/?&=]/).some(window.SFEN_URL.looksLikeRecordId)) return null;
         if (/^(login|test)\.salesforce\.com$/.test(host)) return `https://${host}/?startURL=${encodeURIComponent(path)}`;
         const my = myDomainHost(host);
         return my ? "https://" + my + path : null;

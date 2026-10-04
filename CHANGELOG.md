@@ -4,8 +4,8 @@
 
 ### Added
 - Tab colors by org, off by default. Turn on **Settings → Orgs → Color browser tabs by org** and each saved org's tabs get a Salesforce cloud icon in the org's own color, with its initial in the middle, so you can tell orgs apart at a glance. Production orgs get red first and show the initial in a circle. Pick any of 12 colors per org in Settings; open tabs update right away. The popup and the palette show the same colors. Only saved orgs are colored: on an org you haven't saved, the popup's Orgs tab offers to add it and shows the color it will get.
-- Search finds Apex classes, Apex triggers and custom metadata types by name and opens their Setup pages. On a custom metadata type, `→` offers **Manage records**.
-- `org` in the palette lists your saved orgs. `Enter` opens one in a new tab; `→` opens the page you're on in that org, to compare it with this one.
+- Search finds Apex classes, Apex triggers (also by their object) and custom metadata types by name and opens their Setup pages. On a custom metadata type, `→` offers **Manage records**.
+- `org` in the palette lists your saved orgs. `Enter` opens one in a new tab; `→` opens the page you're on in that org, to compare it with this one (not on pages about a single record, which wouldn't exist there).
 - **Open this page here** on each row of the popup's Orgs tab does the same from the popup.
 
 ## 5.0.1

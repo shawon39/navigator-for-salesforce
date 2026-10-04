@@ -51,6 +51,15 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
             return json({ records: [
                 { attributes: attrs("ApexTrigger"), Id: "01q000000000001AAA", Name: "AccountTrigger", NamespacePrefix: null, TableEnumOrId: "Account" },
                 { attributes: attrs("ApexTrigger"), Id: "01q000000000002AAA", Name: "InvoiceTrigger", NamespacePrefix: null, TableEnumOrId: "01I000000000001AAA" },
+                { attributes: attrs("ApexTrigger"), Id: "01q000000000003AAA", Name: "VisitTrigger", NamespacePrefix: null, TableEnumOrId: "ServiceAppointment" },
+                { attributes: attrs("ApexTrigger"), Id: "01q000000000004AAA", Name: "GoneTrigger", NamespacePrefix: null, TableEnumOrId: "01I000000000002" },
+                { attributes: attrs("ApexTrigger"), Id: "01q000000000005AAA", Name: "OddTrigger", NamespacePrefix: null, TableEnumOrId: "Bad'Name" },
+            ] });
+        // Custom objects' names, by the 01I Ids triggers name them with.
+        if (q.includes("DurableId IN"))
+            return json({ records: [
+                { DurableId: "01I000000000001", QualifiedApiName: "Invoice__c" },
+                { DurableId: "01I000000000003", QualifiedApiName: "Not'Asked__c" },
             ] });
         if (q.includes("FROM EntityDefinition"))
             return json({ records: [
@@ -70,6 +79,10 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     assert(qs.includes("SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY NamespacePrefix NULLS FIRST, Name LIMIT 2000"));
     assert(qs.includes("SELECT Id, Name, NamespacePrefix, TableEnumOrId FROM ApexTrigger ORDER BY NamespacePrefix NULLS FIRST, Name LIMIT 2000"));
     assert(qs.includes("SELECT DurableId, QualifiedApiName, Label, NamespacePrefix, KeyPrefix FROM EntityDefinition WHERE QualifiedApiName LIKE '%__mdt'"));
+    assert(qs.includes(
+        "SELECT DurableId, QualifiedApiName FROM EntityDefinition WHERE DurableId IN " +
+        "('01I000000000001AAA','01I000000000001','01I000000000002')"
+    ));
     assert(fetchCalls.every((u) => u.startsWith("https://acme.my.salesforce.com/services/data/v60.0/query/")));
     console.log("PASS admin queries ApexClass, ApexTrigger and EntityDefinition through REST query");
 
@@ -80,9 +93,13 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     ]);
     assert.deepStrictEqual(r.apexTriggers, [
         { Id: "01q000000000001AAA", Name: "AccountTrigger", NamespacePrefix: null, Object: "Account" },
-        { Id: "01q000000000002AAA", Name: "InvoiceTrigger", NamespacePrefix: null, Object: null },
+        { Id: "01q000000000002AAA", Name: "InvoiceTrigger", NamespacePrefix: null, Object: "Invoice__c" },
+        { Id: "01q000000000003AAA", Name: "VisitTrigger", NamespacePrefix: null, Object: "ServiceAppointment" },
+        { Id: "01q000000000004AAA", Name: "GoneTrigger", NamespacePrefix: null, Object: null },
+        { Id: "01q000000000005AAA", Name: "OddTrigger", NamespacePrefix: null, Object: null },
     ]);
     console.log("PASS Apex rows trimmed to the fields the palette uses; bad Ids dropped");
+    console.log("PASS triggers name their object: 18-letter standard names kept, custom objects looked up by 01I Id");
 
     assert.deepStrictEqual(r.metadataTypes, [
         { Id: "01I000000000008AAA", ApiName: "acme__Config__mdt", Label: "Config", KeyPrefix: null },

@@ -307,21 +307,8 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     }
 
     // ---- Record Ids ------------------------------------------------------
-    // A pasted token that looks like a record Id: an 18-char Id must end in
-    // the checksum of its first 15 characters' casing; a 15-char Id must mix
-    // letters and digits (so ordinary 15-letter words don't match).
-    function looksLikeRecordId(s) {
-        if (!/^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$/.test(s)) return false;
-        if (s.length === 15) return /\d/.test(s) && /[a-zA-Z]/.test(s);
-        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345";
-        let suffix = "";
-        for (let i = 0; i < 15; i += 5) {
-            let bits = 0;
-            for (let j = 0; j < 5; j++) if (/[A-Z]/.test(s[i + j])) bits |= 1 << j;
-            suffix += chars[bits];
-        }
-        return suffix === s.slice(15).toUpperCase();
-    }
+    // A pasted token that looks like a record Id (see src/shared/sfUrl.js).
+    const looksLikeRecordId = (s) => SFEN_URL.looksLikeRecordId(s);
 
     // ---- Icons -----------------------------------------------------------
     // Lucide-style 24px stroke shapes.

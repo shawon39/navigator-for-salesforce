@@ -436,15 +436,38 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 const apexClasses = classes
                     .filter((c) => RECORD_ID_RE.test(c.Id || "") && typeof c.Name === "string")
                     .map((c) => ({ Id: c.Id, Name: c.Name, NamespacePrefix: ns(c) }));
+                // A trigger's TableEnumOrId is the object's API name, or for a
+                // custom object its 01I Id, which is that object's EntityDefinition
+                // DurableId: look those names up, 100 Ids to a query. Ids are
+                // compared on their first 15 characters (either length can come back).
+                const tableOf = (t) => (typeof t.TableEnumOrId === "string" ? t.TableEnumOrId : "");
+                const objectIds = [...new Set(triggers.map(tableOf).filter((v) => CUSTOM_OBJECT_ID_RE.test(v)))];
+                const batches = [];
+                for (let i = 0; i < objectIds.length; i += 100) batches.push(objectIds.slice(i, i + 100));
+                const named = await Promise.all(
+                    batches.map((ids) => {
+                        const list = [...new Set(ids.flatMap((id) => [id, id.slice(0, 15)]))].map((id) => `'${id}'`).join(",");
+                        return q(`SELECT DurableId, QualifiedApiName FROM EntityDefinition WHERE DurableId IN (${list})`);
+                    })
+                );
+                const objectNames = {};
+                named.flat().forEach((e) => {
+                    if (CUSTOM_OBJECT_ID_RE.test(e.DurableId || "") && API_NAME_RE.test(e.QualifiedApiName || ""))
+                        objectNames[e.DurableId.slice(0, 15)] = e.QualifiedApiName;
+                });
                 const apexTriggers = triggers
                     .filter((t) => RECORD_ID_RE.test(t.Id || "") && typeof t.Name === "string")
-                    .map((t) => ({
-                        Id: t.Id,
-                        Name: t.Name,
-                        NamespacePrefix: ns(t),
-                        // An object API name; custom objects can come back as an Id.
-                        Object: API_NAME_RE.test(t.TableEnumOrId || "") && !RECORD_ID_RE.test(t.TableEnumOrId) ? t.TableEnumOrId : null,
-                    }));
+                    .map((t) => {
+                        const table = tableOf(t);
+                        return {
+                            Id: t.Id,
+                            Name: t.Name,
+                            NamespacePrefix: ns(t),
+                            // Not RECORD_ID_RE: standard names like ServiceAppointment
+                            // are 15 or 18 letters too.
+                            Object: CUSTOM_OBJECT_ID_RE.test(table) ? objectNames[table.slice(0, 15)] || null : API_NAME_RE.test(table) ? table : null,
+                        };
+                    });
                 // LIKE's "_" matches any character, so check the suffix again.
                 const metadataTypes = entities
                     .filter((e) => CUSTOM_OBJECT_ID_RE.test(e.DurableId || "") && /__mdt$/.test(e.QualifiedApiName || ""))

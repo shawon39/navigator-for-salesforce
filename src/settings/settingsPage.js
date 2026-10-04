@@ -568,23 +568,14 @@
             }
             // Say exactly what will be replaced, with counts, before writing.
             chrome.storage.sync.get(EXPORT_KEYS, (current) => {
-                // Colors are keyed by org id, or by host for orgs saved before
-                // ids existed (those get a new id on import, so match the host too).
-                // A file without colors (an older export) leaves them as they are.
-                const fileColors = C.clean(data.orgColors);
-                if (fileColors) {
-                    const target = next.quickOrgs || current.quickOrgs || [];
-                    next.orgColors = {};
-                    target.forEach((o) => {
-                        const c = fileColors[C.keyOf(o)] || fileColors[o.host];
-                        if (c) next.orgColors[C.keyOf(o)] = c;
-                    });
-                }
+                // The file's tab colors where it has them; other orgs keep theirs.
+                const colors = C.merge(next.quickOrgs || current.quickOrgs || [], data.orgColors, current.orgColors);
+                if (colors) next.orgColors = colors;
                 const count = (list) => (Array.isArray(list) ? list.length : 0);
                 const lines = Object.keys(IMPORT_LABELS)
                     .filter((k) => next[k])
                     .map((k) => `${IMPORT_LABELS[k]}: ${count(current[k])} now → ${next[k].length} from the file`);
-                if (fileColors) lines.push("Tab colors: replaced by the file's colors");
+                if (colors) lines.push("Tab colors: the file's, for the orgs it has colors for");
                 if (next.settings) lines.push("Settings: replaced by the file's settings");
                 const note = skipped ? `\n\n${skipped} invalid item${skipped === 1 ? "" : "s"} will be skipped.` : "";
                 if (!confirm("Import will replace:\n\n" + lines.join("\n") + note + "\n\nEverything else is kept.")) return;

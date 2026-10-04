@@ -82,6 +82,24 @@
         return out;
     }
 
+    // Colors for `orgs` after importing a file: the file's color where it has
+    // one (by key, or by host for orgs saved before ids, which get a new id on
+    // import), else the color the org has now. null when the file has no
+    // colors (an older export, or one made before tab colors were turned on,
+    // which has an empty map), so the current colors are left as they are.
+    function merge(orgs, fileColors, now) {
+        const file = clean(fileColors) || {};
+        if (!Object.keys(file).length) return null;
+        const kept = clean(now) || {};
+        const out = {};
+        (Array.isArray(orgs) ? orgs : []).forEach((o) => {
+            const key = keyOf(o);
+            const c = key && (file[key] || file[o.host] || kept[key]);
+            if (c) out[key] = c;
+        });
+        return out;
+    }
+
     // The org's initial: the first letter or digit of its name, or of the part
     // after "·" ("Acme · UAT" -> "U"), so an org's sandboxes don't all show "A".
     function initial(org) {
@@ -235,5 +253,5 @@
         return span;
     }
 
-    root.SFEN_ORG_COLORS = { PALETTE, ORDER, isColor, keyOf, assign, clean, initial, textColor, contrast, look, iconSvg, iconUrl, tile };
+    root.SFEN_ORG_COLORS = { PALETTE, ORDER, isColor, keyOf, assign, clean, merge, initial, textColor, contrast, look, iconSvg, iconUrl, tile };
 })(typeof self !== "undefined" ? self : window);
