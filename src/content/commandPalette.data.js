@@ -217,6 +217,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
                 api: label && label !== api ? api : "",
                 hint: "Object",
                 group: GROUPS.OBJECT,
+                pkg: SFEN_URL.namespaceOf(api), // installed package, ranked after the org's own
                 url: `/lightning/o/${api}/home`,
                 keywords: `${api} ${label || ""} list view records new create fields object manager schema`,
                 actions: [
@@ -269,7 +270,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
             const sc = q ? objectScore(q, o) : 0;
             if (sc < 0) return;
             scored.push({
-                sc,
+                sc: sc - (SFEN_URL.namespaceOf(o.api) ? PACKAGE_PENALTY : 0),
                 item: {
                     label: o.label || o.api,
                     api: o.label && o.label !== o.api ? o.api : "",
@@ -283,6 +284,25 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         });
         scored.sort((a, b) => b.sc - a.sc);
         return scored.map((s) => s.item);
+    }
+
+    // ---- Installed packages ----------------------------------------------
+    // Objects and fields from installed packages stay searchable, but rank
+    // after the org's own when they match about as well: scores come in bands
+    // about 200 apart, so this only reorders within a band.
+    const PACKAGE_PENALTY = 5;
+
+    // The query to match an item with, or null to leave it out. Apex from an
+    // installed package can't be read (Setup shows only its signature), so it
+    // is left out unless the query names its package, as a word: "dlrs
+    // selector" or "dlrs__selector". The rest of the query is then matched,
+    // or the package name alone lists its classes.
+    function packageQuery(item, q) {
+        if (item.group !== GROUPS.APEX || !item.pkg) return q;
+        const ns = item.pkg.toLowerCase();
+        const words = q.split(/[^a-z0-9]+/).filter(Boolean);
+        if (!words.includes(ns)) return null;
+        return words.filter((w) => w !== ns).join(" ") || q;
     }
 
     // ---- Fuzzy matching --------------------------------------------------
@@ -364,6 +384,8 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         objectEntries,
         objectScore,
         objectVerbEntries,
+        PACKAGE_PENALTY,
+        packageQuery,
         iconSvg,
         looksLikeRecordId,
         highlightPositions,

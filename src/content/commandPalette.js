@@ -22,6 +22,8 @@
         objectEntries,
         objectScore,
         objectVerbEntries,
+        PACKAGE_PENALTY,
+        packageQuery,
         iconSvg,
         UI_ICONS,
         looksLikeRecordId,
@@ -137,9 +139,11 @@
         };
         const scored = [];
         for (const item of fullCatalog()) {
-            const sc = SFEN_URL.matchScore(q, item.label, item.keywords);
+            const itemQuery = packageQuery(item, q);
+            if (itemQuery === null) continue;
+            const sc = SFEN_URL.matchScore(itemQuery, item.label, item.keywords);
             if (sc >= 0)
-                scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) });
+                scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) - (item.pkg ? PACKAGE_PENALTY : 0) });
         }
         liveRecords.forEach((item) => {
             const sc = SFEN_URL.matchScore(q, item.label, item.keywords);
@@ -252,6 +256,7 @@
                     label: c.Name,
                     hint: c.NamespacePrefix ? `Apex Class · ${c.NamespacePrefix}` : "Apex Class",
                     group: GROUPS.APEX,
+                    pkg: c.NamespacePrefix || null, // hidden unless the query names the package
                     url: `/lightning/setup/ApexClasses/page?address=%2F${c.Id}`,
                     keywords: `${c.Name} ${c.NamespacePrefix || ""} apex class code`,
                 }))
@@ -260,6 +265,7 @@
                         label: t.Name,
                         hint: ["Apex Trigger", t.Object, t.NamespacePrefix].filter(Boolean).join(" · "),
                         group: GROUPS.APEX,
+                        pkg: t.NamespacePrefix || null,
                         url: `/lightning/setup/ApexTriggers/page?address=%2F${t.Id}`,
                         keywords: `${t.Name} ${t.Object || ""} ${t.NamespacePrefix || ""} apex trigger code`,
                     }))
@@ -1009,7 +1015,8 @@
         const scored = [];
         fields.forEach((f) => {
             const sc = q ? SFEN_URL.matchScore(q, f.label, f.api) : 0;
-            if (sc >= 0) scored.push({ f, sc });
+            // Package fields (SBQQ__Discount__c) after the org's own.
+            if (sc >= 0) scored.push({ f, sc: sc - (SFEN_URL.namespaceOf(f.api) ? PACKAGE_PENALTY : 0) });
         });
         scored.sort((a, b) => b.sc - a.sc || String(a.f.label).localeCompare(String(b.f.label)));
         setFooterCount(`${scored.length} of ${fields.length} fields`);

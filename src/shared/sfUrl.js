@@ -95,5 +95,14 @@
         return suffix === s.slice(15).toUpperCase();
     }
 
-    root.SFEN_URL = { SF_HOST_SUFFIXES, isSalesforceHost, isSalesforceUrl, isOrgHost, isSafePath, fuzzy, matchScore, looksLikeRecordId };
+    // The installed package an object or field API name belongs to, from its
+    // namespace prefix: "SBQQ__Quote__c" and "SBQQ__Discount__c" -> "SBQQ";
+    // "Invoice__c", "Article__kav" and "Account" -> null. The type suffix
+    // (__c, __kav, __mdt...) is dropped first, so only a prefix is left.
+    function namespaceOf(api) {
+        const m = String(api || "").replace(/__[A-Za-z]+$/, "").match(/^([A-Za-z][A-Za-z0-9]*)__/);
+        return m ? m[1] : null;
+    }
+
+    root.SFEN_URL = { SF_HOST_SUFFIXES, isSalesforceHost, isSalesforceUrl, isOrgHost, isSafePath, fuzzy, matchScore, looksLikeRecordId, namespaceOf };
 })(typeof self !== "undefined" ? self : window);
