@@ -15,6 +15,7 @@
     let savedOrgs = []; // [{ id, label, host, isSandbox, pinned }]
     let detected = []; // currently logged-in orgs (from the browser's sid cookies)
     let offSalesforce = false;
+    let currentHost = ""; // the active Salesforce tab's host
     let currentShort = ""; // short host of the active tab's org
     let currentUrl = ""; // the active Salesforce tab's URL, for "Open this page here"
     let query = "";
@@ -260,13 +261,49 @@
         return g;
     }
 
+    // The active tab's org as it would be saved (its Lightning host, like the
+    // orgs found in the browser), or null off an org's own pages (sites, login).
+    function currentOrg() {
+        const my = offSalesforce ? null : SFEN_ORGS.myDomainHost(currentHost);
+        if (!my) return null;
+        const host = my.replace(/\.my\.salesforce\.com$/, ".lightning.force.com");
+        return { host, isSandbox: /--|\.sandbox$/.test(SFEN_ORGS.shortHost(host)) };
+    }
+
+    // Only saved orgs get a tab color, so with tab colors on, the active tab's
+    // org is offered at the top until it's saved, with the color it would get.
+    function offerCurrent() {
+        const org = colorsOn && !query.trim() ? currentOrg() : null;
+        if (!org || isSaved(org.host)) return null;
+        const C = SFEN_ORG_COLORS;
+        const color = C.assign([...savedOrgs, org], storedColors)[C.keyOf(org)];
+        const dark = document.documentElement.classList.contains("nv-dark");
+        const type = SFEN_ORGS.orgType(org);
+        const name = SFEN_ORGS.defaultName(org.host);
+        const row = document.createElement("div");
+        row.className = "nv-row is-org has-actions";
+        row.appendChild(C.tile(color, C.initial(org), type === "production", dark, 18));
+        row.appendChild(orgText(org.host, name, type));
+        const add = document.createElement("button");
+        add.type = "button";
+        add.className = "nv-btn-secondary nv-btn-add";
+        add.textContent = "Add";
+        add.setAttribute("aria-label", `Add ${name} to color its tabs`);
+        add.addEventListener("click", () => saveOrg(org.host, org.isSandbox));
+        row.appendChild(add);
+        const box = document.createElement("div");
+        box.append(group("Add this org to color its tabs"), row);
+        return box;
+    }
+
     function render() {
         const section = $("quickLogin");
         if (!section) return;
         section.innerHTML = "";
+        const offer = offerCurrent();
 
         if (!savedOrgs.length) {
-            section.className = "nv-empty";
+            section.className = "nv-empty" + (offer ? " has-offer" : "");
             section.innerHTML =
                 '<div class="nv-empty-body">' +
                 icon("plus", 28, 1.6) +
@@ -275,9 +312,11 @@
                 '<button type="button" class="nv-btn-primary">Add org</button>' +
                 "</div>";
             section.querySelector("button").addEventListener("click", openAdd);
+            if (offer) section.prepend(offer);
             return;
         }
         section.className = "";
+        if (offer) section.appendChild(offer);
 
         const q = query.trim().toLowerCase();
         const matched = savedOrgs.filter(
@@ -285,9 +324,9 @@
         );
         const pinned = matched.filter((o) => o.pinned);
         const rest = matched.filter((o) => !o.pinned);
-        if (pinned.length) section.appendChild(group("Pinned"));
+        if (pinned.length) section.appendChild(group("Pinned", !!offer));
         pinned.forEach((o) => section.appendChild(buildRow(o)));
-        if (pinned.length && rest.length) section.appendChild(group("All orgs", true));
+        if ((pinned.length || offer) && rest.length) section.appendChild(group("All orgs", true));
         rest.forEach((o) => section.appendChild(buildRow(o)));
         if (!matched.length) section.appendChild(Object.assign(document.createElement("div"), {
             className: "nv-note",
@@ -404,7 +443,8 @@
     // Resolves once the saved list is loaded (detected orgs fill in later).
     async function initQuickLogin(opts) {
         offSalesforce = !!(opts && opts.offSalesforce);
-        currentShort = SFEN_ORGS.shortHost((opts && opts.currentHost) || "");
+        currentHost = (opts && opts.currentHost) || "";
+        currentShort = SFEN_ORGS.shortHost(currentHost);
         currentUrl = (opts && opts.currentUrl) || "";
         const stored = await new Promise((resolve) =>
             chrome.storage.sync.get({ quickOrgs: [], orgColors: {}, settings: null }, (r) => resolve(r || {}))
