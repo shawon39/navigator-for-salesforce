@@ -134,6 +134,8 @@ const USER_ID_RE = /^005[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/;
 const RECORD_ID_RE = /^[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?$/;
 const ORG_ID_RE = /^00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/;
 const API_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
+const CUSTOM_OBJECT_ID_RE = /^01I[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/;
+const KEY_PREFIX_RE = /^[A-Za-z0-9]{3}$/;
 
 // "Home" opens the current app's own landing page: the app the user last used
 // on desktop (UserAppInfo) at /lightning/app/<id>, which Salesforce opens on
@@ -387,8 +389,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     user,
                 });
             } else if (msg.action === "admin") {
-                // Searchable admin metadata: profiles, permission sets, flows.
-                // Fetched once per palette session and fuzzy-filtered client-side.
+                // Searchable admin metadata: profiles, permission sets, flows,
+                // Apex classes and triggers, custom metadata types. Fetched once
+                // per palette session and fuzzy-filtered client-side.
                 const q = async (soql) => {
                     try {
                         const d = await sfFetch(
@@ -400,7 +403,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         return []; // a feature may be unavailable; degrade gracefully
                     }
                 };
-                const [profiles, permissionSets, flows] = await Promise.all([
+                const [profiles, permissionSets, flows, classes, triggers, entities] = await Promise.all([
                     q("SELECT Id, Name FROM Profile ORDER BY Name LIMIT 1000"),
                     q(
                         "SELECT Id, Name, Label, Type FROM PermissionSet " +
@@ -414,8 +417,45 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         "ActiveVersionId, LatestVersionId " +
                         "FROM FlowDefinitionView ORDER BY Label LIMIT 2000"
                     ),
+                    // The org's own code first, then managed packages'.
+                    q("SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY NamespacePrefix NULLS FIRST, Name LIMIT 2000"),
+                    q(
+                        "SELECT Id, Name, NamespacePrefix, TableEnumOrId FROM ApexTrigger " +
+                        "ORDER BY NamespacePrefix NULLS FIRST, Name LIMIT 2000"
+                    ),
+                    // EntityDefinition ignores LIMIT and can't page; custom
+                    // metadata types fit in one batch. DurableId is the type's
+                    // 01I id that its Setup page takes.
+                    q(
+                        "SELECT DurableId, QualifiedApiName, Label, NamespacePrefix, KeyPrefix " +
+                        "FROM EntityDefinition WHERE QualifiedApiName LIKE '%__mdt'"
+                    ),
                 ]);
-                sendResponse({ ok: true, profiles, permissionSets, flows });
+                // Only the fields the palette uses, with Ids checked: they go into Setup URLs.
+                const ns = (r) => (typeof r.NamespacePrefix === "string" && API_NAME_RE.test(r.NamespacePrefix) ? r.NamespacePrefix : null);
+                const apexClasses = classes
+                    .filter((c) => RECORD_ID_RE.test(c.Id || "") && typeof c.Name === "string")
+                    .map((c) => ({ Id: c.Id, Name: c.Name, NamespacePrefix: ns(c) }));
+                const apexTriggers = triggers
+                    .filter((t) => RECORD_ID_RE.test(t.Id || "") && typeof t.Name === "string")
+                    .map((t) => ({
+                        Id: t.Id,
+                        Name: t.Name,
+                        NamespacePrefix: ns(t),
+                        // An object API name; custom objects can come back as an Id.
+                        Object: API_NAME_RE.test(t.TableEnumOrId || "") && !RECORD_ID_RE.test(t.TableEnumOrId) ? t.TableEnumOrId : null,
+                    }));
+                // LIKE's "_" matches any character, so check the suffix again.
+                const metadataTypes = entities
+                    .filter((e) => CUSTOM_OBJECT_ID_RE.test(e.DurableId || "") && /__mdt$/.test(e.QualifiedApiName || ""))
+                    .map((e) => ({
+                        Id: e.DurableId,
+                        ApiName: e.QualifiedApiName,
+                        Label: typeof e.Label === "string" ? e.Label : e.QualifiedApiName,
+                        KeyPrefix: KEY_PREFIX_RE.test(e.KeyPrefix || "") ? e.KeyPrefix : null,
+                    }))
+                    .sort((a, b) => a.Label.localeCompare(b.Label));
+                sendResponse({ ok: true, profiles, permissionSets, flows, apexClasses, apexTriggers, metadataTypes });
             } else if (msg.action === "apps") {
                 // The user's Lightning apps in App Launcher order. UserAppMenuItem
                 // is the user's visible app list; AppDefinition (every app in the

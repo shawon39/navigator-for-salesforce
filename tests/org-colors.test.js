@@ -1,0 +1,121 @@
+// Tab colors by org (src/shared/orgColors.js): the palette stays readable on
+// Chrome's tab strips, colors are assigned in a stable order with red kept for
+// production, imported colors are checked, and the tab icon is a safe data URL.
+const path = require("path");
+const assert = require("assert");
+global.self = global;
+global.window = global;
+require(path.resolve(__dirname, "../src/shared/sfUrl.js"));
+require(path.resolve(__dirname, "../src/shared/orgs.js"));
+require(path.resolve(__dirname, "../src/shared/orgColors.js"));
+const C = window.SFEN_ORG_COLORS;
+
+// Chrome's tab and tab-strip backgrounds (active / inactive), light and dark.
+const LIGHT_BG = ["#FFFFFF", "#D3E3FD"];
+const DARK_BG = ["#3C3C3C", "#1F2020"];
+
+// ---- Palette contrast ----
+assert.strictEqual(C.ORDER.length, 12);
+for (const name of C.ORDER) {
+    const light = C.look(name, false);
+    const dark = C.look(name, true);
+    for (const bg of LIGHT_BG) assert(C.contrast(light.fill, bg) >= 3, `${name} light vs ${bg}`);
+    for (const bg of DARK_BG) assert(dark.ring || C.contrast(dark.fill, bg) >= 3, `${name} dark vs ${bg}`);
+    assert(C.contrast(light.fill, light.text) >= 3.5, `${name} light initial`);
+    assert(C.contrast(dark.fill, dark.text) >= 3.5, `${name} dark initial`);
+}
+assert.deepStrictEqual(C.ORDER.filter((n) => C.look(n, true).ring), ["black"]);
+assert.strictEqual(C.look("black", true).text, "#FFFFFF");
+console.log("PASS every color is readable on light and dark tab strips");
+
+// ---- Assignment ----
+const sandbox = (n) => ({ id: "s" + n, host: `acme--s${n}.sandbox.my.salesforce.com`, isSandbox: true });
+const prod = (n) => ({ id: "p" + n, host: `prod${n}.my.salesforce.com` });
+
+let colors = C.assign(Array.from({ length: 12 }, (_, i) => sandbox(i)), {});
+const first11 = Array.from({ length: 11 }, (_, i) => colors["s" + i]);
+assert.deepStrictEqual(first11, C.ORDER.filter((c) => c !== "red"));
+assert.strictEqual(colors.s11, "gold"); // least used, palette order breaks the tie
+console.log("PASS sandboxes get distinct non-red colors in order, then repeat");
+
+colors = C.assign([sandbox(0), prod(0), prod(1), sandbox(1)], {});
+assert.deepStrictEqual([colors.s0, colors.p0, colors.p1, colors.s1], ["gold", "red", "purple", "teal"]);
+console.log("PASS the first production org gets red, the next one the next free color");
+
+const twelve = [prod(0)].concat(Array.from({ length: 11 }, (_, i) => sandbox(i)));
+colors = C.assign(twelve.concat(sandbox(99)), {});
+assert.strictEqual(new Set(twelve.map((o) => colors[o.id])).size, 12);
+assert.strictEqual(colors.s99, "gold");
+console.log("PASS one production org and 11 sandboxes use all 12 colors");
+
+colors = C.assign([sandbox(0), sandbox(1), sandbox(2)], JSON.parse('{"s1":"red","s2":"#fff","__proto__":"gold","s0":3}'));
+assert.deepStrictEqual([colors.s0, colors.s1, colors.s2], ["gold", "red", "purple"]);
+colors = C.assign([{ id: "__proto__", host: "a--b.sandbox.my.salesforce.com" }], { toString: "red" });
+assert.strictEqual(colors.__proto__, "gold");
+assert.deepStrictEqual(C.assign(null, null), Object.create(null));
+assert.deepStrictEqual(C.assign([sandbox(0), sandbox(1)], {}), C.assign([sandbox(0), sandbox(1)], {}));
+console.log("PASS stored picks win, bad values are ignored, same input gives same output");
+
+// Orgs saved before ids existed are keyed by host.
+assert.strictEqual(C.keyOf({ host: "old.my.salesforce.com" }), "old.my.salesforce.com");
+assert.strictEqual(C.assign([{ host: "old.my.salesforce.com" }], {})["old.my.salesforce.com"], "red"); // production
+console.log("PASS orgs without an id are keyed by host");
+
+// ---- Import cleanup ----
+const raw = { a: "gold", b: "#123456", c: "toString", ["k".repeat(256)]: "red", ["h".repeat(85)]: "sky" };
+assert.deepStrictEqual(C.clean(raw), { a: "gold", ["h".repeat(85)]: "sky" });
+assert.strictEqual(C.clean([]), null);
+assert.strictEqual(C.clean("gold"), null);
+const many = {};
+for (let i = 0; i < 150; i++) many["o" + i] = "teal";
+assert.strictEqual(Object.keys(C.clean(many)).length, 100);
+console.log("PASS imported colors keep only known names on sane keys");
+
+// ---- Initials ----
+const init = (label, host) => C.initial({ label, host: host || "acme.my.salesforce.com" });
+assert.strictEqual(init("", "acme--uat.sandbox.my.salesforce.com"), "U"); // "Acme · UAT"
+assert.strictEqual(init("dx-org"), "D");
+assert.strictEqual(init("Claude org"), "C");
+assert.strictEqual(init("42 Prod"), "4");
+assert.strictEqual(init("Ünïcode"), "Ü");
+assert.strictEqual(init("Acme · —"), "A");
+assert.strictEqual(init("—"), "");
+console.log("PASS initials come from the org name, after the dot for sandboxes");
+
+// ---- Tab icon ----
+const url = C.iconUrl("gold", "Ж", false, false);
+assert(url.startsWith("data:image/svg+xml,"));
+assert.strictEqual(new URL(url).hash, "", "no raw # in the URL");
+const svg = decodeURIComponent(url.slice("data:image/svg+xml,".length));
+assert(svg.includes('fill="#895600"') && svg.includes(">Ж</text>"));
+assert(!C.iconSvg("black", "B", false, false).includes("#E3E3E3"));
+assert(C.iconSvg("black", "B", false, true).includes("#E3E3E3"));
+assert(C.iconSvg("red", "P", true, false).includes('x="4.5"'));
+assert(!C.iconSvg("red", "P", false, false).includes('x="4.5"'));
+assert(!C.iconSvg("gold", '<a">', false, false).includes("<a"));
+assert(C.iconSvg("nope", "A", false, false).includes(C.PALETTE.gold.light)); // unknown color falls back
+console.log("PASS the tab icon is an escaped SVG data URL with ring and frame only where needed");
+
+// The icon files used when a page's CSP blocks data: images are the same
+// tiles without the initial. To regenerate after a palette change, write
+// C.iconSvg(color, "", prod, dark) + "\n" to each file named below.
+const fs = require("fs");
+const dir = path.resolve(__dirname, "../images/tab");
+const expected = [];
+for (const color of C.ORDER)
+    for (const prod of [false, true])
+        for (const dark of [false, true]) {
+            const file = `${color}${prod ? "-prod" : ""}-${dark ? "dark" : "light"}.svg`;
+            expected.push(file);
+            assert.strictEqual(fs.readFileSync(path.join(dir, file), "utf8"), C.iconSvg(color, "", prod, dark) + "\n", file);
+        }
+assert.deepStrictEqual(fs.readdirSync(dir).sort(), expected.sort());
+console.log(`PASS ${expected.length} fallback icon files match the palette`);
+
+// The default is off.
+require(path.resolve(__dirname, "../src/shared/settings.js"));
+assert.strictEqual(window.SFEN_SETTINGS.normalize({}).orgTabColors, false);
+assert.strictEqual(window.SFEN_SETTINGS.normalize({ orgTabColors: "yes" }).orgTabColors, false);
+assert.strictEqual(window.SFEN_SETTINGS.normalize({ orgTabColors: true }).orgTabColors, true);
+console.log("PASS tab colors are off by default");
+console.log("ALL PASS");

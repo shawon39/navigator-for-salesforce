@@ -16,7 +16,10 @@
     let detected = []; // currently logged-in orgs (from the browser's sid cookies)
     let offSalesforce = false;
     let currentShort = ""; // short host of the active tab's org
+    let currentUrl = ""; // the active Salesforce tab's URL, for "Open this page here"
     let query = "";
+    let colorsOn = false; // settings.orgTabColors
+    let storedColors = {}; // chrome.storage.sync "orgColors"
 
     function loadSaved() {
         return new Promise((resolve) => {
@@ -56,6 +59,36 @@
         });
     }
 
+    // An org's color tile when tab colors are on, else its type dot.
+    function marker(org, size) {
+        const saved = org && savedOrgs.includes(org);
+        if (colorsOn && saved) {
+            const color = SFEN_ORG_COLORS.assign(savedOrgs, storedColors)[SFEN_ORG_COLORS.keyOf(org)];
+            const dark = document.documentElement.classList.contains("nv-dark");
+            return SFEN_ORG_COLORS.tile(color, SFEN_ORG_COLORS.initial(org), SFEN_ORGS.orgType(org) === "production", dark, size || 18);
+        }
+        const dot = document.createElement("span");
+        dot.className = "nv-dot " + SFEN_ORGS.orgType(org);
+        return dot;
+    }
+
+    // Save a new org's color, so removing another org later never changes it.
+    // Its own write after the org is saved: a color can't make the save fail.
+    function rememberColor(org) {
+        if (!colorsOn) return;
+        chrome.storage.sync.get({ orgColors: {} }, (r) => {
+            const stored = (r && r.orgColors) || {};
+            const keys = new Set(savedOrgs.map(SFEN_ORG_COLORS.keyOf));
+            const next = {};
+            Object.keys(stored).forEach((k) => {
+                if (keys.has(k) && SFEN_ORG_COLORS.isColor(stored[k])) next[k] = stored[k];
+            });
+            const key = SFEN_ORG_COLORS.keyOf(org);
+            next[key] = SFEN_ORG_COLORS.assign(savedOrgs, next)[key];
+            chrome.storage.sync.set({ orgColors: next }, () => void chrome.runtime.lastError);
+        });
+    }
+
     function cleanHost(input) {
         return (input || "")
             .trim()
@@ -88,16 +121,15 @@
             toast(`You can save up to ${MAX_ORGS} orgs`);
             return false;
         }
-        persist([
-            ...savedOrgs,
-            {
-                id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-                label: "", // empty = the cleaned-up My Domain name
-                host,
-                isSandbox: !!isSandbox,
-                pinned: false,
-            },
-        ]);
+        const org = {
+            id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+            label: "", // empty = the cleaned-up My Domain name
+            host,
+            isSandbox: !!isSandbox,
+            pinned: false,
+        };
+        persist([...savedOrgs, org]);
+        rememberColor(org);
         toast("Org added");
         return true;
     }
@@ -121,8 +153,8 @@
     function startRename(row, org) {
         const before = savedOrgs;
         row.className = "nv-row is-org is-editing";
-        row.innerHTML = `<span class="nv-dot ${SFEN_ORGS.orgType(org)}"></span>` +
-            '<span class="nv-row-text"><input type="text" class="nv-row-input" aria-label="Org name"></span>';
+        row.innerHTML = '<span class="nv-row-text"><input type="text" class="nv-row-input" aria-label="Org name"></span>';
+        row.prepend(marker(org));
         const input = row.querySelector("input");
         input.value = SFEN_ORGS.displayName(org);
         input.placeholder = SFEN_ORGS.defaultName(org.host);
@@ -163,7 +195,7 @@
         const name = SFEN_ORGS.displayName(org);
         const row = document.createElement("div");
         row.className = "nv-row is-org has-actions";
-        row.innerHTML = `<span class="nv-dot ${type}"></span>`;
+        row.appendChild(marker(org));
 
         // Real URL so middle-click / ⌘-click / "open in new tab" open the ORG
         // (not popup.html#); plain left-clicks are intercepted below.
@@ -178,7 +210,8 @@
         });
         row.appendChild(link);
 
-        if (!offSalesforce && SFEN_ORGS.shortHost(org.host) === currentShort) {
+        const here = !offSalesforce && SFEN_ORGS.shortHost(org.host) === currentShort;
+        if (here) {
             const badge = document.createElement("span");
             badge.className = "nv-row-badge";
             badge.textContent = "This tab";
@@ -204,6 +237,15 @@
             b.addEventListener("click", onClick);
             acts.appendChild(b);
         };
+        // The page you're on, in this org: compare a Setup page across orgs.
+        const samePage = !offSalesforce && !here && currentUrl ? SFEN_ORGS.samePageUrl(org, currentUrl) : null;
+        if (samePage) {
+            mk("external", "Open this page here", (e) => {
+                const background = e.metaKey || e.ctrlKey;
+                chrome.tabs.create({ url: samePage, active: !background });
+                if (!background) window.SFEN_POPUP_READY.then((r) => r.settings.autoClose && window.close());
+            });
+        }
         mk("pin", org.pinned ? "Unpin" : "Pin", () => update(org, { pinned: !org.pinned }));
         mk("pencil", "Rename", () => startRename(row, org));
         mk("x", "Remove", () => removeOrg(row, org));
@@ -352,17 +394,24 @@
 
     // Re-render if the saved list changes elsewhere (another popup, Settings, sync).
     chrome.storage.onChanged.addListener((changes, area) => {
-        if (area === "sync" && changes.quickOrgs) {
-            savedOrgs = changes.quickOrgs.newValue || [];
-            render();
-        }
+        if (area !== "sync") return;
+        if (changes.quickOrgs) savedOrgs = changes.quickOrgs.newValue || [];
+        if (changes.orgColors) storedColors = changes.orgColors.newValue || {};
+        if (changes.settings) colorsOn = SFEN_SETTINGS.normalize(changes.settings.newValue).orgTabColors;
+        if (changes.quickOrgs || changes.orgColors || changes.settings) render();
     });
 
     // Resolves once the saved list is loaded (detected orgs fill in later).
     async function initQuickLogin(opts) {
         offSalesforce = !!(opts && opts.offSalesforce);
         currentShort = SFEN_ORGS.shortHost((opts && opts.currentHost) || "");
-        savedOrgs = await loadSaved();
+        currentUrl = (opts && opts.currentUrl) || "";
+        const stored = await new Promise((resolve) =>
+            chrome.storage.sync.get({ quickOrgs: [], orgColors: {}, settings: null }, (r) => resolve(r || {}))
+        );
+        savedOrgs = stored.quickOrgs || [];
+        storedColors = stored.orgColors || {};
+        colorsOn = SFEN_SETTINGS.normalize(stored.settings).orgTabColors;
         render(); // paint the saved list immediately
         detectOrgs().then((list) => {
             detected = list;
@@ -377,6 +426,7 @@
             render();
         },
         openAdd,
+        marker,
         // Saved org for a host, if any (used by the header org switcher).
         find(host) {
             const short = SFEN_ORGS.shortHost(host);

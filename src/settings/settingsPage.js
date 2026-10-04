@@ -1,18 +1,20 @@
 // settingsPage.js
 // The full-page Settings screen (options page). Reads and writes the shared
 // "settings" object (see src/shared/settings.js) and the saved orgs
-// ("quickOrgs", see src/shared/orgs.js) in chrome.storage.sync, and re-renders
-// when the popup changes them.
+// ("quickOrgs", see src/shared/orgs.js) and their tab colors ("orgColors", see
+// src/shared/orgColors.js) in chrome.storage.sync, and re-renders when the
+// popup changes them.
 (function () {
     "use strict";
 
     const S = window.SFEN_SETTINGS;
     const O = window.SFEN_ORGS;
+    const C = window.SFEN_ORG_COLORS;
     const U = window.SFEN_URL;
     const $ = (id) => document.getElementById(id);
 
     const TAB_KEYS = Object.keys(S.DEFAULTS.popupTabs);
-    const EXPORT_KEYS = ["bookmarks", "sfTabs", "quickOrgs", "pinnedObjects", "settings"];
+    const EXPORT_KEYS = ["bookmarks", "sfTabs", "quickOrgs", "pinnedObjects", "orgColors", "settings"];
     const MAX_BOOKMARKS = 10; // same caps as the popup
     const MAX_ORGS = 50;
     const ENV_VARS = { production: "prod", sandbox: "sandbox", scratch: "scratch", developer: "dev", trailhead: "other" };
@@ -23,6 +25,11 @@
     const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
     let settings = S.normalize(null);
     let orgs = []; // saved orgs as last read or written
+    let orgColors = {}; // stored tab colors by org key, as last read or written
+    let orgsLoaded = false; // false until the saved orgs are first read
+    let pickerKey = null; // org whose color picker is open
+    let focusAfterRender = null; // selector to focus once the org rows are redrawn
+    let colorsView = ""; // tab-colors switch + theme the org rows were last drawn for
 
     function el(tag, className, text) {
         const node = document.createElement(tag);
@@ -93,6 +100,10 @@
         S.applyTheme(settings);
     }
 
+    function resolvedTheme() {
+        return S.resolveTheme(settings);
+    }
+
     function setSwitch(sw, on) {
         sw.setAttribute("aria-checked", on ? "true" : "false");
     }
@@ -105,6 +116,8 @@
             btn.tabIndex = on ? 0 : -1;
         });
         document.querySelectorAll("[data-setting]").forEach((sw) => setSwitch(sw, settings[sw.dataset.setting]));
+        // The org rows show color swatches (in the theme's shades) only while tab colors are on.
+        if (orgsLoaded && colorsView !== settings.orgTabColors + resolvedTheme()) renderOrgs(orgs);
 
         // The popup needs at least one tab: lock the last one that is on.
         const onCount = TAB_KEYS.filter((k) => settings.popupTabs[k]).length;
@@ -140,7 +153,14 @@
         });
 
         document.querySelectorAll("[data-setting]").forEach((sw) => {
-            sw.addEventListener("click", () => updateSettings((s) => (s[sw.dataset.setting] = !s[sw.dataset.setting])));
+            sw.addEventListener("click", () => {
+                updateSettings((s) => (s[sw.dataset.setting] = !s[sw.dataset.setting]));
+                // Turning tab colors on saves every org's color, so removing an
+                // org later never shifts the colors of the others.
+                if (sw.dataset.setting === "orgTabColors" && settings.orgTabColors) {
+                    writeColors((map) => Object.assign(map, C.assign(orgs, map)));
+                }
+            });
         });
 
         document.querySelectorAll("[data-popup-tab]").forEach((sw) => {
@@ -155,7 +175,7 @@
         });
 
         darkQuery.addEventListener("change", () => {
-            if (settings.theme === "system") applyTheme();
+            if (settings.theme === "system") renderSettings();
         });
     }
 
@@ -168,6 +188,61 @@
         if (change(list) === false) return;
         renderOrgs(list);
         writeSync({ quickOrgs: list });
+    }
+
+    // Change the stored tab colors: read the latest map inside the write queue
+    // (the popup also writes it), drop colors of orgs that are gone, apply the
+    // change, write. Content scripts only read it.
+    function writeColors(change) {
+        if (!orgsLoaded) return; // pruning against an empty list would drop every color
+        inFlight++;
+        writeQueue = writeQueue.then(
+            () =>
+                new Promise((resolve) =>
+                    chrome.storage.sync.get({ orgColors: {} }, (r) => {
+                        const stored = (r && r.orgColors) || {};
+                        const keys = new Set(orgs.map(C.keyOf));
+                        const map = {};
+                        Object.keys(stored).forEach((k) => {
+                            if (keys.has(k) && C.isColor(stored[k])) map[k] = stored[k];
+                        });
+                        change(map);
+                        chrome.storage.sync.set({ orgColors: map }, () => {
+                            inFlight--;
+                            const err = chrome.runtime.lastError;
+                            if (err) showStatus("Couldn't save: " + err.message, true);
+                            else orgColors = map;
+                            renderOrgs(orgs);
+                            resolve();
+                        });
+                    })
+                )
+        );
+    }
+
+    function pickColor(org, color) {
+        const key = C.keyOf(org);
+        const pick = (map) => {
+            Object.assign(map, C.assign(orgs, map)); // keep the others where they are
+            map[key] = color;
+            return map;
+        };
+        // Show the pick at once; the write re-renders with what was stored.
+        orgColors = pick(Object.assign({}, orgColors));
+        pickerKey = null;
+        focusAfterRender = `.st-swatch[data-key="${CSS.escape(key)}"]`;
+        renderOrgs(orgs);
+        writeColors(pick);
+    }
+
+    function resetColors() {
+        if (!confirm("Give every org a new color, in list order? Colors you picked are replaced.")) return;
+        pickerKey = null;
+        writeColors((map) => {
+            Object.keys(map).forEach((k) => delete map[k]);
+            Object.assign(map, C.assign(orgs, {}));
+        });
+        showStatus("Colors reset.");
     }
 
     function saveName(org, value) {
@@ -188,7 +263,82 @@
         });
     }
 
-    function orgRow(org) {
+    // A color tile for an org, in the shades of this page's theme.
+    function orgTile(org, color, size) {
+        return C.tile(color, C.initial(org), O.orgType(org) === "production", resolvedTheme() === "dark", size);
+    }
+
+    function swatchCell(org, color, name) {
+        const cell = el("span", "st-org-color");
+        const btn = el("button", "st-swatch");
+        btn.type = "button";
+        btn.dataset.key = C.keyOf(org);
+        btn.setAttribute("aria-expanded", pickerKey === C.keyOf(org) ? "true" : "false");
+        btn.setAttribute("aria-label", `Tab color for ${name}: ${C.PALETTE[color].label}`);
+        btn.title = "Change color";
+        btn.appendChild(orgTile(org, color, 24));
+        btn.addEventListener("click", () => {
+            pickerKey = pickerKey === C.keyOf(org) ? null : C.keyOf(org);
+            focusAfterRender = pickerKey
+                ? `.st-color-opt[data-color="${color}"]`
+                : `.st-swatch[data-key="${CSS.escape(C.keyOf(org))}"]`;
+            renderOrgs(orgs);
+        });
+        cell.appendChild(btn);
+        return cell;
+    }
+
+    // Inline picker under an org's row: 12 tiles showing the org's initial.
+    // A dot marks colors other orgs use. Arrow keys move, Enter picks, Esc closes.
+    function colorPicker(org, colors, name) {
+        const key = C.keyOf(org);
+        const panel = el("div", "st-color-picker");
+        panel.setAttribute("role", "group");
+        panel.setAttribute("aria-label", "Tab color for " + name);
+        const head = el("div", "st-color-head");
+        head.append(el("span", "st-color-title", "Tab color for " + name), el("span", "st-row-desc", "A dot marks colors other orgs use."));
+        const opts = el("div", "st-color-opts");
+        const usedBy = {};
+        orgs.forEach((o) => {
+            if (C.keyOf(o) !== key) (usedBy[colors[C.keyOf(o)]] = usedBy[colors[C.keyOf(o)]] || []).push(O.displayName(o));
+        });
+        const buttons = C.ORDER.map((color) => {
+            const b = el("button", "st-color-opt" + (usedBy[color] ? " is-used" : ""));
+            b.type = "button";
+            b.dataset.color = color;
+            const current = colors[key] === color;
+            b.setAttribute("aria-pressed", current ? "true" : "false");
+            b.tabIndex = current ? 0 : -1;
+            const label = C.PALETTE[color].label + (usedBy[color] ? ", used by " + usedBy[color].join(", ") : "");
+            b.setAttribute("aria-label", label);
+            b.title = label;
+            b.appendChild(orgTile(org, color, 28));
+            b.addEventListener("click", () => pickColor(org, color));
+            return b;
+        });
+        buttons.forEach((b, i) => {
+            b.addEventListener("keydown", (e) => {
+                const next = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: buttons.length - 1 }[e.key];
+                if (e.key === "Escape") {
+                    e.preventDefault();
+                    pickerKey = null;
+                    focusAfterRender = `.st-swatch[data-key="${CSS.escape(key)}"]`;
+                    renderOrgs(orgs);
+                    return;
+                }
+                if (next === undefined) return;
+                e.preventDefault();
+                const target = buttons[(next + buttons.length) % buttons.length];
+                buttons.forEach((x) => (x.tabIndex = x === target ? 0 : -1));
+                target.focus();
+            });
+        });
+        opts.append(...buttons);
+        panel.append(head, opts);
+        return panel;
+    }
+
+    function orgRow(org, colors) {
         const host = O.shortHost(org.host);
         const name = O.displayName(org);
         const row = el("div", "st-org-grid st-org-row st-item");
@@ -226,6 +376,7 @@
         remove.addEventListener("click", () => removeOrg(org));
         actions.appendChild(remove);
 
+        if (colors) row.append(swatchCell(org, colors[C.keyOf(org)], name));
         row.append(input, hostCell, typeCell, actions);
         return row;
     }
@@ -237,11 +388,34 @@
         const typing = active && active.classList.contains("st-org-name")
             ? { key: active.dataset.key, value: active.value, start: active.selectionStart, end: active.selectionEnd }
             : null;
+        // Likewise keep focus on a swatch or picker tile.
+        if (!focusAfterRender && active && $("orgList").contains(active)) {
+            if (active.classList.contains("st-swatch")) focusAfterRender = `.st-swatch[data-key="${CSS.escape(active.dataset.key)}"]`;
+            if (active.classList.contains("st-color-opt")) focusAfterRender = `.st-color-opt[data-color="${active.dataset.color}"]`;
+        }
 
+        const on = settings.orgTabColors;
+        colorsView = on + resolvedTheme();
+        const colors = on ? C.assign(orgs, orgColors) : null;
+        if (!orgs.some((o) => C.keyOf(o) === pickerKey)) pickerKey = null;
+        const rows = [];
+        orgs.forEach((org) => {
+            rows.push(orgRow(org, colors));
+            if (on && C.keyOf(org) === pickerKey) rows.push(colorPicker(org, colors, O.displayName(org)));
+        });
         const list = $("orgList");
-        list.replaceChildren(...orgs.map(orgRow));
+        list.replaceChildren(...rows);
+        $("orgCard").classList.toggle("has-colors", on);
         $("orgHead").hidden = orgs.length === 0;
         $("orgEmpty").hidden = orgs.length > 0;
+        $("orgColorFoot").hidden = !on || orgs.length === 0;
+        renderColorSample(colors);
+
+        if (focusAfterRender) {
+            const target = list.querySelector(focusAfterRender);
+            focusAfterRender = null;
+            if (target) target.focus();
+        }
 
         if (typing) {
             const input = Array.from(list.querySelectorAll(".st-org-name")).find((i) => i.dataset.key === typing.key);
@@ -252,6 +426,15 @@
             }
         }
         applySearch();
+    }
+
+    // Three sample tab icons next to the switch: your first orgs, or examples.
+    function renderColorSample(colors) {
+        const sample = orgs.length
+            ? orgs.slice(0, 3)
+            : [{ host: "acme.my.salesforce.com" }, { host: "acme--uat.sandbox.my.salesforce.com", isSandbox: true }, { host: "acme--dev.sandbox.my.salesforce.com", isSandbox: true }];
+        const map = colors || C.assign(sample, orgColors);
+        $("tabColorSample").replaceChildren(...sample.map((o) => orgTile(o, map[C.keyOf(o)], 18)));
     }
 
     // ---------- Shortcuts ----------
@@ -286,6 +469,7 @@
                 sfTabs: data.sfTabs || [],
                 quickOrgs: data.quickOrgs || [],
                 pinnedObjects: data.pinnedObjects || [],
+                orgColors: C.clean(data.orgColors) || {},
                 settings: S.normalize(data.settings),
             };
             const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
@@ -356,6 +540,7 @@
                         }
                         return;
                     }
+                    if (k === "orgColors") return; // after the orgs, below
                     if (!Array.isArray(v)) return;
                     const good = v.map(CLEAN[k]).filter((x) => x !== null).slice(0, CAPS[k]);
                     // A list with entries but none valid is a broken file:
@@ -383,10 +568,23 @@
             }
             // Say exactly what will be replaced, with counts, before writing.
             chrome.storage.sync.get(EXPORT_KEYS, (current) => {
+                // Colors are keyed by org id, or by host for orgs saved before
+                // ids existed (those get a new id on import, so match the host too).
+                // A file without colors (an older export) leaves them as they are.
+                const fileColors = C.clean(data.orgColors);
+                if (fileColors) {
+                    const target = next.quickOrgs || current.quickOrgs || [];
+                    next.orgColors = {};
+                    target.forEach((o) => {
+                        const c = fileColors[C.keyOf(o)] || fileColors[o.host];
+                        if (c) next.orgColors[C.keyOf(o)] = c;
+                    });
+                }
                 const count = (list) => (Array.isArray(list) ? list.length : 0);
                 const lines = Object.keys(IMPORT_LABELS)
                     .filter((k) => next[k])
                     .map((k) => `${IMPORT_LABELS[k]}: ${count(current[k])} now → ${next[k].length} from the file`);
+                if (fileColors) lines.push("Tab colors: replaced by the file's colors");
                 if (next.settings) lines.push("Settings: replaced by the file's settings");
                 const note = skipped ? `\n\n${skipped} invalid item${skipped === 1 ? "" : "s"} will be skipped.` : "";
                 if (!confirm("Import will replace:\n\n" + lines.join("\n") + note + "\n\nEverything else is kept.")) return;
@@ -419,6 +617,8 @@
                     chrome.storage.sync.clear(() => {
                         chrome.storage.local.clear(() => {
                             settings = S.normalize(null);
+                            orgColors = {};
+                            pickerKey = null;
                             renderSettings();
                             renderOrgs([]);
                             // applyTheme remembers the theme for themeBoot.js; forget it too.
@@ -442,6 +642,7 @@
             if (file) importData(file);
         });
         $("resetBtn").addEventListener("click", resetSettings);
+        $("resetColors").addEventListener("click", resetColors);
         $("clearBtn").addEventListener("click", clearAll);
         // chrome:// pages can't be opened from a plain link.
         $("changeKeys").addEventListener("click", (e) => {
@@ -518,7 +719,9 @@
             settings = s;
             renderSettings();
         });
-        chrome.storage.sync.get({ quickOrgs: [] }, (r) => {
+        chrome.storage.sync.get({ quickOrgs: [], orgColors: {} }, (r) => {
+            orgColors = r.orgColors || {};
+            orgsLoaded = true;
             renderOrgs(r.quickOrgs || []);
             if (onOrgs) onOrgs();
         });
@@ -542,13 +745,20 @@
             settings = S.normalize(changes.settings.newValue);
             renderSettings();
         }
+        if (changes.orgColors && !inFlight) orgColors = changes.orgColors.newValue || {};
         if (changes.quickOrgs && !inFlight) renderOrgs(changes.quickOrgs.newValue || []);
+        else if (changes.orgColors && !inFlight) renderOrgs(orgs);
     });
 
     bindSettings();
     bindData();
     bindNav();
-    $("search").addEventListener("input", applySearch);
+    $("search").addEventListener("input", () => {
+        if (pickerKey) {
+            pickerKey = null;
+            renderOrgs(orgs); // also applies the search
+        } else applySearch();
+    });
     $("version").textContent = chrome.runtime.getManifest().version;
     // Pick up shortcut changes made in chrome://extensions/shortcuts.
     window.addEventListener("focus", renderShortcuts);

@@ -382,7 +382,9 @@
         const org = saved || { host: currentHost };
         const type = SFEN_ORGS.orgType(org);
         const name = saved ? SFEN_ORGS.displayName(saved) : SFEN_ORGS.defaultName(currentHost);
-        btn.querySelector(".nv-dot").className = "nv-dot " + type;
+        const mark = SFEN_ORGS_TAB.marker(org, 14);
+        mark.classList.add("nv-org-mark");
+        btn.querySelector(".nv-org-mark").replaceWith(mark);
         btn.querySelector(".nv-org-switch-name").textContent = name;
         btn.setAttribute("aria-label", `Current org: ${name}, ${SFEN_ORGS.TYPES[type].toLowerCase()}. Switch org`);
         btn.hidden = !currentHost;
@@ -765,9 +767,9 @@
         );
 
         // Uses the list the Orgs tab loaded instead of a second read.
-        initQuickLogin({ currentHost }).then(updateOrgSwitch);
+        initQuickLogin({ currentHost, currentUrl: activeTab.url }).then(updateOrgSwitch);
         chrome.storage.onChanged.addListener((changes, area) => {
-            if (area === "sync" && changes.quickOrgs) setTimeout(updateOrgSwitch);
+            if (area === "sync" && (changes.quickOrgs || changes.orgColors || changes.settings)) setTimeout(updateOrgSwitch);
         });
         $("orgSwitch").addEventListener("click", () => {
             if (settings.popupTabs.orgs) switchTab("orgs");

@@ -15,6 +15,7 @@
         setupTabs: true,
         headerPopupButton: true,
         showManaged: false,
+        orgTabColors: false, // tab icons colored per saved org (see orgColors.js)
         popupTabs: { recent: true, navigate: true, objects: true, orgs: true },
     };
 

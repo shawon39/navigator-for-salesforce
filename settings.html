@@ -93,7 +93,7 @@
                         <button type="button" class="st-switch" role="switch" aria-checked="true" aria-label="Navigator button in the header" data-setting="headerPopupButton"><span></span></button>
                     </div>
                     <div class="st-row st-item">
-                        <div class="st-row-text"><span class="st-row-title">Load data from your org</span><span class="st-row-desc">Objects, flows, profiles, permission sets and recently viewed records, loaded with the access token already in your browser. No sign-in needed.</span></div>
+                        <div class="st-row-text"><span class="st-row-title">Load data from your org</span><span class="st-row-desc">Objects, flows, profiles, permission sets, Apex classes and recently viewed records, loaded with the access token already in your browser. No sign-in needed.</span></div>
                         <button type="button" class="st-switch" role="switch" aria-checked="true" aria-label="Load data from your org" data-setting="liveOrgAccess"><span></span></button>
                     </div>
                 </div>
@@ -119,10 +119,19 @@
 
             <section id="orgs" class="st-section" aria-labelledby="s-orgs">
                 <div class="st-section-head"><h2 id="s-orgs">Orgs</h2><span class="st-section-desc">Give each org a name you'll recognize. Leave it blank to use a cleaned-up My Domain name.</span></div>
-                <div class="st-card">
-                    <div id="orgHead" class="st-org-grid st-org-head"><span>Name</span><span>My Domain</span><span>Type</span><span></span></div>
+                <div id="orgCard" class="st-card">
+                    <div class="st-row st-item">
+                        <div class="st-row-text"><span class="st-row-title">Color browser tabs by org</span><span class="st-row-desc">Each saved org's tabs get a colored icon with the org's initial. Production orgs also get a frame.</span></div>
+                        <span id="tabColorSample" class="st-tab-sample" aria-hidden="true"></span>
+                        <button type="button" class="st-switch" role="switch" aria-checked="false" aria-label="Color browser tabs by org" data-setting="orgTabColors"><span></span></button>
+                    </div>
+                    <div id="orgHead" class="st-org-grid st-org-head"><span class="st-org-head-color">Color</span><span>Name</span><span>My Domain</span><span class="st-org-head-type">Type</span><span></span></div>
                     <div id="orgList"></div>
                     <p id="orgEmpty" class="st-empty" hidden>No saved orgs yet. Add orgs from the Orgs tab in the Navigator popup.</p>
+                    <div id="orgColorFoot" class="st-row st-org-foot" hidden>
+                        <div class="st-row-text"><span class="st-row-desc">New orgs get the next unused color, and production orgs get red first. Open Salesforce tabs update right away.</span></div>
+                        <button type="button" id="resetColors" class="st-btn">Reset colors</button>
+                    </div>
                 </div>
             </section>
 
@@ -145,7 +154,7 @@
                 <div class="st-section-head"><h2 id="s-data">Data</h2></div>
                 <div class="st-card">
                     <div class="st-row st-item">
-                        <div class="st-row-text"><span class="st-row-title">Export</span><span class="st-row-desc">Bookmarks, quick tabs, orgs and settings in one JSON file.</span></div>
+                        <div class="st-row-text"><span class="st-row-title">Export</span><span class="st-row-desc">Bookmarks, quick tabs, orgs, tab colors and settings in one JSON file.</span></div>
                         <button type="button" id="exportBtn" class="st-btn">Export</button>
                     </div>
                     <div class="st-row st-item">
@@ -185,6 +194,7 @@
     <script src="src/shared/sfUrl.js"></script>
     <script src="src/shared/settings.js"></script>
     <script src="src/shared/orgs.js"></script>
+    <script src="src/shared/orgColors.js"></script>
     <script src="src/settings/settingsPage.js"></script>
 </body>
 </html>

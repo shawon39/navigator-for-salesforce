@@ -29,11 +29,12 @@ Press `Alt+K` (`Option+K` on a Mac) on any Salesforce page and start typing:
 | Type | To |
 | --- | --- |
 | `users`, `perm` | Open any of 400+ Setup pages. `perm` finds Permission Sets. |
-| `acme` | Find a record, user, object, profile, permission set, flow or app named Acme |
+| `acme` | Find a record, user, object, profile, permission set, flow, app, Apex class or trigger, or custom metadata type named Acme |
 | `new case`, `list lead` | Open a new Case, or the Leads list view |
 | `fields account indus` | Jump to the Industry field on Account |
 | `app service` | Open the Service Console app |
 | `record` and a space | See the current record's field values, with API names, ready to copy |
+| `org uat` | Open a saved org in a new tab, or press `→` to open the page you're on in that org |
 | `login jane` | Log in as Jane, if you're allowed to log in as other users |
 
 You can also paste a 15- or 18-character record Id. The closest match comes first. Press `Enter` to open it, `Ctrl/⌘+Enter` to open it in a new tab, or `→` for more actions, like **Login as** on a user.
@@ -43,9 +44,11 @@ You can also paste a 15- or 18-character record Id. The closest match comes firs
 - **Recent**: Setup pages you opened with Navigator, and records you viewed
 - **Navigate**: Home, Setup, Object Manager, Dev Console, Flows, Users, change sets, and up to 10 bookmarks
 - **Objects**: your org's objects, with list, new record and fields, and a menu for layouts, record types, validation rules and triggers. Managed-package objects can be turned on in Settings
-- **Orgs**: your saved orgs, with a colored dot for production, sandbox, scratch and developer orgs. Rename them, pin your favorites and open any of them in one click
+- **Orgs**: your saved orgs, with a colored dot for production, sandbox, scratch and developer orgs. Rename them, pin your favorites, open any of them in one click, or open the page you're on in another org
 
 **On Salesforce pages**, Navigator adds a row of your own Setup quick tabs under the Setup header, and an **N** button in the header that opens the popup.
+
+**Tab colors** (off by default): turn on **Settings → Orgs → Color browser tabs by org** and each saved org's browser tabs get their own colored icon with the org's initial. Production orgs get red first and a frame. Click a color in Settings to change it.
 
 Everything can be turned on or off in Settings, along with the theme (light, dark or system) and import or export of your data.
 
@@ -74,7 +77,7 @@ Navigator runs entirely in your browser. It talks only to the Salesforce org you
 
 | Permission | Why |
 | --- | --- |
-| `storage` | Saves your bookmarks, quick tabs, orgs and settings, synced through your Chrome profile |
+| `storage` | Saves your bookmarks, quick tabs, orgs, tab colors and settings, synced through your Chrome profile |
 | `cookies` | Reads your Salesforce session to make read-only API calls to your own org, and to see which orgs you're logged in to |
 | Salesforce sites only | Runs on `*.force.com`, `*.my.salesforce.com` and `*.my.salesforce-setup.com`, nowhere else |
 

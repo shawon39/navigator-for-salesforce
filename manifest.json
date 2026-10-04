@@ -55,7 +55,7 @@
     "content_scripts": [
         {
             "matches": ["https://*.force.com/*", "https://*.my.salesforce.com/*", "https://*.my.salesforce-setup.com/*"],
-            "js": ["src/shared/sfUrl.js", "src/shared/settings.js", "src/shared/orgs.js", "src/content/contentSetup.js", "src/content/headerButton.js", "src/shared/setupPages.js", "src/shared/recents.js", "src/content/commandPalette.data.js", "src/content/commandPalette.js"],
+            "js": ["src/shared/sfUrl.js", "src/shared/settings.js", "src/shared/orgs.js", "src/shared/orgColors.js", "src/content/orgFavicon.js", "src/content/contentSetup.js", "src/content/headerButton.js", "src/shared/setupPages.js", "src/shared/recents.js", "src/content/commandPalette.data.js", "src/content/commandPalette.js"],
             "css": ["styles/setupStyle.css"],
             "run_at": "document_end"
         }
