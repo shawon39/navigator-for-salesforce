@@ -90,14 +90,14 @@ const svg = decodeURIComponent(url.slice("data:image/svg+xml,".length));
 assert(svg.includes('fill="#895600"') && svg.includes(">Ж</text>"));
 assert(!C.iconSvg("black", "B", false, false).includes("#E3E3E3"));
 assert(C.iconSvg("black", "B", false, true).includes("#E3E3E3"));
-assert(C.iconSvg("red", "P", true, false).includes('x="4.5"'));
-assert(!C.iconSvg("red", "P", false, false).includes('x="4.5"'));
+assert(C.iconSvg("red", "P", true, false).includes("<circle"));
+assert(!C.iconSvg("red", "P", false, false).includes("<circle"));
 assert(!C.iconSvg("gold", '<a">', false, false).includes("<a"));
 assert(C.iconSvg("nope", "A", false, false).includes(C.PALETTE.gold.light)); // unknown color falls back
-console.log("PASS the tab icon is an escaped SVG data URL with ring and frame only where needed");
+console.log("PASS the tab icon is an escaped SVG data URL with ring and circle only where needed");
 
 // The icon files used when a page's CSP blocks data: images are the same
-// tiles without the initial. To regenerate after a palette change, write
+// clouds without the initial. To regenerate after a palette change, write
 // C.iconSvg(color, "", prod, dark) + "\n" to each file named below.
 const fs = require("fs");
 const dir = path.resolve(__dirname, "../images/tab");

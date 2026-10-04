@@ -48,7 +48,7 @@ You can also paste a 15- or 18-character record Id. The closest match comes firs
 
 **On Salesforce pages**, Navigator adds a row of your own Setup quick tabs under the Setup header, and an **N** button in the header that opens the popup.
 
-**Tab colors** (off by default): turn on **Settings → Orgs → Color browser tabs by org** and each saved org's browser tabs get their own colored icon with the org's initial. Production orgs get red first and a frame. Click a color in Settings to change it.
+**Tab colors** (off by default): turn on **Settings → Orgs → Color browser tabs by org** and each saved org's browser tabs get a Salesforce cloud icon in the org's own color, with its initial in the middle. Production orgs get red first and show the initial in a circle. Click a color in Settings to change it.
 
 Everything can be turned on or off in Settings, along with the theme (light, dark or system) and import or export of your data.
 
