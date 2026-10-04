@@ -59,7 +59,7 @@
         });
     }
 
-    // An org's color tile when tab colors are on, else its type dot.
+    // An org's color icon when tab colors are on, else its type dot.
     function marker(org, size) {
         const saved = org && savedOrgs.includes(org);
         if (colorsOn && saved) {

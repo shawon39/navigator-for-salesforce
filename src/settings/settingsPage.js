@@ -263,7 +263,7 @@
         });
     }
 
-    // A color tile for an org, in the shades of this page's theme.
+    // An org's color icon, in the shades of this page's theme.
     function orgTile(org, color, size) {
         return C.tile(color, C.initial(org), O.orgType(org) === "production", resolvedTheme() === "dark", size);
     }
@@ -288,7 +288,7 @@
         return cell;
     }
 
-    // Inline picker under an org's row: 12 tiles showing the org's initial.
+    // Inline picker under an org's row: 12 icons showing the org's initial.
     // A dot marks colors other orgs use. Arrow keys move, Enter picks, Esc closes.
     function colorPicker(org, colors, name) {
         const key = C.keyOf(org);
@@ -388,7 +388,7 @@
         const typing = active && active.classList.contains("st-org-name")
             ? { key: active.dataset.key, value: active.value, start: active.selectionStart, end: active.selectionEnd }
             : null;
-        // Likewise keep focus on a swatch or picker tile.
+        // Likewise keep focus on a swatch or picker icon.
         if (!focusAfterRender && active && $("orgList").contains(active)) {
             if (active.classList.contains("st-swatch")) focusAfterRender = `.st-swatch[data-key="${CSS.escape(active.dataset.key)}"]`;
             if (active.classList.contains("st-color-opt")) focusAfterRender = `.st-color-opt[data-color="${active.dataset.color}"]`;

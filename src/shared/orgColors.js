@@ -104,8 +104,10 @@
         return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
     }
 
-    // Initial color on a tile. The initial is bold, so 3:1 is enough (WCAG
-    // large text); white is preferred so the light-mode tiles look alike.
+    // Color of the initial on the cloud, and of the circle behind it for
+    // production (where the initial takes the cloud's color instead). 3.5:1
+    // keeps the small initial readable; white is preferred so the light-mode
+    // icons look alike.
     function textColor(fill) {
         return contrast(fill, WHITE) >= 3.5 ? WHITE : INK;
     }
@@ -134,6 +136,23 @@
     // stays inside the dip between the top two bumps.
     const DISC = { x: 16.25, y: 15.25, r: 8.4 };
     const FONT = "system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif";
+    // The ring is a stroke centered on the cloud's edge; shrinking the cloud 3%
+    // keeps its outer half inside the 32-unit box.
+    const RING_FIT = "matrix(0.97 0 0 0.97 0.48 0.48)";
+    // Initials wider than most capitals (0.8 em) with ink in their corners,
+    // and full-width scripts, which are also taller.
+    const WIDE = /^[ÆŒĲǄǇǊǱЖШЩЮ]$/u;
+    const FULL_WIDTH = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+
+    // Font size of the production initial: the largest, up to 14, whose
+    // corners stay inside the circle. Ink outside it would vanish, since the
+    // initial is in the cloud's color. Two letters come from initials like ß.
+    function discSize(ch) {
+        const full = FULL_WIDTH.test(ch);
+        const w = [...ch].length > 1 ? 1.22 : WIDE.test(ch) ? 0.95 : full ? 0.88 : 0.8;
+        const h = full ? 0.88 : 0.72;
+        return Math.min(14, Math.floor(((DISC.r - 0.4) / Math.hypot(w / 2, h / 2)) * 10) / 10);
+    }
 
     // The icon as [tag, attributes, text] items, for iconSvg() and tile(): the
     // cloud, the initial, a light ring for black on a dark tab strip, and for
@@ -144,12 +163,12 @@
         const t = look(color, dark);
         const ch = String(letter || "").slice(0, 2).replace(/[&<>"']/g, "");
         const at = prod ? DISC : MID;
-        const size = prod ? 14 : 18;
+        const size = prod ? discSize(ch) : 18;
         // Baseline from the cap height (about 0.7 em in these fonts), so
         // capitals are centered whatever the font's ascent and descent.
         const y = Math.round((at.y + 0.35 * size) * 100) / 100;
         const cloud = { d: CLOUD, fill: t.fill };
-        if (t.ring) Object.assign(cloud, { stroke: RING, "stroke-width": "1.5" });
+        if (t.ring) Object.assign(cloud, { stroke: RING, "stroke-width": "1.5", transform: RING_FIT });
         const out = [["path", cloud]];
         if (prod) out.push(["circle", { cx: DISC.x, cy: DISC.y, r: DISC.r, fill: t.text }]);
         if (ch) {
@@ -173,17 +192,19 @@
         return "data:image/svg+xml," + encodeURIComponent(iconSvg(color, letter, prod, dark));
     }
 
-    // The same icon as a <span> for the popup, the palette and Settings, sized
-    // in CSS pixels. An inline <svg> built through the DOM, the letter as text:
-    // a page's CSP can block data: images, but not inline SVG.
+    // The same icon as a <span> for the popup, the palette and Settings, size
+    // CSS pixels wide. An inline <svg> built through the DOM, the letter as
+    // text: a page's CSP can block data: images, but not inline SVG. Its box
+    // is cropped to the cloud (y 3 to 29), so outlines and badges around it in
+    // Settings hug the cloud. The size is set as style so the palette's
+    // ".icon svg" rule doesn't stretch it back to a square.
     function tile(color, letter, prod, dark, size) {
         const NS = "http://www.w3.org/2000/svg";
-        const s = String(size || 16);
+        const w = (size || 16) + "px";
+        const h = ((size || 16) * 26) / 32 + "px";
         const svg = document.createElementNS(NS, "svg");
-        svg.setAttribute("viewBox", "0 0 32 32");
-        svg.setAttribute("width", s);
-        svg.setAttribute("height", s);
-        svg.style.display = "block";
+        svg.setAttribute("viewBox", "0 3 32 26");
+        Object.assign(svg.style, { display: "block", width: w, height: h });
         shapes(color, letter, prod, dark).forEach(([tag, attrs, text]) => {
             const el = document.createElementNS(NS, tag);
             Object.keys(attrs).forEach((k) => el.setAttribute(k, attrs[k]));
@@ -193,7 +214,7 @@
         const span = document.createElement("span");
         span.className = "nv-org-tile";
         span.setAttribute("aria-hidden", "true");
-        Object.assign(span.style, { display: "inline-flex", flexShrink: "0", width: s + "px", height: s + "px" });
+        Object.assign(span.style, { display: "inline-flex", flexShrink: "0", width: w, height: h });
         span.appendChild(svg);
         return span;
     }

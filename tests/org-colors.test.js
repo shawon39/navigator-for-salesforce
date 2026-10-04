@@ -96,6 +96,59 @@ assert(!C.iconSvg("gold", '<a">', false, false).includes("<a"));
 assert(C.iconSvg("nope", "A", false, false).includes(C.PALETTE.gold.light)); // unknown color falls back
 console.log("PASS the tab icon is an escaped SVG data URL with ring and circle only where needed");
 
+// The ring is a centered stroke, so the ringed cloud is shrunk to keep it in the box.
+assert(C.iconSvg("black", "B", false, true).includes('transform="matrix(0.97 0 0 0.97 0.48 0.48)"'));
+assert(!C.iconSvg("gold", "B", false, true).includes("transform="));
+console.log("PASS the ring stays inside the icon");
+
+// Production: the initial in the cloud's color on a circle in the initial's
+// color, made smaller for wide initials so no ink falls outside the circle.
+const fontSize = (s) => parseFloat(s.match(/font-size="([\d.]+)"/)[1]);
+const prodSvg = C.iconSvg("red", "P", true, false);
+const red = C.look("red", false);
+assert(prodSvg.includes(`<circle cx="16.25" cy="15.25" r="8.4" fill="${red.text}"/>`));
+assert(prodSvg.includes(`fill="${red.fill}">P</text>`));
+assert.strictEqual(fontSize(prodSvg), 14);
+for (const ch of ["Ж", "Æ", "Ю", "東", "한", "SS"]) assert(fontSize(C.iconSvg("red", ch, true, false)) < 14, ch);
+assert(fontSize(C.iconSvg("red", "SS", true, false)) < fontSize(C.iconSvg("red", "Ж", true, false)));
+assert.strictEqual(fontSize(C.iconSvg("red", "Ж", false, false)), 18); // the cloud has room
+assert.strictEqual(C.initial({ label: "ßeta", host: "a.my.salesforce.com" }), "SS");
+console.log("PASS the production initial fits its circle");
+
+// tile() builds the same shapes through the DOM, the initial as text, in a
+// box cropped to the cloud (26 of 32 units tall).
+function fakeEl(tag) {
+    return {
+        tag,
+        attrs: {},
+        style: {},
+        children: [],
+        textContent: "",
+        setAttribute(k, v) {
+            this.attrs[k] = String(v);
+        },
+        appendChild(child) {
+            this.children.push(child);
+        },
+    };
+}
+global.document = { createElement: fakeEl, createElementNS: (ns, tag) => fakeEl(tag) };
+for (const args of [["red", "P", true, false], ["black", "Ж", false, true], ["teal", "", false, false]]) {
+    const span = C.tile(...args, 24);
+    const svgEl = span.children[0];
+    assert.strictEqual(span.className, "nv-org-tile");
+    assert.strictEqual(svgEl.attrs.viewBox, "0 3 32 26");
+    assert.deepStrictEqual([span.style.width, span.style.height, svgEl.style.width, svgEl.style.height], ["24px", "19.5px", "24px", "19.5px"]);
+    const markup = svgEl.children
+        .map((el) => {
+            const a = Object.keys(el.attrs).map((k) => ` ${k}="${el.attrs[k]}"`).join("");
+            return el.textContent ? `<${el.tag}${a}>${el.textContent}</${el.tag}>` : `<${el.tag}${a}/>`;
+        })
+        .join("");
+    assert.strictEqual(markup, C.iconSvg(...args).replace(/^<svg[^>]*>|<\/svg>$/g, ""), args.join(" "));
+}
+console.log("PASS tile() draws the same icon as the tab");
+
 // The icon files used when a page's CSP blocks data: images are the same
 // clouds without the initial. To regenerate after a palette change, write
 // C.iconSvg(color, "", prod, dark) + "\n" to each file named below.

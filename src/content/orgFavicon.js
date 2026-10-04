@@ -1,6 +1,7 @@
 // orgFavicon.js
 // Tab colors by org: when Settings → Orgs → "Color browser tabs by org" is on,
-// a saved org's tab icon becomes its color tile (see src/shared/orgColors.js).
+// a saved org's tab icon becomes a Salesforce cloud in its color (see
+// src/shared/orgColors.js).
 // Runs in the top frame only; Chrome ignores icons set by frames.
 (function () {
     "use strict";
@@ -12,7 +13,7 @@
     const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
     let want = null; // { color, letter, prod } for this tab, or null when off
-    // "data": an SVG data URL with the initial. "file": the same tile without
+    // "data": an SVG data URL with the initial. "file": the same cloud without
     // the initial from images/tab/, for pages whose CSP blocks data: images
     // (extension files aren't blocked).
     let mode = "data";

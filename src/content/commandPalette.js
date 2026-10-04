@@ -63,9 +63,9 @@
     let orgKind = ""; // SFEN_ORGS.orgType of the current org (dot color)
     let savedOrgs = []; // saved orgs (quickOrgs), listed by the "org" verb
     let currentOrg = null; // the saved org this page belongs to, if any
-    let tabColors = false; // settings.orgTabColors: org color tiles instead of type dots
+    let tabColors = false; // settings.orgTabColors: org color icons instead of type dots
     let orgColorMap = Object.create(null); // org key -> color name (SFEN_ORG_COLORS.assign)
-    let paletteDark = false; // the palette's resolved theme, for tile shades
+    let paletteDark = false; // the palette's resolved theme, for icon shades
 
     // Key hints: ⌘ on Mac, Ctrl elsewhere.
     const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl+";
@@ -580,7 +580,7 @@
         });
     }
 
-    // A saved org's color tile when tab colors are on, else its type dot.
+    // A saved org's color icon when tab colors are on, else its type dot.
     function orgMarker(org, size) {
         if (tabColors && org && orgColorMap[SFEN_ORG_COLORS.keyOf(org)]) {
             return SFEN_ORG_COLORS.tile(
