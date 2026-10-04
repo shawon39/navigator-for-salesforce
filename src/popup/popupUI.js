@@ -166,7 +166,10 @@
         const row = selectableRows().find((r) => r.classList.contains("is-sel"));
         if (!row) return false;
         const link = row.matches("a[href]") ? row : row.querySelector("a[href]");
-        if (!link) return false;
+        // A row offering to save an org has no link: Enter adds it.
+        const add = link ? null : row.querySelector(".nv-btn-add");
+        if (add) add.click();
+        if (!link) return !!add;
         if (newTab) chrome.tabs.create({ url: link.href });
         else link.click();
         return true;
@@ -386,7 +389,8 @@
         mark.classList.add("nv-org-mark");
         btn.querySelector(".nv-org-mark").replaceWith(mark);
         btn.querySelector(".nv-org-switch-name").textContent = name;
-        btn.setAttribute("aria-label", `Current org: ${name}, ${SFEN_ORGS.TYPES[type].toLowerCase()}. Switch org`);
+        const action = settings.popupTabs.orgs ? ". Switch org" : saved ? "" : ". Add this org";
+        btn.setAttribute("aria-label", `Current org: ${name}, ${SFEN_ORGS.TYPES[type].toLowerCase()}${action}`);
         btn.hidden = !currentHost;
     }
 
@@ -771,8 +775,10 @@
         chrome.storage.onChanged.addListener((changes, area) => {
             if (area === "sync" && (changes.quickOrgs || changes.orgColors || changes.settings)) setTimeout(updateOrgSwitch);
         });
+        // With the Orgs tab hidden, the org name is where an unsaved org is added.
         $("orgSwitch").addEventListener("click", () => {
             if (settings.popupTabs.orgs) switchTab("orgs");
+            else if (!SFEN_ORGS_TAB.find(currentHost)) SFEN_ORGS_TAB.openAdd();
         });
         $("tabAddOrg").addEventListener("click", SFEN_ORGS_TAB.openAdd);
 

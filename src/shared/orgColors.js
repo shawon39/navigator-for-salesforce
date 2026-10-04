@@ -139,19 +139,34 @@
     // The ring is a stroke centered on the cloud's edge; shrinking the cloud 3%
     // keeps its outer half inside the 32-unit box.
     const RING_FIT = "matrix(0.97 0 0 0.97 0.48 0.48)";
-    // Initials wider than most capitals (0.8 em) with ink in their corners,
-    // and full-width scripts, which are also taller.
+    // Capitals wider than most (0.8 em) with ink in their corners.
     const WIDE = /^[ÆŒĲǄǇǊǱЖШЩЮ]$/u;
+    const CAPS = /^[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\p{Script=Armenian}\p{N}]$/u;
     const FULL_WIDTH = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 
-    // Font size of the production initial: the largest, up to 14, whose
-    // corners stay inside the circle. Ink outside it would vanish, since the
-    // initial is in the cloud's color. Two letters come from initials like ß.
-    function discSize(ch) {
-        const full = FULL_WIDTH.test(ch);
-        const w = [...ch].length > 1 ? 1.22 : WIDE.test(ch) ? 0.95 : full ? 0.88 : 0.8;
-        const h = full ? 0.88 : 0.72;
-        return Math.min(14, Math.floor(((DISC.r - 0.4) / Math.hypot(w / 2, h / 2)) * 10) / 10);
+    // The initial's ink box in em, measured in the system fonts: width, and
+    // height above and below the baseline. Capitals sit on the baseline at
+    // 0.7 em; two letters come from initials like ß -> SS. Han, kana and
+    // Hangul fill a taller square. Other scripts (Devanagari, Thai, Arabic,
+    // Tibetan...) vary and some hang below the baseline, so they get a box
+    // that fits them all.
+    function inkBox(ch) {
+        if ([...ch].length > 1) return { w: 1.22, up: 0.7, down: 0 };
+        if (WIDE.test(ch)) return { w: 1, up: 0.7, down: 0 };
+        if (CAPS.test(ch)) return { w: 0.8, up: 0.7, down: 0 };
+        if (FULL_WIDTH.test(ch)) return { w: 0.88, up: 0.82, down: 0.1 };
+        return { w: 0.9, up: 0.8, down: 0.3 };
+    }
+
+    // Font size of the initial: up to 18 on the cloud, within the room its
+    // body has (22 wide, 16 tall); up to 14 in the production circle, with
+    // the box's corners inside it, since ink outside the circle is in the
+    // cloud's color and would vanish.
+    function fontSize(box, prod) {
+        const size = prod
+            ? Math.min(14, (DISC.r - 0.4) / Math.hypot(box.w / 2, (box.up + box.down) / 2))
+            : Math.min(18, 22 / box.w, 16 / (box.up + box.down));
+        return Math.floor(size * 10) / 10;
     }
 
     // The icon as [tag, attributes, text] items, for iconSvg() and tile(): the
@@ -163,10 +178,11 @@
         const t = look(color, dark);
         const ch = String(letter || "").slice(0, 2).replace(/[&<>"']/g, "");
         const at = prod ? DISC : MID;
-        const size = prod ? discSize(ch) : 18;
-        // Baseline from the cap height (about 0.7 em in these fonts), so
-        // capitals are centered whatever the font's ascent and descent.
-        const y = Math.round((at.y + 0.35 * size) * 100) / 100;
+        const box = inkBox(ch);
+        const size = fontSize(box, prod);
+        // Baseline from the ink box, so the ink is centered whatever the
+        // font's ascent and descent.
+        const y = Math.round((at.y + ((box.up - box.down) / 2) * size) * 100) / 100;
         const cloud = { d: CLOUD, fill: t.fill };
         if (t.ring) Object.assign(cloud, { stroke: RING, "stroke-width": "1.5", transform: RING_FIT });
         const out = [["path", cloud]];

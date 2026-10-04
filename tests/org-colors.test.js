@@ -115,6 +115,29 @@ assert.strictEqual(fontSize(C.iconSvg("red", "Ж", false, false)), 18); // the c
 assert.strictEqual(C.initial({ label: "ßeta", host: "a.my.salesforce.com" }), "SS");
 console.log("PASS the production initial fits its circle");
 
+// Every initial's ink stays inside the cloud's body, or inside the production
+// circle. Ink boxes measured in Chrome's bold system font on macOS (em):
+// width, height above and below the baseline. The text is centered on x.
+const INK = {
+    P: [0.53, 0.7, 0], W: [0.92, 0.7, 0], "Ж": [1, 0.7, 0], "Ш": [0.84, 0.7, 0], SS: [1.2, 0.72, 0.01],
+    "東": [0.86, 0.77, 0.1], "한": [0.83, 0.81, 0.06], "क": [0.89, 0.62, 0], "ক": [0.85, 0.65, 0],
+    "ཀ": [0.71, 0.61, 0.33], "த": [0.69, 0.48, 0.28], "ฎ": [0.56, 0.57, 0.28], "ش": [0.87, 0.77, 0.06],
+    "ꦏ": [1.13, 0.56, 0.02],
+};
+const textAt = (s) => ({ x: parseFloat(s.match(/<text x="([\d.]+)"/)[1]), y: parseFloat(s.match(/<text[^>]* y="([\d.]+)"/)[1]), size: fontSize(s) });
+for (const [ch, [w, up, down]] of Object.entries(INK)) {
+    const t = textAt(C.iconSvg("teal", ch, false, false));
+    const top = t.y - up * t.size;
+    const bottom = t.y + down * t.size;
+    assert(top >= 7.5 && bottom <= 24 && (w * t.size) / 2 <= 11, `${ch} on the cloud: ${top.toFixed(1)}..${bottom.toFixed(1)}`);
+    const p = textAt(C.iconSvg("teal", ch, true, false));
+    const corner = (dy) => Math.hypot((w * p.size) / 2, dy);
+    const far = Math.max(corner(p.y - up * p.size - 15.25), corner(p.y + down * p.size - 15.25));
+    assert(Math.abs(p.x - 16.25) < 0.01 && far <= 8.4, `${ch} in the circle reaches ${far.toFixed(2)}`);
+}
+assert.strictEqual(fontSize(C.iconSvg("teal", "P", false, false)), 18); // capitals keep the full size
+console.log("PASS initials in any script stay inside the cloud and the circle");
+
 // tile() builds the same shapes through the DOM, the initial as text, in a
 // box cropped to the cloud (26 of 32 units tall).
 function fakeEl(tag) {

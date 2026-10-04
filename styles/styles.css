@@ -713,9 +713,11 @@ mark {
     text-align: center;
 }
 
-/* No saved orgs yet, with this tab's org offered above. */
+/* No saved orgs yet, with this tab's org offered above, lined up with the
+   rows of the list it starts. */
 .nv-empty.has-offer {
     justify-content: flex-start;
+    padding: 0 0 8px;
 }
 
 .nv-empty.has-offer .nv-empty-body {

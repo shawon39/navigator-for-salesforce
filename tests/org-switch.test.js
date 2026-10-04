@@ -40,4 +40,12 @@ for (const href of ["https://acme.lightning.force.com//evil.com/x", "https://acm
     assert.strictEqual(there("acme.my.salesforce.com", href), null, href);
 assert.strictEqual(samePageUrl(null, page), null);
 console.log("PASS sites, other domains and unsafe paths are refused");
+
+// Hosts compare without case: an org saved as "Acme.my.salesforce.com"
+// matches its tabs, so it isn't offered or saved twice.
+const { shortHost } = window.SFEN_ORGS;
+assert.strictEqual(shortHost("Acme--UAT.Sandbox.My.Salesforce.com"), "acme--uat.sandbox");
+assert.strictEqual(shortHost("ACME--c.vf.force.com"), "acme");
+assert.strictEqual(shortHost("Acme.my.salesforce.com"), shortHost("acme.lightning.force.com"));
+console.log("PASS short hosts are lowercase");
 console.log("ALL PASS");

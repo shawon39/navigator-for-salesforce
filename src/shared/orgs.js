@@ -16,9 +16,11 @@
 
     // "acme--uat.sandbox.lightning.force.com" -> "acme--uat.sandbox"
     // Visualforce hosts end in "--<namespace>": "acme--c.vf.force.com" -> "acme",
-    // "acme--uat--c.sandbox.vf.force.com" -> "acme--uat.sandbox".
+    // "acme--uat--c.sandbox.vf.force.com" -> "acme--uat.sandbox". Lowercase, so
+    // an org saved as "Acme.my.salesforce.com" matches its tabs.
     function shortHost(host) {
         return (host || "")
+            .toLowerCase()
             .replace(/--[A-Za-z0-9_]+((?:\.[a-z]+)?)\.vf\.force\.com$/i, "$1")
             .replace(/\.(my\.salesforce|lightning\.force|my\.salesforce-setup)\.com$/, "")
             .replace(/\.my\.site\.com$/, "");

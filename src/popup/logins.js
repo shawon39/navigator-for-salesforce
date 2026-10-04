@@ -15,7 +15,6 @@
     let savedOrgs = []; // [{ id, label, host, isSandbox, pinned }]
     let detected = []; // currently logged-in orgs (from the browser's sid cookies)
     let offSalesforce = false;
-    let currentHost = ""; // the active Salesforce tab's host
     let currentShort = ""; // short host of the active tab's org
     let currentUrl = ""; // the active Salesforce tab's URL, for "Open this page here"
     let query = "";
@@ -73,26 +72,34 @@
         return dot;
     }
 
+    // Stored colors of saved orgs only: a color left behind by a removed org
+    // (keyed by an id, or by host for orgs saved before ids) never carries over.
+    function keptColors(stored) {
+        const keys = new Set(savedOrgs.map(SFEN_ORG_COLORS.keyOf));
+        const kept = {};
+        Object.keys(stored || {}).forEach((k) => {
+            if (keys.has(k) && SFEN_ORG_COLORS.isColor(stored[k])) kept[k] = stored[k];
+        });
+        return kept;
+    }
+
     // Save a new org's color, so removing another org later never changes it.
     // Its own write after the org is saved: a color can't make the save fail.
     function rememberColor(org) {
         if (!colorsOn) return;
         chrome.storage.sync.get({ orgColors: {} }, (r) => {
-            const stored = (r && r.orgColors) || {};
-            const keys = new Set(savedOrgs.map(SFEN_ORG_COLORS.keyOf));
-            const next = {};
-            Object.keys(stored).forEach((k) => {
-                if (keys.has(k) && SFEN_ORG_COLORS.isColor(stored[k])) next[k] = stored[k];
-            });
+            const next = keptColors(r && r.orgColors);
             const key = SFEN_ORG_COLORS.keyOf(org);
             next[key] = SFEN_ORG_COLORS.assign(savedOrgs, next)[key];
             chrome.storage.sync.set({ orgColors: next }, () => void chrome.runtime.lastError);
         });
     }
 
+    // Hosts are saved lowercase, as browsers show them.
     function cleanHost(input) {
         return (input || "")
             .trim()
+            .toLowerCase()
             .replace(/^https?:\/\//, "")
             .replace(/\/.*$/, "");
     }
@@ -261,38 +268,57 @@
         return g;
     }
 
-    // The active tab's org as it would be saved (its Lightning host, like the
-    // orgs found in the browser), or null off an org's own pages (sites, login).
-    function currentOrg() {
-        const my = offSalesforce ? null : SFEN_ORGS.myDomainHost(currentHost);
-        if (!my) return null;
-        const host = my.replace(/\.my\.salesforce\.com$/, ".lightning.force.com");
-        return { host, isSandbox: /--|\.sandbox$/.test(SFEN_ORGS.shortHost(host)) };
-    }
-
-    // Only saved orgs get a tab color, so with tab colors on, the active tab's
-    // org is offered at the top until it's saved, with the color it would get.
-    function offerCurrent() {
-        const org = colorsOn && !query.trim() ? currentOrg() : null;
-        if (!org || isSaved(org.host)) return null;
-        const C = SFEN_ORG_COLORS;
-        const color = C.assign([...savedOrgs, org], storedColors)[C.keyOf(org)];
-        const dark = document.documentElement.classList.contains("nv-dark");
+    // A row offering to save an org: its marker, name, type and host, and an
+    // Add button. Clicking the row adds it too (it highlights like the other
+    // rows), and so does Enter on it in the list (popupUI clicks .nv-btn-add).
+    function addRow(org, mark, onAdded) {
         const type = SFEN_ORGS.orgType(org);
         const name = SFEN_ORGS.defaultName(org.host);
         const row = document.createElement("div");
         row.className = "nv-row is-org has-actions";
-        row.appendChild(C.tile(color, C.initial(org), type === "production", dark, 18));
-        row.appendChild(orgText(org.host, name, type));
+        row.append(mark, orgText(org.host, name, type));
         const add = document.createElement("button");
         add.type = "button";
         add.className = "nv-btn-secondary nv-btn-add";
         add.textContent = "Add";
-        add.setAttribute("aria-label", `Add ${name} to color its tabs`);
-        add.addEventListener("click", () => saveOrg(org.host, org.isSandbox));
+        add.setAttribute("aria-label", `Add ${name}`);
+        add.addEventListener("click", () => {
+            if (saveOrg(org.host, org.isSandbox) && onAdded) onAdded();
+        });
+        row.addEventListener("click", (e) => {
+            if (!add.contains(e.target)) add.click();
+        });
         row.appendChild(add);
+        return row;
+    }
+
+    // The active tab's org among the orgs found in the browser, saved like them
+    // under its Lightning host; null off an org's own pages, and until they load.
+    function currentOrg() {
+        if (offSalesforce || !currentShort) return null;
+        const found = detected.find((o) => SFEN_ORGS.shortHost(o.lightningHost) === currentShort);
+        return found ? { host: found.lightningHost, isSandbox: found.isSandbox } : null;
+    }
+
+    // Only saved orgs get a tab color, so with tab colors on, the active tab's
+    // org is offered at the top until it's saved: not while searching, or
+    // when no more orgs fit.
+    function offered() {
+        if (!colorsOn || query.trim() || savedOrgs.length >= MAX_ORGS) return null;
+        const org = currentOrg();
+        return org && !isSaved(org.host) ? org : null;
+    }
+
+    // The offer, showing the color the org will get when it's saved.
+    function offerCurrent() {
+        const org = offered();
+        if (!org) return null;
+        const C = SFEN_ORG_COLORS;
+        const color = C.assign([...savedOrgs, org], keptColors(storedColors))[C.keyOf(org)];
+        const dark = document.documentElement.classList.contains("nv-dark");
+        const mark = C.tile(color, C.initial(org), SFEN_ORGS.orgType(org) === "production", dark, 18);
         const box = document.createElement("div");
-        box.append(group("Add this org to color its tabs"), row);
+        box.append(group("Add this org to color its tabs"), addRow(org, mark));
         return box;
     }
 
@@ -411,20 +437,9 @@
         box.appendChild(group("Open in this browser"));
         suggestions.forEach((o) => {
             const org = { host: o.lightningHost, isSandbox: o.isSandbox };
-            const type = SFEN_ORGS.orgType(org);
-            const row = document.createElement("div");
-            row.className = "nv-row is-org has-actions";
-            row.innerHTML = `<span class="nv-dot ${type}"></span>`;
-            row.appendChild(orgText(org.host, SFEN_ORGS.defaultName(org.host), type));
-            const add = document.createElement("button");
-            add.type = "button";
-            add.className = "nv-btn-secondary nv-btn-add";
-            add.textContent = "Add";
-            add.addEventListener("click", () => {
-                if (saveOrg(org.host, org.isSandbox)) closeAdd();
-            });
-            row.appendChild(add);
-            box.appendChild(row);
+            const dot = document.createElement("span");
+            dot.className = "nv-dot " + SFEN_ORGS.orgType(org);
+            box.appendChild(addRow(org, dot, closeAdd));
         });
         const divider = document.createElement("div");
         divider.className = "nv-divider";
@@ -443,8 +458,7 @@
     // Resolves once the saved list is loaded (detected orgs fill in later).
     async function initQuickLogin(opts) {
         offSalesforce = !!(opts && opts.offSalesforce);
-        currentHost = (opts && opts.currentHost) || "";
-        currentShort = SFEN_ORGS.shortHost(currentHost);
+        currentShort = SFEN_ORGS.shortHost((opts && opts.currentHost) || "");
         currentUrl = (opts && opts.currentUrl) || "";
         const stored = await new Promise((resolve) =>
             chrome.storage.sync.get({ quickOrgs: [], orgColors: {}, settings: null }, (r) => resolve(r || {}))
@@ -455,6 +469,7 @@
         render(); // paint the saved list immediately
         detectOrgs().then((list) => {
             detected = list;
+            if (offered()) render(); // the active tab's org is among them
             renderDetected(); // enrich the add view if it's already open
         });
     }
@@ -467,6 +482,8 @@
         },
         openAdd,
         marker,
+        // The org offered at the top of the list, or null (also for tests).
+        offered,
         // Saved org for a host, if any (used by the header org switcher).
         find(host) {
             const short = SFEN_ORGS.shortHost(host);
