@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- Navigator has a website: https://navigator-sf.netlify.app. Settings → About links to it, its Privacy link opens the policy there, and Chrome's extension details link to it as the homepage.
+
 ## 5.1.0
 
 ### Added
