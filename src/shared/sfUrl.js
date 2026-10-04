@@ -78,5 +78,31 @@
         return fk >= 0 ? Math.min(fk, 99) : -1;
     }
 
-    root.SFEN_URL = { SF_HOST_SUFFIXES, isSalesforceHost, isSalesforceUrl, isOrgHost, isSafePath, fuzzy, matchScore };
+    // A token that looks like a record Id: an 18-char Id must end in the
+    // checksum of its first 15 characters' casing; a 15-char Id must mix
+    // letters and digits (so ordinary 15-letter words don't match). Used for
+    // pasted Ids in the palette and to spot pages about one record.
+    function looksLikeRecordId(s) {
+        if (!/^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$/.test(s)) return false;
+        if (s.length === 15) return /\d/.test(s) && /[a-zA-Z]/.test(s);
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345";
+        let suffix = "";
+        for (let i = 0; i < 15; i += 5) {
+            let bits = 0;
+            for (let j = 0; j < 5; j++) if (/[A-Z]/.test(s[i + j])) bits |= 1 << j;
+            suffix += chars[bits];
+        }
+        return suffix === s.slice(15).toUpperCase();
+    }
+
+    // The installed package an object or field API name belongs to, from its
+    // namespace prefix: "SBQQ__Quote__c" and "SBQQ__Discount__c" -> "SBQQ";
+    // "Invoice__c", "Article__kav" and "Account" -> null. The type suffix
+    // (__c, __kav, __mdt...) is dropped first, so only a prefix is left.
+    function namespaceOf(api) {
+        const m = String(api || "").replace(/__[A-Za-z]+$/, "").match(/^([A-Za-z][A-Za-z0-9]*)__/);
+        return m ? m[1] : null;
+    }
+
+    root.SFEN_URL = { SF_HOST_SUFFIXES, isSalesforceHost, isSalesforceUrl, isOrgHost, isSafePath, fuzzy, matchScore, looksLikeRecordId, namespaceOf };
 })(typeof self !== "undefined" ? self : window);

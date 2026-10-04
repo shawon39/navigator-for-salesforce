@@ -1,7 +1,8 @@
 // orgs.js
 // Shared helpers for saved orgs (chrome.storage.sync "quickOrgs", entries
-// { id, label, host, isSandbox, pinned }). Used by the popup's Orgs tab and the
-// Settings page. An empty label means "use the cleaned-up My Domain name".
+// { id, label, host, isSandbox, pinned }). Used by the popup's Orgs tab, the
+// Settings page and the content scripts. An empty label means "use the
+// cleaned-up My Domain name".
 (function () {
     "use strict";
 
@@ -15,9 +16,11 @@
 
     // "acme--uat.sandbox.lightning.force.com" -> "acme--uat.sandbox"
     // Visualforce hosts end in "--<namespace>": "acme--c.vf.force.com" -> "acme",
-    // "acme--uat--c.sandbox.vf.force.com" -> "acme--uat.sandbox".
+    // "acme--uat--c.sandbox.vf.force.com" -> "acme--uat.sandbox". Lowercase, so
+    // an org saved as "Acme.my.salesforce.com" matches its tabs.
     function shortHost(host) {
         return (host || "")
+            .toLowerCase()
             .replace(/--[A-Za-z0-9_]+((?:\.[a-z]+)?)\.vf\.force\.com$/i, "$1")
             .replace(/\.(my\.salesforce|lightning\.force|my\.salesforce-setup)\.com$/, "")
             .replace(/\.my\.site\.com$/, "");
@@ -50,5 +53,44 @@
         return label;
     }
 
-    window.SFEN_ORGS = { TYPES, shortHost, orgType, defaultName, displayName };
+    // An org's My Domain host, which Salesforce redirects to the right domain
+    // for any path (Lightning, Setup, Visualforce), through login if needed.
+    // The Setup domain itself answers "Insufficient Privileges" when opened
+    // directly. null for hosts that aren't an org's own (sites, login).
+    function myDomainHost(host) {
+        const h = String(host || "").toLowerCase();
+        const vf = h.match(/^(.+)--[a-z0-9_]+(\.[a-z]+)?\.vf\.force\.com$/);
+        if (vf) return vf[1] + (vf[2] || "") + ".my.salesforce.com";
+        const m = h.match(/^([a-z0-9-]+(?:\.[a-z]+)?)\.(my\.salesforce|lightning\.force|my\.salesforce-setup)\.com$/);
+        return m ? m[1] + ".my.salesforce.com" : null;
+    }
+
+    // The page at `href` (path and query) in a saved org, to compare the same
+    // Setup page or list across orgs. The hash is dropped: login loses it.
+    // null when the org or the path can't be used, and for pages about one
+    // record (a record Id in the path or query, like /lightning/r/Account/001...
+    // or a profile's ?address=/00e...): that record doesn't exist in another org.
+    function samePageUrl(org, href) {
+        let u;
+        try {
+            u = new URL(href);
+        } catch (e) {
+            return null;
+        }
+        const path = u.pathname + u.search;
+        const host = String((org && org.host) || "").toLowerCase();
+        if (!window.SFEN_URL.isSafePath(path) || !window.SFEN_URL.isOrgHost(host)) return null;
+        let plain = path;
+        try {
+            plain = decodeURIComponent(path);
+        } catch (e) {
+            /* keep it encoded */
+        }
+        if (plain.split(/[/?&=]/).some(window.SFEN_URL.looksLikeRecordId)) return null;
+        if (/^(login|test)\.salesforce\.com$/.test(host)) return `https://${host}/?startURL=${encodeURIComponent(path)}`;
+        const my = myDomainHost(host);
+        return my ? "https://" + my + path : null;
+    }
+
+    window.SFEN_ORGS = { TYPES, shortHost, orgType, defaultName, displayName, myDomainHost, samePageUrl };
 })();

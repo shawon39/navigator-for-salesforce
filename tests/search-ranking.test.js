@@ -64,4 +64,34 @@ console.log("PASS objectScore picks the object a plural names");
 assert(matchScore("tier_level", "Customer Tier", "Tier_Level__c") > 0);
 assert.strictEqual(matchScore("zzz", "Customer Tier", "Tier_Level__c"), -1);
 console.log("PASS API-name match and no-match");
+
+// Installed packages: an API name's namespace prefix names its package.
+const { namespaceOf } = window.SFEN_URL;
+for (const [api, ns] of [
+    ["SBQQ__Quote__c", "SBQQ"], ["SBQQ__Discount__c", "SBQQ"], ["npe01__OppPayment__c", "npe01"], ["SBQQ__Quote__History", "SBQQ"],
+    ["dlrs__LookupRollupSummary2__mdt", "dlrs"], ["Invoice__c", null], ["Article__kav", null], ["Account", null], ["", null],
+])
+    assert.strictEqual(namespaceOf(api), ns, api);
+console.log("PASS namespace prefixes name the package, not the type suffix");
+
+// Package objects rank after the org's own when they match as well.
+const PKG = [{ api: "SBQQ__Quote__c", label: "Quote", plural: "Quotes" }, { api: "Quote", label: "Quote", plural: "Quotes" }];
+assert.strictEqual(objectVerbEntries("list", PKG, "quote")[0].url, "/lightning/o/Quote/home");
+assert.strictEqual(objectVerbEntries("list", PKG, "sbqq")[0].url, "/lightning/o/SBQQ__Quote__c/home"); // still found by prefix
+assert.deepStrictEqual(objectVerbEntries("list", PKG, "").map((e) => e.url), ["/lightning/o/Quote/home", "/lightning/o/SBQQ__Quote__c/home"]);
+console.log("PASS package objects come after the org's own and stay findable by prefix");
+
+// Apex from a package is left out unless the query names the package.
+const { packageQuery, GROUPS: G } = window.SFEN_CMDK_DATA;
+const pkgApex = { group: G.APEX, pkg: "dlrs" };
+assert.strictEqual(packageQuery(pkgApex, "selector"), null);
+assert.strictEqual(packageQuery(pkgApex, "dlrsx selector"), null);
+assert.strictEqual(packageQuery(pkgApex, "dlrs selector"), "selector");
+assert.strictEqual(packageQuery(pkgApex, "selector dlrs"), "selector");
+assert.strictEqual(packageQuery(pkgApex, "dlrs__selector"), "selector");
+assert.strictEqual(packageQuery(pkgApex, "dlrs"), "dlrs");
+assert.strictEqual(packageQuery({ group: G.APEX, pkg: null }, "selector"), "selector");
+assert.strictEqual(packageQuery({ group: G.OBJECT, pkg: "SBQQ" }, "quote"), "quote");
+assert(matchScore(packageQuery(pkgApex, "dlrs selector"), "ApexClassesSelector", "ApexClassesSelector dlrs apex class code") >= 0);
+console.log("PASS package Apex needs its package name in the query");
 console.log("ALL PASS");

@@ -22,6 +22,8 @@
         objectEntries,
         objectScore,
         objectVerbEntries,
+        PACKAGE_PENALTY,
+        packageQuery,
         iconSvg,
         UI_ICONS,
         looksLikeRecordId,
@@ -61,6 +63,11 @@
     let liveRecordsTerm = ""; // search term liveRecords were returned for
     let orgName = ""; // current org's saved or default name, shown in the search bar
     let orgKind = ""; // SFEN_ORGS.orgType of the current org (dot color)
+    let savedOrgs = []; // saved orgs (quickOrgs), listed by the "org" verb
+    let currentOrg = null; // the saved org this page belongs to, if any
+    let tabColors = false; // settings.orgTabColors: org color icons instead of type dots
+    let orgColorMap = Object.create(null); // org key -> color name (SFEN_ORG_COLORS.assign)
+    let paletteDark = false; // the palette's resolved theme, for icon shades
 
     // Key hints: ⌘ on Mac, Ctrl elsewhere.
     const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl+";
@@ -132,9 +139,11 @@
         };
         const scored = [];
         for (const item of fullCatalog()) {
-            const sc = SFEN_URL.matchScore(q, item.label, item.keywords);
+            const itemQuery = packageQuery(item, q);
+            if (itemQuery === null) continue;
+            const sc = SFEN_URL.matchScore(itemQuery, item.label, item.keywords);
             if (sc >= 0)
-                scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) });
+                scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) - (item.pkg ? PACKAGE_PENALTY : 0) });
         }
         liveRecords.forEach((item) => {
             const sc = SFEN_URL.matchScore(q, item.label, item.keywords);
@@ -155,6 +164,8 @@
             [GROUPS.PROFILE]: 6,
             [GROUPS.PERMSET]: 6,
             [GROUPS.APP]: 6,
+            [GROUPS.APEX]: 6,
+            [GROUPS.CMDT]: 4,
         };
         const counts = {};
         for (const s of scored) {
@@ -205,8 +216,9 @@
         });
     }
 
-    // Profiles, permission sets, and flows — fetched once, fuzzy-searched like
-    // objects. Each carries a hint so the result type is obvious.
+    // Profiles, permission sets, flows, Apex classes and triggers, and custom
+    // metadata types — fetched once, fuzzy-searched like objects. Each carries
+    // a hint so the result type is obvious.
     function loadAdmin() {
         if (!liveEnabled || adminRequested) return;
         adminRequested = true;
@@ -239,7 +251,37 @@
                 url: `/builder_platform_interaction/flowBuilder.app?flowId=${f.LatestVersionId || f.ActiveVersionId || f.DurableId}`,
                 keywords: `${f.Label || ""} ${f.ApiName || ""} flow ${f.ProcessType || ""}`,
             }));
-            adminItems = profiles.concat(permSets, flows);
+            const apex = (resp.apexClasses || [])
+                .map((c) => ({
+                    label: c.Name,
+                    hint: c.NamespacePrefix ? `Apex Class · ${c.NamespacePrefix}` : "Apex Class",
+                    group: GROUPS.APEX,
+                    pkg: c.NamespacePrefix || null, // hidden unless the query names the package
+                    url: `/lightning/setup/ApexClasses/page?address=%2F${c.Id}`,
+                    keywords: `${c.Name} ${c.NamespacePrefix || ""} apex class code`,
+                }))
+                .concat(
+                    (resp.apexTriggers || []).map((t) => ({
+                        label: t.Name,
+                        hint: ["Apex Trigger", t.Object, t.NamespacePrefix].filter(Boolean).join(" · "),
+                        group: GROUPS.APEX,
+                        pkg: t.NamespacePrefix || null,
+                        url: `/lightning/setup/ApexTriggers/page?address=%2F${t.Id}`,
+                        keywords: `${t.Name} ${t.Object || ""} ${t.NamespacePrefix || ""} apex trigger code`,
+                    }))
+                );
+            const metadataTypes = (resp.metadataTypes || []).map((m) => ({
+                label: m.Label,
+                api: m.Label !== m.ApiName ? m.ApiName : "",
+                hint: "Custom Metadata Type",
+                group: GROUPS.CMDT,
+                url: `/lightning/setup/CustomMetadata/page?address=%2F${m.Id}%3Fsetupid%3DCustomMetadata`,
+                keywords: `${m.Label} ${m.ApiName} custom metadata type cmdt`,
+                actions: m.KeyPrefix
+                    ? [{ label: "Manage records", hint: "Records", kind: "nav", url: `/lightning/setup/CustomMetadata/page?address=%2F${m.KeyPrefix}` }]
+                    : null,
+            }));
+            adminItems = profiles.concat(permSets, flows, apex, metadataTypes);
             catalogCache = null;
             if (opened && inputEl.value.trim()) render(inputEl.value);
         });
@@ -390,7 +432,12 @@
             chrome.storage.sync.get(["settings"], (res) => {
                 if (chrome.runtime.lastError || !res) return;
                 const settings = SFEN_SETTINGS.normalize(res.settings);
-                shadow.host.setAttribute("data-theme", SFEN_SETTINGS.resolveTheme(settings));
+                const theme = SFEN_SETTINGS.resolveTheme(settings);
+                shadow.host.setAttribute("data-theme", theme);
+                if (paletteDark !== (theme === "dark")) {
+                    paletteDark = theme === "dark";
+                    paintOrg();
+                }
             });
         } catch (e) {
             /* context invalidated */
@@ -450,7 +497,7 @@
 
         orgEl = document.createElement("span");
         orgEl.className = "org";
-        orgEl.innerHTML = '<span class="org-dot"></span><span class="org-name"></span>';
+        orgEl.innerHTML = '<span class="org-dot org-mark"></span><span class="org-name"></span>';
 
         searchWrap.appendChild(inputEl);
         searchWrap.appendChild(loaderEl);
@@ -482,6 +529,15 @@
     // Footer key hints for the current mode; the right-aligned .footer-count
     // is filled separately (setFooterCount).
     function footerHtml() {
+        if (activeVerb && VERBS[activeVerb].kind === "org") {
+            return (
+                '<span><kbd>↑↓</kbd> move</span>' +
+                '<span><kbd>↵</kbd> open in new tab</span>' +
+                '<span><kbd>→</kbd> this page there</span>' +
+                '<span><kbd>esc</kbd> close</span>' +
+                '<span class="footer-count"></span>'
+            );
+        }
         if (activeVerb && VERBS[activeVerb].kind === "login") {
             return (
                 '<span><kbd>↵</kbd> log in</span>' +
@@ -510,25 +566,48 @@
         setFooterCount(footerCount);
     }
 
-    // Current org (saved name, else the cleaned-up My Domain) for the search bar.
+    // Current org (saved name, else the cleaned-up My Domain) for the search
+    // bar, plus the saved orgs and their tab colors for the "org" verb.
     function loadOrg() {
         if (!extAlive()) return;
-        chrome.storage.sync.get({ quickOrgs: [] }, (res) => {
+        chrome.storage.sync.get({ quickOrgs: [], orgColors: {}, settings: null }, (res) => {
             if (chrome.runtime.lastError || !res) return;
             const short = SFEN_ORGS.shortHost(host);
-            const saved = (res.quickOrgs || []).find(
-                (o) => o && SFEN_ORGS.shortHost(o.host) === short
-            );
-            orgName = saved ? SFEN_ORGS.displayName(saved) : SFEN_ORGS.defaultName(host);
-            orgKind = SFEN_ORGS.orgType(saved || { host });
+            const all = Array.isArray(res.quickOrgs) ? res.quickOrgs : [];
+            savedOrgs = all.filter((o) => o && SFEN_URL.isOrgHost(o.host));
+            currentOrg = savedOrgs.find((o) => SFEN_ORGS.shortHost(o.host.toLowerCase()) === short) || null;
+            tabColors = SFEN_SETTINGS.normalize(res.settings).orgTabColors;
+            // Assigned over the full list, as everywhere else, so colors match.
+            orgColorMap = SFEN_ORG_COLORS.assign(all, res.orgColors);
+            orgName = currentOrg ? SFEN_ORGS.displayName(currentOrg) : SFEN_ORGS.defaultName(host);
+            orgKind = SFEN_ORGS.orgType(currentOrg || { host });
             paintOrg();
+            if (opened && activeVerb && VERBS[activeVerb].kind === "org") render(inputEl.value);
         });
+    }
+
+    // A saved org's color icon when tab colors are on, else its type dot.
+    function orgMarker(org, size) {
+        if (tabColors && org && orgColorMap[SFEN_ORG_COLORS.keyOf(org)]) {
+            return SFEN_ORG_COLORS.tile(
+                orgColorMap[SFEN_ORG_COLORS.keyOf(org)],
+                SFEN_ORG_COLORS.initial(org),
+                SFEN_ORGS.orgType(org) === "production",
+                paletteDark,
+                size
+            );
+        }
+        const dot = document.createElement("span");
+        dot.className = "org-dot " + SFEN_ORGS.orgType(org || { host });
+        return dot;
     }
 
     // Hidden while inspecting a record (the record header names it instead).
     function paintOrg() {
         if (!orgEl) return;
-        orgEl.querySelector(".org-dot").className = "org-dot " + orgKind;
+        const marker = orgMarker(currentOrg, 14);
+        marker.classList.add("org-mark");
+        orgEl.querySelector(".org-mark").replaceWith(marker);
         orgEl.querySelector(".org-name").textContent = orgName;
         orgEl.hidden = !orgName || !!(activeVerb && VERBS[activeVerb].kind === "inspect");
     }
@@ -619,7 +698,8 @@
 
         const icon = document.createElement("span");
         icon.className = "icon";
-        icon.innerHTML = iconSvg(isSub ? GROUPS.ACTION : item.group);
+        if (!isSub && item.org) icon.appendChild(orgMarker(item.org, 16));
+        else icon.innerHTML = iconSvg(isSub ? GROUPS.ACTION : item.group);
 
         const wrap = document.createElement("span");
         wrap.className = "label-wrap";
@@ -647,7 +727,7 @@
         // Group headers already name Setup/object/bookmark rows; only records
         // (their object type), actions (e.g. "ID"), apps (console or not) and
         // fields (their data type) carry a trailing hint.
-        const hinted = [GROUPS.RECORD, GROUPS.ACTION, GROUPS.APP, GROUPS.FIELD];
+        const hinted = [GROUPS.RECORD, GROUPS.ACTION, GROUPS.APP, GROUPS.FIELD, GROUPS.ORG, GROUPS.APEX];
         if (!isSub && hinted.includes(item.group)) {
             const hint = document.createElement("span");
             hint.className = "hint";
@@ -728,6 +808,8 @@
                 ? "Type a user's name…"
                 : kind === "app"
                 ? "Type an app name…"
+                : kind === "org"
+                ? "Type an org name…"
                 : "Type an object name…";
         renderChip();
         resetFooter();
@@ -796,6 +878,10 @@
             renderApps(query);
             return;
         }
+        if (VERBS[activeVerb].kind === "org") {
+            renderOrgs(query);
+            return;
+        }
         if (activeVerb === "fields") {
             resetFooter(); // the Tab hint differs between the object and field steps
             const target = fieldsTarget(query);
@@ -830,6 +916,51 @@
         listEl.appendChild(groupHeader(GROUPS.APP));
         renderRows(listEl, items);
         setActive(0);
+    }
+
+    // "org" verb: saved orgs, pinned first. Enter opens the org in a new tab;
+    // → offers the page you're on in that org, to compare the two.
+    function renderOrgs(query) {
+        panelEl.classList.remove("board-mode");
+        if (!savedOrgs.length) {
+            return showEmpty(
+                "No saved orgs yet",
+                "Save the orgs you use in the Orgs tab of the Navigator popup, then switch between them here."
+            );
+        }
+        const q = query.trim();
+        const ordered = savedOrgs.filter((o) => o.pinned).concat(savedOrgs.filter((o) => !o.pinned));
+        const scored = ordered
+            .map((o) => {
+                const type = SFEN_ORGS.TYPES[SFEN_ORGS.orgType(o)];
+                return { o, sc: q ? SFEN_URL.matchScore(q, SFEN_ORGS.displayName(o), `${o.host} ${type}`) : 0 };
+            })
+            // Letters scattered across the host ("uat" in "momentum-dx.scratch…")
+            // aren't a match: keep name matches and words of the host or type.
+            .filter((r) => (q ? r.sc >= 100 : true));
+        if (q) scored.sort((a, b) => b.sc - a.sc);
+        if (!scored.length) return showEmpty(`No orgs match “${q}”`);
+        listEl.appendChild(groupHeader(GROUPS.ORG));
+        renderRows(listEl, scored.map((r) => orgItem(r.o)));
+        setActive(0);
+    }
+
+    function orgItem(org) {
+        const name = SFEN_ORGS.displayName(org);
+        const here = org === currentOrg;
+        const samePage = here ? null : SFEN_ORGS.samePageUrl(org, location.href);
+        return {
+            label: name,
+            sub: `${SFEN_ORGS.TYPES[SFEN_ORGS.orgType(org)]} · ${SFEN_ORGS.shortHost(org.host)}`,
+            hint: here ? "This tab" : "",
+            group: GROUPS.ORG,
+            url: "https://" + org.host + "/",
+            newTab: true,
+            org,
+            actions: samePage
+                ? [{ label: `This page in ${name}`, hint: "Same page", kind: "nav", url: samePage, newTab: true }]
+                : null,
+        };
     }
 
     // "fields" verb, second step: "<object> <field text>" searches that object's
@@ -884,7 +1015,8 @@
         const scored = [];
         fields.forEach((f) => {
             const sc = q ? SFEN_URL.matchScore(q, f.label, f.api) : 0;
-            if (sc >= 0) scored.push({ f, sc });
+            // Package fields (SBQQ__Discount__c) after the org's own.
+            if (sc >= 0) scored.push({ f, sc: sc - (SFEN_URL.namespaceOf(f.api) ? PACKAGE_PENALTY : 0) });
         });
         scored.sort((a, b) => b.sc - a.sc || String(a.f.label).localeCompare(String(b.f.label)));
         setFooterCount(`${scored.length} of ${fields.length} fields`);
@@ -1117,7 +1249,7 @@
             return showEmpty(
                 `No matches for “${query.trim()}”`,
                 (liveEnabled
-                    ? "Search looks through Setup, objects, records, apps, flows, profiles, permission sets and your bookmarks. "
+                    ? "Search looks through Setup, objects, records, apps, flows, profiles, permission sets, Apex, custom metadata types and your bookmarks. "
                     : "Live org access is off, so only Setup, objects, Setup tabs and your bookmarks are searched. ") + verbs
             );
         }
@@ -1145,7 +1277,7 @@
         const bar = document.createElement("div");
         bar.className = "cmd-bar";
         bar.append("Start with ");
-        [["new", ", "], ["list", ", "], ["fields", ", "], ["app", ", "], ["login", " or "], ["record", " — or paste a record Id."]].forEach(
+        [["new", ", "], ["list", ", "], ["fields", ", "], ["app", ", "], ["org", ", "], ["login", " or "], ["record", " — or paste a record Id."]].forEach(
             ([verb, after]) => {
                 const btn = document.createElement("button");
                 btn.type = "button";
@@ -1249,7 +1381,7 @@
         if (!opened) return;
         if (action.kind === "nav") {
             close();
-            navigate(action.url, newTab);
+            navigate(action.url, newTab || !!action.newTab);
         } else if (action.kind === "copy") {
             writeClipboard(action.text).then(
                 () => flashFooter("Copied " + action.text),
@@ -1288,7 +1420,7 @@
         }
         pushRecent(entry);
         close();
-        navigate(entry.url, newTab);
+        navigate(entry.url, newTab || !!entry.newTab);
     }
 
     function onInputKeydown(e) {
@@ -1419,7 +1551,7 @@
             if (area === "sync") {
                 if (changes.sfTabs || changes.bookmarks)
                     buildStaticCatalog(() => opened && render(inputEl.value));
-                if (changes.quickOrgs) loadOrg();
+                if (changes.quickOrgs || changes.orgColors || changes.settings) loadOrg();
                 if (changes.settings) {
                     const s = changes.settings.newValue || {};
                     if (typeof s.liveOrgAccess === "boolean") liveEnabled = s.liveOrgAccess;

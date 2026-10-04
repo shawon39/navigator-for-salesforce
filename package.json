@@ -1,6 +1,6 @@
 {
   "name": "navigator-for-salesforce",
-  "version": "5.0.1",
+  "version": "5.1.0",
   "private": true,
   "description": "Chrome extension: search and jump to Salesforce Setup pages, objects, fields, records, apps and orgs.",
   "license": "MIT",
