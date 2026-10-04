@@ -2,7 +2,7 @@
 
 A feature update: tab colors by org, Apex and custom metadata type search, switching between orgs, and package objects in search. In the dashboard, the package, the description and three privacy justifications change. Everything else stays as submitted for [v5.0.0](../v5.0.0/listing.md) and [v5.0.1](../v5.0.1/listing.md).
 
-**Before you submit:** merge the release into `main`. The privacy policy link points at `main/PRIVACY.md`, and this release adds Apex, custom metadata types and tab colors to it.
+`main` already has this release ([#1](https://github.com/shawon39/navigator-for-salesforce/pull/1), merged October 4, 2026), so the privacy policy link (`main/PRIVACY.md`) already shows what's new: Apex, custom metadata types and tab colors.
 
 ## Package tab
 
