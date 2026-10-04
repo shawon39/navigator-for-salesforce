@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 5.1.0
 
 ### Added
 - Tab colors by org, off by default. Turn on **Settings → Orgs → Color browser tabs by org** and each saved org's tabs get a Salesforce cloud icon in the org's own color, with its initial in the middle, so you can tell orgs apart at a glance. Production orgs get red first and show the initial in a circle. Pick any of 12 colors per org in Settings; open tabs update right away. The popup and the palette show the same colors. Only saved orgs are colored: on an org you haven't saved, the popup's Orgs tab offers to add it and shows the color it will get.
