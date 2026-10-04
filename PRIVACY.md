@@ -1,5 +1,7 @@
 # Privacy Policy — Navigator for Salesforce
 
+This policy is also published at https://navigator-sf.netlify.app/privacy/, which the Chrome Web Store listing links to. The two have the same text; the website adds a short note about the website itself.
+
 Last updated: 3 October 2026
 
 Navigator for Salesforce is a browser extension that helps you move around Salesforce faster. This page explains what it touches and what it does not.
