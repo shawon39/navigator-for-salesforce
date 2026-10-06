@@ -74,6 +74,35 @@ const load = (host) => new Promise((resolve) => R.load(host, resolve));
 
     assert.deepStrictEqual(R.forOrg(store.paletteRecents, UAT).map((x) => x.label), ["Flows", "My Flow"]);
     console.log("PASS forOrg filters a stored list");
+
+    // Flow entries keep their definition id and follow newer versions.
+    const FLOW = "/builder_platform_interaction/flowBuilder.app?flowId=";
+    const DEF = "300000000000001AAA";
+    R.record({ label: "Lead Routing", hint: "Flow", url: FLOW + "301000000000005AAA", flow: DEF }, UAT);
+    let uat = await load(UAT);
+    assert.deepStrictEqual(R.flowIds(uat), [DEF]);
+    console.log("PASS a Flow entry keeps its definition id");
+
+    // Picked again from search under a newer version: still one entry.
+    R.record({ label: "Lead Routing", hint: "Flow", url: FLOW + "301000000000006AAA", flow: DEF }, UAT);
+    uat = await load(UAT);
+    assert.deepStrictEqual(uat.filter((x) => x.flow === DEF).map((x) => x.url), [FLOW + "301000000000006AAA"]);
+    console.log("PASS the same flow under a newer version replaces the old entry");
+
+    const updated = R.updateFlows(UAT, { [DEF]: "301000000000007AAA" });
+    assert.strictEqual(updated[0].url, FLOW + "301000000000007AAA");
+    assert.strictEqual((await load(UAT))[0].url, FLOW + "301000000000007AAA", "saved, not only returned");
+    console.log("PASS updateFlows moves the link to the current version");
+
+    assert.strictEqual(R.updateFlows(UAT, { [DEF]: "301000000000007AAA" }), null);
+    assert.strictEqual(R.updateFlows(UAT, { [DEF]: "../evil" }), null);
+    assert.strictEqual(R.updateFlows(PROD, { [DEF]: "301000000000008AAA" }), null);
+    assert.strictEqual((await load(UAT))[0].url, FLOW + "301000000000007AAA");
+    console.log("PASS no change, a bad version id or another org leaves it alone");
+
+    R.record({ label: "Bad", hint: "Flow", url: FLOW + "301000000000009AAA", flow: "' OR 1=1" }, UAT);
+    assert.strictEqual((await load(UAT))[0].flow, undefined);
+    console.log("PASS a malformed definition id isn't stored");
     console.log("ALL PASS");
 })().catch((e) => {
     console.error(e);

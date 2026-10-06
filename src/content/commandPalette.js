@@ -237,6 +237,7 @@
                 // Prefer the latest version (matches the Setup list's behavior),
                 // then the active version, then fall back to the definition id.
                 url: `/builder_platform_interaction/flowBuilder.app?flowId=${f.LatestVersionId || f.ActiveVersionId || f.DurableId}`,
+                flow: f.DurableId, // lets Recent Setup follow newer versions
                 keywords: `${f.Label || ""} ${f.ApiName || ""} flow ${f.ProcessType || ""}`,
             }));
             adminItems = profiles.concat(permSets, flows);
@@ -329,6 +330,16 @@
             recentRecords = (resp.records || []).map(mapRecord);
             if (opened && !inputEl.value.trim()) render("");
         });
+        // Recent Flow links open the version that was latest when they were
+        // saved; move them to the current one.
+        const flowIds = SFEN_RECENTS.flowIds(recents);
+        if (!flowIds.length) return;
+        ask("flowVersions", { flowIds }, (resp) => {
+            const list = resp && liveEnabled && SFEN_RECENTS.updateFlows(host, resp.versions);
+            if (!list) return;
+            recents = list;
+            if (opened && !inputEl.value.trim()) render("");
+        });
     }
 
     let searchTimer = null;
@@ -360,8 +371,8 @@
     function pushRecent(item) {
         if (!item || !SFEN_RECENTS.isSetup(item.url)) return;
         // Optimistic in-memory update; SFEN_RECENTS.record persists (setup-only).
-        recents = recents.filter((r) => r.url !== item.url);
-        recents.unshift({ label: item.label, hint: item.hint, url: item.url });
+        recents = recents.filter((r) => r.url !== item.url && !(item.flow && r.flow === item.flow));
+        recents.unshift({ label: item.label, hint: item.hint, url: item.url, flow: item.flow });
         recents = recents.slice(0, 10);
         SFEN_RECENTS.record(item, host);
     }

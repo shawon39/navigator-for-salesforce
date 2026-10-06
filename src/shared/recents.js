@@ -11,12 +11,19 @@
 // and My Domain hosts of one org match) and is only shown on that org: Flow,
 // Profile, Permission Set and field links carry ids that don't exist in other
 // orgs.
+//
+// Flow entries also keep the flow's definition id (300…): their link opens the
+// version that was latest when it was saved, so updateFlows() points it at the
+// current version.
 (function () {
     "use strict";
 
     const KEY = "paletteRecents";
     const CAP = 10; // per org
     const TOTAL_CAP = 100; // across all orgs, so storage can't grow forever
+    const FLOW_BUILDER = "/builder_platform_interaction/flowBuilder.app?flowId=";
+    const FLOW_DEF_ID_RE = /^300[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/;
+    const FLOW_VERSION_ID_RE = /^301[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/;
 
     // In-memory mirror of the stored list. record() writes straight from this
     // (a single storage.set) instead of doing a get-then-set, because the popup
@@ -94,8 +101,12 @@
             }
             return;
         }
-        cache = cache.filter((x) => !(x.org === org && x.url === item.url));
-        cache.unshift({ label: item.label, hint: item.hint, url: item.url, org });
+        const flow = FLOW_DEF_ID_RE.test(item.flow || "") ? item.flow : "";
+        // The same flow under an older version link is the same entry.
+        cache = cache.filter((x) => !(x.org === org && (x.url === item.url || (flow && x.flow === flow))));
+        const entry = { label: item.label, hint: item.hint, url: item.url, org };
+        if (flow) entry.flow = flow;
+        cache.unshift(entry);
         const perOrg = {};
         cache = cache.filter((x) => (perOrg[x.org] = (perOrg[x.org] || 0) + 1) <= CAP).slice(0, TOTAL_CAP);
         try {
@@ -103,6 +114,33 @@
         } catch (e) {
             /* context invalidated */
         }
+    }
+
+    // Definition ids of the flows in a list from forOrg/load.
+    function flowIds(list) {
+        return (list || []).map((x) => x.flow).filter((id) => FLOW_DEF_ID_RE.test(id || ""));
+    }
+
+    // Point the org's Flow entries at their current versions (definition id ->
+    // version id, from the background "flowVersions" action). Returns the
+    // org's updated list, or null when nothing changed.
+    function updateFlows(host, versions) {
+        const org = orgOf(host);
+        if (!org || !primed || !versions) return null;
+        let changed = false;
+        cache = cache.map((x) => {
+            const v = x.org === org && x.flow ? versions[x.flow] : "";
+            if (!FLOW_VERSION_ID_RE.test(v || "") || x.url === FLOW_BUILDER + v) return x;
+            changed = true;
+            return { ...x, url: FLOW_BUILDER + v };
+        });
+        if (!changed) return null;
+        try {
+            chrome.storage.local.set({ [KEY]: cache });
+        } catch (e) {
+            /* context invalidated */
+        }
+        return forOrg(cache, host);
     }
 
     // cb gets the entries for the org of `host`.
@@ -139,5 +177,5 @@
         }
     }
 
-    window.SFEN_RECENTS = { KEY, isSetup, isBrokenFlowUrl, forOrg, record, load };
+    window.SFEN_RECENTS = { KEY, isSetup, isBrokenFlowUrl, forOrg, record, load, flowIds, updateFlows };
 })();
