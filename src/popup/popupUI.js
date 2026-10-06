@@ -166,7 +166,10 @@
         const row = selectableRows().find((r) => r.classList.contains("is-sel"));
         if (!row) return false;
         const link = row.matches("a[href]") ? row : row.querySelector("a[href]");
-        if (!link) return false;
+        // A row offering to save an org has no link: Enter adds it.
+        const add = link ? null : row.querySelector(".nv-btn-add");
+        if (add) add.click();
+        if (!link) return !!add;
         if (newTab) chrome.tabs.create({ url: link.href });
         else link.click();
         return true;
@@ -192,11 +195,29 @@
             : FALLBACK_OBJECTS.map((n) => ({ api: n, label: n })).sort((a, b) => a.label.localeCompare(b.label));
     }
 
-    // Managed-package objects carry a namespace prefix, so after stripping a
-    // trailing __c the API name still contains "__" (e.g. npsp__Foo__c).
-    // Standard objects have no __c; plain custom objects (MyObj__c) don't match.
-    function isManagedObject(api) {
-        return /__/.test(api.replace(/__c$/i, ""));
+    // Objects from installed packages carry a namespace prefix (npsp__Foo__c).
+    const isPackageObject = (o) => !!SFEN_URL.namespaceOf(o.api);
+
+    // Under the list: how many package objects it hides, and a way to show
+    // them without going to Settings (it turns the same setting on).
+    function packageNote(count) {
+        const note = document.createElement("div");
+        note.className = "nv-footnote";
+        note.append(`${count} object${count === 1 ? "" : "s"} from installed packages hidden. Search finds them. `);
+        const show = document.createElement("button");
+        show.type = "button";
+        show.className = "nv-btn-link";
+        show.textContent = "Show them";
+        show.addEventListener("click", () => {
+            settings = { ...settings, showManaged: true };
+            renderObjects($("popupSearch").value);
+            chrome.storage.sync.get(["settings"], (r) => {
+                const next = { ...SFEN_SETTINGS.normalize(r && r.settings), showManaged: true };
+                chrome.storage.sync.set({ settings: next }, () => void chrome.runtime.lastError);
+            });
+        });
+        note.appendChild(show);
+        return note;
     }
 
     const SEARCH_GROUPS = [
@@ -382,9 +403,12 @@
         const org = saved || { host: currentHost };
         const type = SFEN_ORGS.orgType(org);
         const name = saved ? SFEN_ORGS.displayName(saved) : SFEN_ORGS.defaultName(currentHost);
-        btn.querySelector(".nv-dot").className = "nv-dot " + type;
+        const mark = SFEN_ORGS_TAB.marker(org, 14);
+        mark.classList.add("nv-org-mark");
+        btn.querySelector(".nv-org-mark").replaceWith(mark);
         btn.querySelector(".nv-org-switch-name").textContent = name;
-        btn.setAttribute("aria-label", `Current org: ${name}, ${SFEN_ORGS.TYPES[type].toLowerCase()}. Switch org`);
+        const action = settings.popupTabs.orgs ? ". Switch org" : saved ? "" : ". Add this org";
+        btn.setAttribute("aria-label", `Current org: ${name}, ${SFEN_ORGS.TYPES[type].toLowerCase()}${action}`);
         btn.hidden = !currentHost;
     }
 
@@ -508,12 +532,12 @@
         if (objState === "loading") pinned.forEach((api) => known.has(api) || known.set(api, { api, label: api }));
         const all = Array.from(known.values());
 
-        // Hide managed-package objects unless the setting is on; an explicit pin
-        // always overrides the filter so pinned managed objects stay visible.
-        const visible = all.filter(
-            (o) => pinnedSet.has(o.api) || settings.showManaged || !isManagedObject(o.api)
-        );
-        const matched = visible.filter((o) => !q || (o.label + " " + o.api).toLowerCase().includes(q));
+        // The list hides objects from installed packages unless the setting is
+        // on (pins always show). A search finds them too, after the org's own.
+        const visible = q ? all : all.filter((o) => pinnedSet.has(o.api) || settings.showManaged || !isPackageObject(o));
+        const matched = visible
+            .filter((o) => !q || (o.label + " " + o.api).toLowerCase().includes(q))
+            .sort((a, b) => (q ? isPackageObject(a) - isPackageObject(b) : 0));
 
         // Pinned objects float to the top in pin order; everything else follows.
         const pinnedRows = matched
@@ -553,6 +577,7 @@
             list.appendChild(groupLabel(title, pinnedRows.length > 0, rest.length));
         }
         rest.slice(0, 200).forEach((o) => list.appendChild(objectRow(o)));
+        if (!q && visible.length < all.length) list.appendChild(packageNote(all.length - visible.length));
         // Select the first match so Enter opens it.
         if (q && currentTabName === "objects") setSelection(0);
     }
@@ -775,12 +800,14 @@
         );
 
         // Uses the list the Orgs tab loaded instead of a second read.
-        initQuickLogin({ currentHost }).then(updateOrgSwitch);
+        initQuickLogin({ currentHost, currentUrl: activeTab.url }).then(updateOrgSwitch);
         chrome.storage.onChanged.addListener((changes, area) => {
-            if (area === "sync" && changes.quickOrgs) setTimeout(updateOrgSwitch);
+            if (area === "sync" && (changes.quickOrgs || changes.orgColors || changes.settings)) setTimeout(updateOrgSwitch);
         });
+        // With the Orgs tab hidden, the org name is where an unsaved org is added.
         $("orgSwitch").addEventListener("click", () => {
             if (settings.popupTabs.orgs) switchTab("orgs");
+            else if (!SFEN_ORGS_TAB.find(currentHost)) SFEN_ORGS_TAB.openAdd();
         });
         $("tabAddOrg").addEventListener("click", SFEN_ORGS_TAB.openAdd);
 

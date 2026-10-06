@@ -62,7 +62,7 @@
 .result:has(.sub) { height:44px; }
 .result:hover { background:var(--nv-surface-2); }
 .result.active { background:var(--nv-sel); color:var(--nv-on-sel); }
-.result .icon { width:16px; height:16px; color:var(--nv-text-3); flex-shrink:0; display:inline-flex; }
+.result .icon { width:16px; height:16px; color:var(--nv-text-3); flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
 .result .icon svg { width:16px; height:16px; }
 .result.active .icon, .result.active .enter { color:var(--nv-sel-icon); }
 .label-wrap { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
@@ -180,7 +180,10 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         PROFILE: "Profiles",
         PERMSET: "Permission Sets",
         APP: "Apps",
+        APEX: "Apex",
+        CMDT: "Custom Metadata Types",
         FIELD: "Fields",
+        ORG: "Orgs",
         ACTION: "Actions",
     };
 
@@ -214,6 +217,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
                 api: label && label !== api ? api : "",
                 hint: "Object",
                 group: GROUPS.OBJECT,
+                pkg: SFEN_URL.namespaceOf(api), // installed package, ranked after the org's own
                 url: `/lightning/o/${api}/home`,
                 keywords: `${api} ${label || ""} list view records new create fields object manager schema`,
                 actions: [
@@ -241,6 +245,8 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         fields: { kind: "object", action: "fields", label: "Fields" },
         app: { kind: "app", label: "App" }, // the user's Lightning apps
         apps: { kind: "app", label: "App" }, // alias of app
+        org: { kind: "org", label: "Org" }, // saved orgs (quickOrgs)
+        orgs: { kind: "org", label: "Org" }, // alias of org
         login: { kind: "login", label: "Log in as" }, // users from the "users" lookup
         record: { kind: "inspect", label: "Record" },
         json: { kind: "inspect", label: "Record" }, // alias of record
@@ -264,7 +270,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
             const sc = q ? objectScore(q, o) : 0;
             if (sc < 0) return;
             scored.push({
-                sc,
+                sc: sc - (SFEN_URL.namespaceOf(o.api) ? PACKAGE_PENALTY : 0),
                 item: {
                     label: o.label || o.api,
                     api: o.label && o.label !== o.api ? o.api : "",
@@ -278,6 +284,25 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         });
         scored.sort((a, b) => b.sc - a.sc);
         return scored.map((s) => s.item);
+    }
+
+    // ---- Installed packages ----------------------------------------------
+    // Objects and fields from installed packages stay searchable, but rank
+    // after the org's own when they match about as well: scores come in bands
+    // about 200 apart, so this only reorders within a band.
+    const PACKAGE_PENALTY = 5;
+
+    // The query to match an item with, or null to leave it out. Apex from an
+    // installed package can't be read (Setup shows only its signature), so it
+    // is left out unless the query names its package, as a word: "dlrs
+    // selector" or "dlrs__selector". The rest of the query is then matched,
+    // or the package name alone lists its classes.
+    function packageQuery(item, q) {
+        if (item.group !== GROUPS.APEX || !item.pkg) return q;
+        const ns = item.pkg.toLowerCase();
+        const words = q.split(/[^a-z0-9]+/).filter(Boolean);
+        if (!words.includes(ns)) return null;
+        return words.filter((w) => w !== ns).join(" ") || q;
     }
 
     // ---- Fuzzy matching --------------------------------------------------
@@ -302,21 +327,8 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     }
 
     // ---- Record Ids ------------------------------------------------------
-    // A pasted token that looks like a record Id: an 18-char Id must end in
-    // the checksum of its first 15 characters' casing; a 15-char Id must mix
-    // letters and digits (so ordinary 15-letter words don't match).
-    function looksLikeRecordId(s) {
-        if (!/^[a-zA-Z0-9]{15}([a-zA-Z0-9]{3})?$/.test(s)) return false;
-        if (s.length === 15) return /\d/.test(s) && /[a-zA-Z]/.test(s);
-        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345";
-        let suffix = "";
-        for (let i = 0; i < 15; i += 5) {
-            let bits = 0;
-            for (let j = 0; j < 5; j++) if (/[A-Z]/.test(s[i + j])) bits |= 1 << j;
-            suffix += chars[bits];
-        }
-        return suffix === s.slice(15).toUpperCase();
-    }
+    // A pasted token that looks like a record Id (see src/shared/sfUrl.js).
+    const looksLikeRecordId = (s) => SFEN_URL.looksLikeRecordId(s);
 
     // ---- Icons -----------------------------------------------------------
     // Lucide-style 24px stroke shapes.
@@ -332,6 +344,9 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         [GROUPS.PROFILE]: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
         [GROUPS.PERMSET]: '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
         [GROUPS.APP]: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+        [GROUPS.APEX]: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
+        [GROUPS.CMDT]: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
+        [GROUPS.ORG]: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
         [GROUPS.FIELD]: '<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>',
         [GROUPS.ACTION]: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
     };
@@ -369,6 +384,8 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         objectEntries,
         objectScore,
         objectVerbEntries,
+        PACKAGE_PENALTY,
+        packageQuery,
         iconSvg,
         looksLikeRecordId,
         highlightPositions,
