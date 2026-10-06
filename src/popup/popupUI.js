@@ -61,7 +61,7 @@
         // Record setup destinations for "Recent Setup" (the guard inside
         // SFEN_RECENTS.record drops non-setup URLs, so passing meta is safe).
         if (meta && window.SFEN_RECENTS) {
-            SFEN_RECENTS.record({ label: meta.label, hint: meta.hint, url: path });
+            SFEN_RECENTS.record({ label: meta.label, hint: meta.hint, flow: meta.flow, url: path }, currentHost);
         }
         const url = absUrl(path);
         if (newTab || !activeTab) {
@@ -693,9 +693,19 @@
     let recentLoaded = false;
     let recentSetup = [];
     function loadRecent() {
-        SFEN_RECENTS.load((list) => {
+        SFEN_RECENTS.load(currentHost, (list) => {
             recentSetup = list;
             renderRecent();
+            // Recent Flow links open the version that was latest when they
+            // were saved; move them to the current one.
+            const flowIds = SFEN_RECENTS.flowIds(list);
+            if (!liveEnabled || !flowIds.length) return;
+            ask("flowVersions", { flowIds }).then((resp) => {
+                const updated = resp && SFEN_RECENTS.updateFlows(currentHost, resp.versions);
+                if (!updated) return;
+                recentSetup = updated;
+                renderRecent();
+            });
         });
         if (recentLoaded || !liveEnabled) return;
         ask("recent").then((resp) => {
@@ -720,7 +730,7 @@
                     icon: label.includes(" — ") ? "box" : "wrench",
                     html: pathLabel(label),
                     url: it.url,
-                    record: { label: it.label, hint: it.hint },
+                    record: { label: it.label, hint: it.hint, flow: it.flow },
                 })
             );
         });
