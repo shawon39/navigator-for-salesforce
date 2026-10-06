@@ -6,11 +6,17 @@
 // Only setup-type destinations are tracked here (Setup pages, Object Manager,
 // Fields, Profiles, Permission Sets, Flow builder). Recently-viewed *records*
 // are not stored — they come from the org's RecentlyViewed query.
+//
+// Each entry remembers its org (SFEN_ORGS.shortHost, so the Lightning, Setup
+// and My Domain hosts of one org match) and is only shown on that org: Flow,
+// Profile, Permission Set and field links carry ids that don't exist in other
+// orgs.
 (function () {
     "use strict";
 
     const KEY = "paletteRecents";
-    const CAP = 10;
+    const CAP = 10; // per org
+    const TOTAL_CAP = 100; // across all orgs, so storage can't grow forever
 
     // In-memory mirror of the stored list. record() writes straight from this
     // (a single storage.set) instead of doing a get-then-set, because the popup
@@ -48,15 +54,32 @@
         );
     }
 
+    function orgOf(host) {
+        return SFEN_ORGS.shortHost(String(host || "").toLowerCase());
+    }
+
+    // Entries saved before entries had an org are dropped: there's no telling
+    // which org their ids belong to.
     function refresh(list) {
-        cache = (list || []).filter(
-            (x) => x && isSetup(x.url) && !isBrokenFlowUrl(x.url)
+        cache = (Array.isArray(list) ? list : []).filter(
+            (x) => x && typeof x.org === "string" && x.org && isSetup(x.url) && !isBrokenFlowUrl(x.url)
         );
         primed = true;
     }
 
-    function record(item) {
-        if (!item || !isSetup(item.url) || !alive()) return;
+    // The stored list's entries for the org of `host`, newest first.
+    function forOrg(list, host) {
+        const org = orgOf(host);
+        if (!org) return [];
+        return (Array.isArray(list) ? list : [])
+            .filter((x) => x && x.org === org && isSetup(x.url) && !isBrokenFlowUrl(x.url))
+            .slice(0, CAP);
+    }
+
+    // host: the hostname of the org the item was opened in.
+    function record(item, host) {
+        const org = orgOf(host);
+        if (!item || !org || !isSetup(item.url) || !alive()) return;
         // Before the cache is primed, merge against fresh storage so we don't
         // clobber existing history with a single entry (rare early click).
         if (!primed) {
@@ -64,16 +87,17 @@
                 chrome.storage.local.get({ [KEY]: [] }, (r) => {
                     if (chrome.runtime.lastError || !r) return;
                     refresh(r[KEY]);
-                    record(item);
+                    record(item, host);
                 });
             } catch (e) {
                 /* context invalidated */
             }
             return;
         }
-        cache = cache.filter((x) => x && x.url !== item.url);
-        cache.unshift({ label: item.label, hint: item.hint, url: item.url });
-        cache = cache.slice(0, CAP);
+        cache = cache.filter((x) => !(x.org === org && x.url === item.url));
+        cache.unshift({ label: item.label, hint: item.hint, url: item.url, org });
+        const perOrg = {};
+        cache = cache.filter((x) => (perOrg[x.org] = (perOrg[x.org] || 0) + 1) <= CAP).slice(0, TOTAL_CAP);
         try {
             chrome.storage.local.set({ [KEY]: cache });
         } catch (e) {
@@ -81,22 +105,23 @@
         }
     }
 
-    function load(cb) {
+    // cb gets the entries for the org of `host`.
+    function load(host, cb) {
         if (!alive()) {
-            cb(cache.slice());
+            cb(forOrg(cache, host));
             return;
         }
         try {
             chrome.storage.local.get({ [KEY]: [] }, (r) => {
                 if (chrome.runtime.lastError || !r) {
-                    cb(cache.slice());
+                    cb(forOrg(cache, host));
                     return;
                 }
                 refresh(r[KEY]);
-                cb(cache.slice());
+                cb(forOrg(cache, host));
             });
         } catch (e) {
-            cb(cache.slice());
+            cb(forOrg(cache, host));
         }
     }
 
@@ -114,5 +139,5 @@
         }
     }
 
-    window.SFEN_RECENTS = { KEY, isSetup, isBrokenFlowUrl, record, load };
+    window.SFEN_RECENTS = { KEY, isSetup, isBrokenFlowUrl, forOrg, record, load };
 })();

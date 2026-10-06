@@ -363,7 +363,7 @@
         recents = recents.filter((r) => r.url !== item.url);
         recents.unshift({ label: item.label, hint: item.hint, url: item.url });
         recents = recents.slice(0, 10);
-        SFEN_RECENTS.record(item);
+        SFEN_RECENTS.record(item, host);
     }
 
     // ---- Overlay UI ------------------------------------------------------
@@ -1402,7 +1402,7 @@
     buildStaticCatalog();
     loadOrg();
     try {
-        SFEN_RECENTS.load((list) => {
+        SFEN_RECENTS.load(host, (list) => {
             recents = list;
         });
         chrome.storage.sync.get(["settings"], (res) => {
@@ -1446,9 +1446,7 @@
                 }
             }
             if (area === "local" && changes.paletteRecents) {
-                recents = (changes.paletteRecents.newValue || []).filter(
-                    (x) => x && SFEN_RECENTS.isSetup(x.url) && !SFEN_RECENTS.isBrokenFlowUrl(x.url)
-                );
+                recents = SFEN_RECENTS.forOrg(changes.paletteRecents.newValue, host);
             }
         });
     } catch (e) {

@@ -34,11 +34,14 @@
                     // Record setup destinations for "Recent Setup" (the guard
                     // inside record drops non-setup URLs like Home/Dev Console).
                     if (window.SFEN_RECENTS) {
-                        window.SFEN_RECENTS.record({
-                            label: el.dataset.label || (el.textContent || "").trim(),
-                            hint: "Setup",
-                            url,
-                        });
+                        window.SFEN_RECENTS.record(
+                            {
+                                label: el.dataset.label || (el.textContent || "").trim(),
+                                hint: "Setup",
+                                url,
+                            },
+                            new URL(tab.url).hostname
+                        );
                     }
 
                     const go = (path) => {

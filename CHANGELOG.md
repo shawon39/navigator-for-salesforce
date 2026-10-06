@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- Recent Setup is now kept per org. A Flow, Profile, Permission Set or field opened in one org (for example a UAT sandbox) no longer shows up in another org's Recent list, where its link fails. History saved by earlier versions is cleared once, because it doesn't say which org it came from.
+
 ## 5.0.1
 
 ### Added

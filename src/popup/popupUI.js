@@ -61,7 +61,7 @@
         // Record setup destinations for "Recent Setup" (the guard inside
         // SFEN_RECENTS.record drops non-setup URLs, so passing meta is safe).
         if (meta && window.SFEN_RECENTS) {
-            SFEN_RECENTS.record({ label: meta.label, hint: meta.hint, url: path });
+            SFEN_RECENTS.record({ label: meta.label, hint: meta.hint, url: path }, currentHost);
         }
         const url = absUrl(path);
         if (newTab || !activeTab) {
@@ -668,7 +668,7 @@
     let recentLoaded = false;
     let recentSetup = [];
     function loadRecent() {
-        SFEN_RECENTS.load((list) => {
+        SFEN_RECENTS.load(currentHost, (list) => {
             recentSetup = list;
             renderRecent();
         });
