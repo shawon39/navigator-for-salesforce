@@ -46,3 +46,20 @@ Then click **Submit for review**.
 - `org` in the palette lists your saved orgs; `→` opens the page you're on in another org, and the popup's Orgs rows have the same **Open this page here**
 - The popup's Objects tab finds objects from installed packages when you search, and package objects and fields rank after your own
 - Apex from installed packages appears only when you type the package's name
+
+## After this version is approved: link the website
+
+These are listing changes only: no new package. Make them once 5.1.0 is out of review (a listing can't be submitted while a review is pending), then click **Submit for review**.
+
+Store listing tab:
+
+- **Official URL:** `https://navigator-sf.netlify.app/` (pick it from the drop-down; it's verified in Google Search Console). It shows under the extension name.
+- **Homepage URL:** `https://navigator-sf.netlify.app/`
+- **Support URL:** `https://github.com/shawon39/navigator-for-salesforce/issues`
+
+Privacy practices tab:
+
+- **Privacy policy URL:** `https://navigator-sf.netlify.app/privacy/`
+
+The packaged links (Settings → About and `homepage_url` in the manifest) point to the website from the next version on.
+

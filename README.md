@@ -14,7 +14,7 @@ Open any Salesforce Setup page, object, field, record, app or org in a few keyst
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
 </p>
 
-**[Add to Chrome](https://chromewebstore.google.com/detail/navigator-for-salesforce/oiaghoidghokmelfojmlilhigihhmeba)**
+**[Add to Chrome](https://chromewebstore.google.com/detail/navigator-for-salesforce/oiaghoidghokmelfojmlilhigihhmeba)** · [Website](https://navigator-sf.netlify.app)
 
 <img src="docs/images/command-palette.png" alt="The Navigator command palette open on a Salesforce record page, showing recent Setup pages, records, bookmarks and Setup quick tabs" width="800" />
 
@@ -83,7 +83,7 @@ Navigator runs entirely in your browser. It talks only to the Salesforce org you
 
 Searching records, objects and other org data is on by default. To turn it off, open Settings and switch off **Load data from your org**.
 
-For full details, see the [privacy policy](PRIVACY.md). To report a security problem, see [SECURITY.md](SECURITY.md).
+For full details, see the [privacy policy](https://navigator-sf.netlify.app/privacy/) (the same text is in [PRIVACY.md](PRIVACY.md)). To report a security problem, see [SECURITY.md](SECURITY.md).
 
 ## Contributing
 
