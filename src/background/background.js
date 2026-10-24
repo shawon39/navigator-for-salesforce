@@ -136,6 +136,8 @@ const ORG_ID_RE = /^00D[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/;
 const API_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 const CUSTOM_OBJECT_ID_RE = /^01I[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/;
 const KEY_PREFIX_RE = /^[A-Za-z0-9]{3}$/;
+const FLOW_DEF_ID_RE = /^300[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/;
+const FLOW_VERSION_ID_RE = /^301[A-Za-z0-9]{12}(?:[A-Za-z0-9]{3})?$/;
 
 // "Home" opens the current app's own landing page: the app the user last used
 // on desktop (UserAppInfo) at /lightning/app/<id>, which Salesforce opens on
@@ -167,7 +169,7 @@ async function appHomePath(host) {
     }
 }
 // Actions that read org data; all are gated by the liveOrgAccess setting.
-const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "fields"]);
+const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "fields", "flowVersions"]);
 
 // Why a palette message must be refused, or null when it's allowed.
 function paletteDenied(msg, sender) {
@@ -513,6 +515,32 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     apps.push({ id: d.DurableId, label: i.Label || d.Label, console: d.NavType === "Console" });
                 });
                 sendResponse({ ok: true, apps });
+            } else if (msg.action === "flowVersions") {
+                // Recent Setup keeps a flow's definition id (300…) next to the
+                // version link it opened. Map each to the flow's current version
+                // (latest first, like the palette's search) so a link saved
+                // before a newer version was saved doesn't open the old one.
+                const ids = msg.flowIds;
+                if (
+                    !Array.isArray(ids) ||
+                    !ids.length ||
+                    ids.length > 10 ||
+                    !ids.every((id) => typeof id === "string" && FLOW_DEF_ID_RE.test(id))
+                ) {
+                    throw new Error("Invalid flow ids");
+                }
+                const rows = await sfQueryAll(
+                    host,
+                    "SELECT DurableId, LatestVersionId, ActiveVersionId FROM FlowDefinitionView " +
+                    `WHERE DurableId IN ('${ids.join("','")}')`,
+                    1
+                );
+                const versions = {};
+                rows.forEach((r) => {
+                    const v = r.LatestVersionId || r.ActiveVersionId;
+                    if (FLOW_DEF_ID_RE.test(r.DurableId || "") && FLOW_VERSION_ID_RE.test(v || "")) versions[r.DurableId] = v;
+                });
+                sendResponse({ ok: true, versions });
             } else if (msg.action === "fields") {
                 // One object's fields for the palette's "fields" verb (FieldDefinition
                 // requires an object filter). key is what the field's Setup page URL
