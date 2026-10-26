@@ -378,28 +378,29 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     const looksLikeRecordId = (s) => SFEN_URL.looksLikeRecordId(s);
 
     // ---- Pasted links ----------------------------------------------------
-    // A pasted Salesforce link as the path to open in the org of `host`: the
-    // same Setup page or list from a sandbox, say. null for anything else,
-    // and for a page about one record of another org (like
-    // SFEN_ORGS.samePageUrl), since that record doesn't exist here.
-    function pastedLinkPath(text, host) {
+    // A pasted link to a page of an org (not Help, Trailhead, login or a
+    // site), to open in the org of `host`: the same Setup page or list from
+    // a sandbox, say. { path } to open, { path: null } for a page about one
+    // record of another org (like SFEN_ORGS.samePageUrl), since that record
+    // doesn't exist here, and null for anything else.
+    function pastedLink(text, host) {
         let u;
         try {
             u = new URL(String(text).trim());
         } catch (e) {
             return null;
         }
-        if (u.protocol !== "https:" || !SFEN_URL.isOrgHost(u.hostname)) return null;
+        if (u.protocol !== "https:" || !SFEN_ORGS.myDomainHost(u.hostname)) return null;
         const path = u.pathname + u.search;
         if (path === "/" || !SFEN_URL.isSafePath(path)) return null;
-        if (SFEN_ORGS.shortHost(u.hostname) === SFEN_ORGS.shortHost(host)) return path;
+        if (SFEN_ORGS.shortHost(u.hostname) === SFEN_ORGS.shortHost(host)) return { path };
         let plain = path;
         try {
             plain = decodeURIComponent(path);
         } catch (e) {
             /* keep it encoded */
         }
-        return plain.split(/[/?&=]/).some(SFEN_URL.looksLikeRecordId) ? null : path;
+        return { path: plain.split(/[/?&=]/).some(SFEN_URL.looksLikeRecordId) ? null : path };
     }
 
     // ---- Icons -----------------------------------------------------------
@@ -464,7 +465,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         addPick,
         iconSvg,
         looksLikeRecordId,
-        pastedLinkPath,
+        pastedLink,
         highlightPositions,
         escapeHtml,
         lightningOrigin,

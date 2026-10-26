@@ -204,7 +204,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (!msg || msg.type !== "paletteShortcut") return;
     if (!sender || sender.id !== chrome.runtime.id || !sender.tab) return;
     if (msg.open) {
-        chrome.tabs.create({ url: "chrome://extensions/shortcuts", index: sender.tab.index + 1 });
+        chrome.tabs.create({ url: "chrome://extensions/shortcuts", windowId: sender.tab.windowId, index: sender.tab.index + 1 });
         return;
     }
     chrome.commands.getAll((commands) => {

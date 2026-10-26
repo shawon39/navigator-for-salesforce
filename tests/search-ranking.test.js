@@ -112,24 +112,34 @@ assert(acts.some((a) => a.label === "Validation Rules" && a.url === "/lightning/
 assert.strictEqual(acts[acts.length - 1].url, "/lightning/setup/ObjectManager/Opportunity/Details/view");
 console.log("PASS object actions include Object Manager pages");
 
-// A pasted link opens its page here; another org's record pages don't.
+// A pasted link to an org's page opens it here; another org's record pages
+// can't ({ path: null }), and other links aren't org pages (null).
 require(path.resolve(__dirname, "../src/shared/orgs.js"));
-const { pastedLinkPath } = window.SFEN_CMDK_DATA;
+const { pastedLink } = window.SFEN_CMDK_DATA;
 const PROD = "acme.lightning.force.com";
+const RECORD = "another org's record";
 for (const [text, expected] of [
-    ["https://acme--uat.sandbox.lightning.force.com/lightning/setup/Profiles/home", "/lightning/setup/Profiles/home"],
+    ["https://acme--uat.sandbox.lightning.force.com/lightning/setup/EnhancedProfiles/home", "/lightning/setup/EnhancedProfiles/home"],
     [" https://acme--uat.sandbox.my.salesforce-setup.com/lightning/setup/ObjectManager/Account/ValidationRules/view ", "/lightning/setup/ObjectManager/Account/ValidationRules/view"],
     ["https://acme--uat.sandbox.lightning.force.com/lightning/o/Case/list?filterName=Recent", "/lightning/o/Case/list?filterName=Recent"],
-    ["https://acme--uat.sandbox.lightning.force.com/lightning/r/Account/001000000000001AAA/view", null], // another org's record
+    ["https://acme--uat--c.sandbox.vf.force.com/apex/Invoices", "/apex/Invoices"],
+    ["https://acme--uat.sandbox.lightning.force.com/lightning/r/Account/001000000000001AAA/view", RECORD],
+    ["https://acme--uat.sandbox.lightning.force.com/lightning/setup/EnhancedProfiles/page?address=%2F00e000000000001", RECORD],
     ["https://acme.lightning.force.com/lightning/r/Account/001000000000001AAA/view", "/lightning/r/Account/001000000000001AAA/view"], // this org's
-    ["https://acme--uat.sandbox.lightning.force.com/lightning/setup/EnhancedProfiles/page?address=%2F00e000000000001", null],
-    ["http://acme--uat.sandbox.lightning.force.com/lightning/setup/Profiles/home", null],
-    ["https://evil.example.com/lightning/setup/Profiles/home", null],
+    ["https://help.salesforce.com/s/articleView?id=sf.users.htm", null],
+    ["https://trailhead.salesforce.com/content/learn/modules/x", null],
+    ["https://login.salesforce.com/?startURL=%2Fhome", null],
+    ["https://acme.my.site.com/s/login", null],
+    ["http://acme--uat.sandbox.lightning.force.com/lightning/setup/EnhancedProfiles/home", null],
+    ["https://evil.example.com/lightning/setup/EnhancedProfiles/home", null],
     ["https://acme.lightning.force.com/", null],
     ["profiles", null],
-])
-    assert.strictEqual(pastedLinkPath(text, PROD), expected, text);
-console.log("PASS pasted links open their page here, except another org's records");
+]) {
+    const link = pastedLink(text, PROD);
+    assert.deepStrictEqual(link && link.path, expected === RECORD ? null : expected, text);
+    assert.strictEqual(link !== null, expected !== null, text);
+}
+console.log("PASS pasted org links open their page here, except another org's records; other links are left alone");
 
 // Results you pick often rank higher, but only among similar matches.
 const { pickBonus, addPick } = window.SFEN_CMDK_DATA;

@@ -31,7 +31,7 @@
         iconSvg,
         UI_ICONS,
         looksLikeRecordId,
-        pastedLinkPath,
+        pastedLink,
         highlightPositions,
         escapeHtml,
         navigate,
@@ -131,10 +131,12 @@
         if (looksLikeRecordId(raw)) {
             out.push({ label: "Open record: " + raw, hint: "ID", group: GROUPS.ACTION, url: "/" + raw });
         }
-        // A pasted Salesforce link opens its page in this org.
-        const linkPath = pastedLinkPath(raw, host);
-        if (linkPath) {
-            out.push({ label: `Open this page in ${orgName || "this org"}`, sub: linkPath, hint: "Link", group: GROUPS.ACTION, url: linkPath });
+        // A pasted link to an org's page opens that page in this org;
+        // renderList explains the ones that can't.
+        const link = pastedLink(raw, host);
+        if (link) {
+            if (link.path)
+                out.push({ label: `Open this page in ${orgName || "this org"}`, sub: link.path, hint: "Link", group: GROUPS.ACTION, url: link.path });
             return out;
         }
         if (!q) return out;
@@ -709,8 +711,7 @@
         // Verb results are local, except "login", which searches users.
         if (activeVerb && VERBS[activeVerb].kind !== "login") return;
         const term = inputEl.value;
-        const link = pastedLinkPath(term, host) || SFEN_URL.isSalesforceUrl(term.trim());
-        if (term.trim().length >= 2 && !link) searchTimer = setTimeout(() => runLiveSearch(term), 140);
+        if (term.trim().length >= 2 && !pastedLink(term, host)) searchTimer = setTimeout(() => runLiveSearch(term), 140);
     }
 
     function highlight(label, query) {
@@ -1305,9 +1306,9 @@
     function renderList(query) {
         panelEl.classList.remove("board-mode");
         const results = compute(query);
-        // A pasted Salesforce link that can't open here is about one record
-        // of another org (see pastedLinkPath).
-        if (results.length === 0 && SFEN_URL.isSalesforceUrl(query.trim())) {
+        // A pasted link to one record of another org can't open here.
+        const link = pastedLink(query, host);
+        if (link && !link.path) {
             return showEmpty(
                 "This link is to a record in another org",
                 "A record exists in one org only. Links to Setup pages and lists open here."
@@ -1510,7 +1511,7 @@
             return;
         }
         pushRecent(entry);
-        recordPick(entry.url);
+        if (entry.group !== GROUPS.ACTION) recordPick(entry.url);
         close();
         navigate(entry.url, newTab || !!entry.newTab);
     }
