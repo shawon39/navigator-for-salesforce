@@ -103,4 +103,12 @@ for (const [short, verb] of Object.entries(VERB_SHORT)) {
     assert(!VERBS[short], `${short} is already a verb`);
 }
 console.log("PASS short verb forms");
+
+// An object's → actions include its Object Manager pages, shared with the popup.
+const { objectActions } = window.SFEN_CMDK_DATA;
+const acts = objectActions("Opportunity");
+assert.strictEqual(acts.length, 3 + window.SFEN_OBJECT_PAGES.length + 1);
+assert(acts.some((a) => a.label === "Validation Rules" && a.url === "/lightning/setup/ObjectManager/Opportunity/ValidationRules/view"));
+assert.strictEqual(acts[acts.length - 1].url, "/lightning/setup/ObjectManager/Opportunity/Details/view");
+console.log("PASS object actions include Object Manager pages");
 console.log("ALL PASS");

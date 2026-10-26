@@ -227,13 +227,24 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
                 pkg: SFEN_URL.namespaceOf(api), // installed package, ranked after the org's own
                 url: `/lightning/o/${api}/home`,
                 keywords: `${api} ${label || ""} list view records new create fields object manager schema`,
-                actions: [
-                    { label: "Open list view", hint: "List", kind: "nav", url: `/lightning/o/${api}/home` },
-                    { label: "New record", hint: "New", kind: "nav", url: `/lightning/o/${api}/new?useRecordTypeCheck=1` },
-                    { label: "Fields & Relationships", hint: "Fields", kind: "nav", url: `/lightning/setup/ObjectManager/${api}/FieldsAndRelationships/view` },
-                ],
+                actions: objectActions(api),
             },
         ];
+    }
+
+    // An object's → actions: its list view and a new record, then its pages
+    // in Object Manager (shared with the popup's object menu).
+    const OBJECT_PAGES = (typeof window !== "undefined" && window.SFEN_OBJECT_PAGES) || [];
+    function objectActions(api) {
+        const om = `/lightning/setup/ObjectManager/${api}`;
+        return [
+            { label: "Open list view", hint: "List", kind: "nav", url: `/lightning/o/${api}/home` },
+            { label: "New record", hint: "New", kind: "nav", url: `/lightning/o/${api}/new?useRecordTypeCheck=1` },
+            { label: "Fields & Relationships", hint: "Fields", kind: "nav", url: `${om}/FieldsAndRelationships/view` },
+        ].concat(
+            OBJECT_PAGES.map(([label, suffix]) => ({ label, hint: "Setup", kind: "nav", url: om + suffix })),
+            [{ label: "Open in Object Manager", hint: "Setup", kind: "nav", url: `${om}/Details/view` }]
+        );
     }
 
     // ---- Command verbs ---------------------------------------------------
@@ -393,6 +404,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         VERB_SHORT,
         isRelevantObject,
         objectEntries,
+        objectActions,
         objectScore,
         objectVerbEntries,
         PACKAGE_PENALTY,
