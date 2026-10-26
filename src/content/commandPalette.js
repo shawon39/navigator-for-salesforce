@@ -16,6 +16,7 @@
         PALETTE_CSS,
         GROUPS,
         VERBS,
+        VERB_SHORT,
         SETUP_PAGES,
         FALLBACK_OBJECTS,
         isRelevantObject,
@@ -655,13 +656,14 @@
         // in) plain search. A verb locked with Tab or a hint never goes back.
         if (!activeVerb) {
             const m = inputEl.value.match(/^([a-zA-Z]+)\s+(.*)$/);
-            const key = m && m[1].toLowerCase();
-            if (m && VERBS[key] && !startsSetupName(key, m[2])) {
+            const word = m && m[1].toLowerCase();
+            const key = word && (VERB_SHORT[word] || word);
+            if (m && VERBS[key] && !startsSetupName(word, m[2])) {
                 setVerb(key, m[2], m[1]);
                 return;
             }
             render(inputEl.value);
-        } else if (autoVerbWord && startsSetupName(activeVerb, inputEl.value)) {
+        } else if (autoVerbWord && startsSetupName(autoVerbWord, inputEl.value)) {
             const text = autoVerbWord + " " + inputEl.value;
             inputEl.value = text;
             clearVerb(); // renders the plain search
@@ -1283,7 +1285,8 @@
         setActive(0);
     }
 
-    // A hint line teaching the command verbs; each verb is clickable.
+    // A hint line teaching the command verbs and their short forms; each verb
+    // is clickable.
     function buildCmdBar() {
         const bar = document.createElement("div");
         bar.className = "cmd-bar";
@@ -1295,7 +1298,8 @@
                 btn.className = "cmd-verb";
                 btn.textContent = verb;
                 btn.addEventListener("click", () => setVerb(verb, ""));
-                bar.append(btn, after);
+                const short = Object.keys(VERB_SHORT).find((k) => VERB_SHORT[k] === verb);
+                bar.append(btn, ` (${short})${after}`);
             }
         );
         return bar;
@@ -1438,9 +1442,10 @@
         if (e.key === "Tab" && !activeVerb) {
             // Lock a verb typed without a trailing space (e.g. "new" + Tab).
             const first = inputEl.value.trim().toLowerCase().split(/\s+/)[0];
-            if (VERBS[first]) {
+            const key = VERB_SHORT[first] || first;
+            if (VERBS[key]) {
                 e.preventDefault();
-                setVerb(first, inputEl.value.trim().slice(first.length).trim());
+                setVerb(key, inputEl.value.trim().slice(first.length).trim());
             }
         } else if (e.key === "Tab" && activeVerb === "fields") {
             // On an object row, complete "<object> " to search its fields. The

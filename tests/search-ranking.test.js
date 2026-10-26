@@ -94,4 +94,13 @@ assert.strictEqual(packageQuery({ group: G.APEX, pkg: null }, "selector"), "sele
 assert.strictEqual(packageQuery({ group: G.OBJECT, pkg: "SBQQ" }, "quote"), "quote");
 assert(matchScore(packageQuery(pkgApex, "dlrs selector"), "ApexClassesSelector", "ApexClassesSelector dlrs apex class code") >= 0);
 console.log("PASS package Apex needs its package name in the query");
+
+// Short verb forms name a verb and never shadow one.
+const { VERBS, VERB_SHORT } = window.SFEN_CMDK_DATA;
+assert.deepStrictEqual(VERB_SHORT, { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record" });
+for (const [short, verb] of Object.entries(VERB_SHORT)) {
+    assert(VERBS[verb], `${short} -> ${verb}`);
+    assert(!VERBS[short], `${short} is already a verb`);
+}
+console.log("PASS short verb forms");
 console.log("ALL PASS");

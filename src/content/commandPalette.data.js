@@ -252,6 +252,9 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         json: { kind: "inspect", label: "Record" }, // alias of record
         api: { kind: "inspect", label: "Record" }, // alias of record
     };
+    // Short forms, typed like the words: "f acc" is "fields acc". "lo" and
+    // "li" because login and list both start with l.
+    const VERB_SHORT = { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record" };
 
     // How well `q` names object `o`. The plural label counts too, so
     // "contacts" finds Contact rather than Contact Request.
@@ -380,6 +383,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         ICONS,
         UI_ICONS,
         VERBS,
+        VERB_SHORT,
         isRelevantObject,
         objectEntries,
         objectScore,
