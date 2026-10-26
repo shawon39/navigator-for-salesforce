@@ -21,6 +21,7 @@
         FALLBACK_OBJECTS,
         isRelevantObject,
         objectEntries,
+        objectActions,
         objectScore,
         objectVerbEntries,
         PACKAGE_PENALTY,
@@ -909,7 +910,11 @@
             }
         }
         panelEl.classList.remove("board-mode");
-        const items = objectVerbEntries(VERBS[activeVerb].action, objectSource(), query).slice(0, 24);
+        const items = objectVerbEntries(VERBS[activeVerb].action, objectSource(), query);
+        // With nothing typed, the object of the page you're on comes first.
+        const here = !query.trim() && currentObject();
+        if (here) items.sort((a, b) => (b.objectApi === here.obj.api) - (a.objectApi === here.obj.api));
+        items.length = Math.min(items.length, 24);
         if (!items.length) return showEmpty("No objects");
         listEl.appendChild(groupHeader("Objects"));
         renderRows(listEl, items);
@@ -1113,6 +1118,16 @@
         return li;
     }
 
+    // The object of the page you're on: a record or list (/lightning/r|o/...)
+    // or its pages in Object Manager (setup: true). null elsewhere, and for
+    // types that aren't objects in Object Manager (reports, dashboards).
+    function currentObject() {
+        const m = location.pathname.match(/^\/lightning\/(r|o|setup\/ObjectManager)\/([A-Za-z][A-Za-z0-9_]*)\//);
+        const api = m && m[2].toLowerCase();
+        const obj = api && objectSource().find((o) => o.api.toLowerCase() === api);
+        return obj ? { obj, setup: m[1].length > 1 } : null;
+    }
+
     // Parse the current record's type + Id from a /lightning/r/{Type}/{Id}/...
     // URL, for the record inspector.
     function currentRecordContext() {
@@ -1314,6 +1329,22 @@
     function renderBoard() {
         panelEl.classList.add("board-mode");
         listEl.appendChild(buildCmdBar());
+        // On a record or list, its object in Object Manager comes first, so
+        // Alt+K, Enter opens it; → lists the object's other pages.
+        const here = currentObject();
+        if (here && !here.setup) {
+            const url = `/lightning/setup/ObjectManager/${here.obj.api}/Details/view`;
+            listEl.appendChild(groupHeader("This object"));
+            renderRows(listEl, [
+                {
+                    label: `${here.obj.label || here.obj.api} in Object Manager`,
+                    hint: "Setup",
+                    group: GROUPS.OBJECT,
+                    url,
+                    actions: objectActions(here.obj.api).filter((a) => a.url !== url),
+                },
+            ]);
+        }
         const recent = recents.slice(0, 7).map((r) => ({ ...r, group: GROUPS.RECENT }));
         const records = recentRecords.slice(0, 20);
         const bookmarks = staticCatalog.filter((i) => i.group === GROUPS.BOOKMARK).slice(0, 8);
