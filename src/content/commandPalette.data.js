@@ -122,6 +122,13 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
 .insp-key.labeled { display:flex; flex-direction:column; font-family:inherit; }
 .insp-label { font-size:13px; font-weight:500; }
 .insp-api { font-size:11px; color:var(--nv-text-3); }
+.notice { display:flex; align-items:center; gap:8px; flex-shrink:0; padding:8px 10px 8px 16px; border-bottom:1px solid var(--nv-border);
+  background:var(--nv-surface-2); font-size:12px; line-height:1.45; color:var(--nv-text-2); }
+.notice[hidden] { display:none; }
+.notice-text { flex:1; min-width:0; }
+.notice-btn { flex-shrink:0; height:26px; padding:0 10px; border:0; border-radius:6px; background:transparent;
+  color:var(--nv-primary-text); font:600 12px "Figtree","Segoe UI",system-ui,sans-serif; cursor:pointer; }
+.notice-btn.primary { background:var(--nv-primary); color:var(--nv-on-primary); }
 .org { display:inline-flex; align-items:center; gap:7px; flex-shrink:0; font-size:12px; font-weight:500;
   color:var(--nv-text-3); white-space:nowrap; }
 .org[hidden] { display:none; }

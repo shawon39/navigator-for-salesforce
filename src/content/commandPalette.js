@@ -421,7 +421,7 @@
     }
 
     // ---- Overlay UI ------------------------------------------------------
-    let overlayHost, shadow, inputEl, listEl, footerEl, loaderEl, panelEl, orgEl;
+    let overlayHost, shadow, inputEl, listEl, footerEl, loaderEl, panelEl, orgEl, noticeEl;
     let opened = false;
     let activeIndex = 0;
     let footerCount = "";
@@ -525,7 +525,12 @@
         footerEl.className = "footer";
         footerEl.innerHTML = footerHtml();
 
+        noticeEl = document.createElement("div");
+        noticeEl.className = "notice";
+        noticeEl.hidden = true;
+
         panel.appendChild(searchWrap);
+        panel.appendChild(noticeEl);
         panel.appendChild(listEl);
         panel.appendChild(footerEl);
         backdrop.appendChild(panel);
@@ -1495,12 +1500,15 @@
         }
     }
 
-    function open() {
+    // fromKey: opened by the page key (see below), not the Chrome command.
+    function open(fromKey) {
         if (!paletteEnabled) return;
         ensureOverlay();
         opened = true;
         overlayHost.classList.add("open");
         applyTheme();
+        noticeEl.hidden = true;
+        if (fromKey) checkShortcut();
         inputEl.value = "";
         inputEl.placeholder = DEFAULT_PLACEHOLDER;
         clearTimeout(searchTimer);
@@ -1542,8 +1550,55 @@
         flatResults.length = 0;
     }
 
-    function toggle() {
-        opened ? close() : open();
+    function toggle(fromKey) {
+        opened ? close() : open(fromKey);
+    }
+
+    // The page key reaches the page when Chrome has no key for the palette,
+    // which then only opens while the page has focus. Say so, with a button
+    // to Chrome's shortcut page (only Chrome can set the key).
+    const PALETTE_KEY = MOD === "⌘" ? "Option+K" : "Alt+K";
+    function checkShortcut() {
+        try {
+            chrome.storage.local.get({ shortcutNoticeOff: false }, (res) => {
+                if (chrome.runtime.lastError || !res || res.shortcutNoticeOff) return;
+                chrome.runtime.sendMessage({ type: "paletteShortcut" }, (resp) => {
+                    if (chrome.runtime.lastError || !resp || resp.shortcut || !opened) return;
+                    showShortcutNotice();
+                });
+            });
+        } catch (e) {
+            /* context invalidated */
+        }
+    }
+
+    function showShortcutNotice() {
+        noticeEl.innerHTML =
+            '<span class="notice-text"></span>' +
+            '<button class="notice-btn primary" type="button">Set it</button>' +
+            '<button class="notice-btn" type="button">Don’t show again</button>';
+        noticeEl.querySelector(".notice-text").textContent =
+            `${PALETTE_KEY} isn’t set as a Chrome shortcut. Set it so Navigator opens from anywhere on the page.`;
+        const [setBtn, offBtn] = noticeEl.querySelectorAll(".notice-btn");
+        setBtn.addEventListener("click", () => {
+            noticeEl.hidden = true;
+            close();
+            try {
+                chrome.runtime.sendMessage({ type: "paletteShortcut", open: true });
+            } catch (e) {
+                /* context invalidated */
+            }
+        });
+        offBtn.addEventListener("click", () => {
+            noticeEl.hidden = true;
+            focusInput();
+            try {
+                chrome.storage.local.set({ shortcutNoticeOff: true });
+            } catch (e) {
+                /* context invalidated */
+            }
+        });
+        noticeEl.hidden = false;
     }
 
     // ---- Init ------------------------------------------------------------
@@ -1625,7 +1680,7 @@
             if (!paletteEnabled && !opened) return;
             e.preventDefault();
             e.stopPropagation();
-            toggleOnce();
+            toggleOnce(true);
         },
         true
     );
@@ -1633,10 +1688,10 @@
     // A browser that sends both the command and the key would open and close
     // the palette at once: act on the first of the two.
     let lastToggle = 0;
-    function toggleOnce() {
+    function toggleOnce(fromKey) {
         if (Date.now() - lastToggle < 300) return;
         lastToggle = Date.now();
-        toggle();
+        toggle(fromKey);
     }
 
     // Escape isn't a command, so it stays an in-page handler: collapse an open
