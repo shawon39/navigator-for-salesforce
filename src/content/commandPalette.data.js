@@ -284,20 +284,22 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     }
 
     // One result per object matching `arg`, navigating to the verb's destination.
-    function objectVerbEntries(action, objects, arg) {
+    // boost: optional (url) => extra score, for results you pick often.
+    function objectVerbEntries(action, objects, arg, boost) {
         const q = (arg || "").trim().toLowerCase();
         const scored = [];
         objects.forEach((o) => {
             const sc = q ? objectScore(q, o) : 0;
             if (sc < 0) return;
+            const url = VERB_URL[action](o.api);
             scored.push({
-                sc: sc - (SFEN_URL.namespaceOf(o.api) ? PACKAGE_PENALTY : 0),
+                sc: sc - (SFEN_URL.namespaceOf(o.api) ? PACKAGE_PENALTY : 0) + (boost ? boost(url) : 0),
                 item: {
                     label: o.label || o.api,
                     api: o.label && o.label !== o.api ? o.api : "",
                     hint: VERB_HINT[action],
                     group: GROUPS.OBJECT,
-                    url: VERB_URL[action](o.api),
+                    url,
                     keywords: `${o.api} ${o.label || ""}`,
                     objectApi: o.api, // the "fields" verb's Tab completes to this object
                 },
@@ -324,6 +326,30 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         const words = q.split(/[^a-z0-9]+/).filter(Boolean);
         if (!words.includes(ns)) return null;
         return words.filter((w) => w !== ns).join(" ") || q;
+    }
+
+    // ---- Often picked ----------------------------------------------------
+    // Results you pick often rank higher. The bonus grows with each pick but
+    // stays well under the 100-200 points between match kinds (exact, prefix,
+    // word start...), so it reorders similar matches only.
+    function pickBonus(count) {
+        return count > 0 ? Math.min(40, Math.round(12 * Math.log2(1 + count))) : 0;
+    }
+
+    // Pick counts, { [org]: { [url]: count } }, with one more pick of `url`
+    // in `org`. Each org keeps its 200 most picked; the least picked other
+    // url makes room for a new one.
+    const PICKS_PER_ORG = 200;
+    function addPick(picks, org, url) {
+        const all = picks && typeof picks === "object" ? picks : {};
+        const counts = { ...(all[org] || {}) };
+        counts[url] = (counts[url] || 0) + 1;
+        const entries = Object.entries(counts);
+        if (entries.length > PICKS_PER_ORG) {
+            const others = entries.filter(([u]) => u !== url).sort((a, b) => a[1] - b[1]);
+            delete counts[others[0][0]];
+        }
+        return { ...all, [org]: counts };
     }
 
     // ---- Fuzzy matching --------------------------------------------------
@@ -434,6 +460,8 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         objectVerbEntries,
         PACKAGE_PENALTY,
         packageQuery,
+        pickBonus,
+        addPick,
         iconSvg,
         looksLikeRecordId,
         pastedLinkPath,

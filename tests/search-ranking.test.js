@@ -130,4 +130,38 @@ for (const [text, expected] of [
 ])
     assert.strictEqual(pastedLinkPath(text, PROD), expected, text);
 console.log("PASS pasted links open their page here, except another org's records");
+
+// Results you pick often rank higher, but only among similar matches.
+const { pickBonus, addPick } = window.SFEN_CMDK_DATA;
+assert.deepStrictEqual([0, 1, 3, 100].map(pickBonus), [0, 12, 24, 40]);
+const usersPage = PAGES.find(([label]) => label === "Users")[1];
+const userMgmt = PAGES.find(([label]) => label === "User Management Settings");
+assert(userMgmt, "User Management Settings is in the Setup list");
+const rank = (query, picks) =>
+    PAGES.map(([label, url, category]) => ({ label, sc: matchScore(query, label, `${label} ${category || ""} setup`) + pickBonus(picks[url] || 0) }))
+        .filter((r) => r.sc >= 0)
+        .sort((a, b) => b.sc - a.sc)[0].label;
+assert.strictEqual(rank("user", {}), "Users");
+assert.strictEqual(rank("user", { [userMgmt[1]]: 2 }), "User Management Settings"); // a prefix match like Users
+assert.strictEqual(rank("users", { [userMgmt[1]]: 100 }), "Users"); // an exact match still wins
+assert.strictEqual(rank("user", { [userMgmt[1]]: 2, [usersPage]: 3 }), "Users");
+// Object verbs: the often-picked object first, by a prefix match or with nothing typed.
+const boostList = (url) => pickBonus(url === "/lightning/o/Account/home" ? 2 : 0);
+assert.strictEqual(objectVerbEntries("list", OBJECTS, "", boostList)[0].url, "/lightning/o/Account/home");
+assert.strictEqual(objectVerbEntries("list", OBJECTS, "contact", boostList)[0].url, "/lightning/o/Contact/home");
+console.log("PASS often-picked results rank higher among similar matches");
+
+// Pick counts are kept per org, at most 200 per org, and a new pick is never dropped.
+let picks = addPick(undefined, "acme", "/a");
+picks = addPick(picks, "acme", "/a");
+picks = addPick(picks, "acme--uat.sandbox", "/a");
+assert.deepStrictEqual(picks, { acme: { "/a": 2 }, "acme--uat.sandbox": { "/a": 1 } });
+let many = {};
+for (let i = 0; i < 200; i++) many = addPick(many, "acme", "/p" + i);
+many = addPick(many, "acme", "/p0");
+many = addPick(many, "acme", "/new");
+assert.strictEqual(Object.keys(many.acme).length, 200);
+assert.strictEqual(many.acme["/new"], 1);
+assert.strictEqual(many.acme["/p0"], 2);
+console.log("PASS pick counts are per org and capped");
 console.log("ALL PASS");

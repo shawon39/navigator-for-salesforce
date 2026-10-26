@@ -26,6 +26,8 @@
         objectVerbEntries,
         PACKAGE_PENALTY,
         packageQuery,
+        pickBonus,
+        addPick,
         iconSvg,
         UI_ICONS,
         looksLikeRecordId,
@@ -152,13 +154,13 @@
             if (itemQuery === null) continue;
             const sc = SFEN_URL.matchScore(itemQuery, item.label, item.keywords);
             if (sc >= 0)
-                scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) - (item.pkg ? PACKAGE_PENALTY : 0) });
+                scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) - (item.pkg ? PACKAGE_PENALTY : 0) + boost(item.url) });
         }
         liveRecords.forEach((item) => {
             const sc = SFEN_URL.matchScore(q, item.label, item.keywords);
             // Records came back from a server search for this term; always
             // include them, but only boost the ones that match the query.
-            scored.push({ item, sc: sc >= 0 ? sc + 6 : 0 });
+            scored.push({ item, sc: sc >= 0 ? sc + 6 + boost(item.url) : 0 });
         });
         scored.sort((a, b) => b.sc - a.sc);
 
@@ -427,6 +429,25 @@
         recents.unshift({ label: item.label, hint: item.hint, url: item.url, flow: item.flow });
         recents = recents.slice(0, 10);
         SFEN_RECENTS.record(item, host);
+    }
+
+    // ---- Often picked ----------------------------------------------------
+    // Pick counts per org and url (chrome.storage.local "palettePicks"); the
+    // org's push results up (pickBonus). Kept in memory and written with one
+    // set, which still goes out when the pick navigates away.
+    const PICKS_KEY = "palettePicks";
+    const pickOrg = SFEN_ORGS.shortHost(host);
+    let allPicks = null; // null until loaded
+    const boost = (url) => pickBonus(allPicks && allPicks[pickOrg] ? allPicks[pickOrg][url] || 0 : 0);
+
+    function recordPick(url) {
+        if (!allPicks || !url) return;
+        allPicks = addPick(allPicks, pickOrg, url);
+        try {
+            chrome.storage.local.set({ [PICKS_KEY]: allPicks });
+        } catch (e) {
+            /* context invalidated */
+        }
     }
 
     // ---- Overlay UI ------------------------------------------------------
@@ -918,7 +939,7 @@
             }
         }
         panelEl.classList.remove("board-mode");
-        const items = objectVerbEntries(VERBS[activeVerb].action, objectSource(), query);
+        const items = objectVerbEntries(VERBS[activeVerb].action, objectSource(), query, boost);
         // With nothing typed, the object of the page you're on comes first.
         const here = !query.trim() && currentObject();
         if (here) items.sort((a, b) => (b.objectApi === here.obj.api) - (a.objectApi === here.obj.api));
@@ -1478,6 +1499,7 @@
             return;
         }
         pushRecent(entry);
+        recordPick(entry.url);
         close();
         navigate(entry.url, newTab || !!entry.newTab);
     }
@@ -1647,6 +1669,9 @@
         SFEN_RECENTS.load(host, (list) => {
             recents = list;
         });
+        chrome.storage.local.get({ [PICKS_KEY]: {} }, (res) => {
+            if (!chrome.runtime.lastError && res) allPicks = res[PICKS_KEY] || {};
+        });
         chrome.storage.sync.get(["settings"], (res) => {
             if (chrome.runtime.lastError || !res) return;
             if (res.settings && typeof res.settings.liveOrgAccess === "boolean") {
@@ -1690,6 +1715,8 @@
             if (area === "local" && changes.paletteRecents) {
                 recents = SFEN_RECENTS.forOrg(changes.paletteRecents.newValue, host);
             }
+            // Picks in other tabs, and Settings' Clear all data.
+            if (area === "local" && changes[PICKS_KEY]) allPicks = changes[PICKS_KEY].newValue || {};
         });
     } catch (e) {
         /* context invalidated */
