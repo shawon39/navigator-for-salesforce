@@ -1602,10 +1602,36 @@
     // frame/element has focus, unlike a page keydown listener.
     try {
         chrome.runtime.onMessage.addListener((msg) => {
-            if (msg && msg.type === "sfen-toggle-palette") toggle();
+            if (msg && msg.type === "sfen-toggle-palette") toggleOnce();
         });
     } catch (e) {
         /* context invalidated */
+    }
+
+    // Some Chromium browsers, like Arc, don't deliver extension shortcuts
+    // (issue #4), so Alt+K is also a page key, for when focus is in the page.
+    // e.code, because Option+K on a Mac types "˚" as e.key. Real keys only,
+    // so page scripts can't open the palette.
+    document.addEventListener(
+        "keydown",
+        (e) => {
+            if (!e.isTrusted) return;
+            if (e.code !== "KeyK" || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.repeat) return;
+            if (!paletteEnabled && !opened) return;
+            e.preventDefault();
+            e.stopPropagation();
+            toggleOnce();
+        },
+        true
+    );
+
+    // A browser that sends both the command and the key would open and close
+    // the palette at once: act on the first of the two.
+    let lastToggle = 0;
+    function toggleOnce() {
+        if (Date.now() - lastToggle < 300) return;
+        lastToggle = Date.now();
+        toggle();
     }
 
     // Escape isn't a command, so it stays an in-page handler: collapse an open
