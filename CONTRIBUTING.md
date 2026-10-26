@@ -11,7 +11,7 @@ There is no build step: the repository is the extension.
 3. Open a Salesforce org. A free [Developer Edition](https://developer.salesforce.com/signup) org works well for testing.
 4. After a change, click **Reload** on the extension and refresh the Salesforce tab.
 
-If you also installed Navigator from the Chrome Web Store, turn that copy off at `chrome://extensions` while you test, or both copies run on Salesforce pages. Chrome gives each shortcut to the copy installed first, so set the unpacked copy's shortcuts at `chrome://extensions/shortcuts`.
+`manifest.json` has the store's public key (`"key"`), so the unpacked copy gets the store's extension ID, `oiaghoidghokmelfojmlilhigihhmeba`. Chrome runs one extension per ID: remove the store copy before you load the folder, and reinstall it from the store when you're done. `npm run package` leaves the key out of the upload zip, since the store sets the ID itself.
 
 ## Where things live
 

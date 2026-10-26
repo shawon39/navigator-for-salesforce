@@ -3,6 +3,7 @@
     "description": "Open any Salesforce Setup page, object, field, record, app or org in a few keystrokes.",
     "version": "5.1.1",
     "manifest_version": 3,
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmQhX/q17lIgjNA0aCQFZ+doQBigJe17QOMl3Pb5y2FUdmPceMY9Uqqc4SZBk5a3YHqzZHOVwvHB/Wbk8uV511d4XeSMOmz1txBWPBEoy8qk3SA1+9dzkVM+7rgVXOJZWCxAld91AXHxdXeve1fQQpP9qCAkI9TWsblTyvQYsmRNLS8gnQezlle6cm0YI5o0Kx4n5lvTciv1MsLncnWSnkKBmaQfL6nZV5hHthQvlnAGgVBUB+iS6rdo1aC36Tgpi7mWZcT8sDHDaos8yJBsebzfAJe3Vwn9G6sBC9ho+ZKVfVnLyLEI+Wl8G8xQcrNAHXCawM1D2crtraUrIeACK2wIDAQAB",
     "homepage_url": "https://navigator-sf.netlify.app",
     "action": {
         "default_popup": "popup.html",
