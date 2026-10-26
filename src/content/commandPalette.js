@@ -709,7 +709,8 @@
         // Verb results are local, except "login", which searches users.
         if (activeVerb && VERBS[activeVerb].kind !== "login") return;
         const term = inputEl.value;
-        if (term.trim().length >= 2 && !pastedLinkPath(term, host)) searchTimer = setTimeout(() => runLiveSearch(term), 140);
+        const link = pastedLinkPath(term, host) || SFEN_URL.isSalesforceUrl(term.trim());
+        if (term.trim().length >= 2 && !link) searchTimer = setTimeout(() => runLiveSearch(term), 140);
     }
 
     function highlight(label, query) {
@@ -1304,6 +1305,14 @@
     function renderList(query) {
         panelEl.classList.remove("board-mode");
         const results = compute(query);
+        // A pasted Salesforce link that can't open here is about one record
+        // of another org (see pastedLinkPath).
+        if (results.length === 0 && SFEN_URL.isSalesforceUrl(query.trim())) {
+            return showEmpty(
+                "This link is to a record in another org",
+                "A record exists in one org only. Links to Setup pages and lists open here."
+            );
+        }
         if (results.length === 0) {
             const verbs =
                 'Try fewer words, or start with <span class="mono">new</span>, ' +
@@ -1617,12 +1626,13 @@
 
     // The page key reaches the page when Chrome has no key for the palette,
     // which then only opens while the page has focus. Say so, with a button
-    // to Chrome's shortcut page (only Chrome can set the key).
+    // to Chrome's shortcut page (only Chrome can set the key), unless
+    // settings.shortcutNotice is off.
     const PALETTE_KEY = MOD === "⌘" ? "Option+K" : "Alt+K";
     function checkShortcut() {
         try {
-            chrome.storage.local.get({ shortcutNoticeOff: false }, (res) => {
-                if (chrome.runtime.lastError || !res || res.shortcutNoticeOff) return;
+            chrome.storage.sync.get(["settings"], (res) => {
+                if (chrome.runtime.lastError || !res || !SFEN_SETTINGS.normalize(res.settings).shortcutNotice) return;
                 chrome.runtime.sendMessage({ type: "paletteShortcut" }, (resp) => {
                     if (chrome.runtime.lastError || !resp || resp.shortcut || !opened) return;
                     showShortcutNotice();
@@ -1650,11 +1660,15 @@
                 /* context invalidated */
             }
         });
+        // Turns the setting off; Settings turns it back on.
         offBtn.addEventListener("click", () => {
             noticeEl.hidden = true;
             focusInput();
             try {
-                chrome.storage.local.set({ shortcutNoticeOff: true });
+                chrome.storage.sync.get(["settings"], (res) => {
+                    if (chrome.runtime.lastError || !res) return;
+                    chrome.storage.sync.set({ settings: { ...(res.settings || {}), shortcutNotice: false } });
+                });
             } catch (e) {
                 /* context invalidated */
             }
