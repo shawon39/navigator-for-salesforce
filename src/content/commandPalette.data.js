@@ -351,6 +351,31 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     // A pasted token that looks like a record Id (see src/shared/sfUrl.js).
     const looksLikeRecordId = (s) => SFEN_URL.looksLikeRecordId(s);
 
+    // ---- Pasted links ----------------------------------------------------
+    // A pasted Salesforce link as the path to open in the org of `host`: the
+    // same Setup page or list from a sandbox, say. null for anything else,
+    // and for a page about one record of another org (like
+    // SFEN_ORGS.samePageUrl), since that record doesn't exist here.
+    function pastedLinkPath(text, host) {
+        let u;
+        try {
+            u = new URL(String(text).trim());
+        } catch (e) {
+            return null;
+        }
+        if (u.protocol !== "https:" || !SFEN_URL.isOrgHost(u.hostname)) return null;
+        const path = u.pathname + u.search;
+        if (path === "/" || !SFEN_URL.isSafePath(path)) return null;
+        if (SFEN_ORGS.shortHost(u.hostname) === SFEN_ORGS.shortHost(host)) return path;
+        let plain = path;
+        try {
+            plain = decodeURIComponent(path);
+        } catch (e) {
+            /* keep it encoded */
+        }
+        return plain.split(/[/?&=]/).some(SFEN_URL.looksLikeRecordId) ? null : path;
+    }
+
     // ---- Icons -----------------------------------------------------------
     // Lucide-style 24px stroke shapes.
     const WRENCH = '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>';
@@ -411,6 +436,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         packageQuery,
         iconSvg,
         looksLikeRecordId,
+        pastedLinkPath,
         highlightPositions,
         escapeHtml,
         lightningOrigin,

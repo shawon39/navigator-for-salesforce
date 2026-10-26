@@ -29,6 +29,7 @@
         iconSvg,
         UI_ICONS,
         looksLikeRecordId,
+        pastedLinkPath,
         highlightPositions,
         escapeHtml,
         navigate,
@@ -127,6 +128,12 @@
         // Pasting a 15/18-char record Id jumps straight to that record.
         if (looksLikeRecordId(raw)) {
             out.push({ label: "Open record: " + raw, hint: "ID", group: GROUPS.ACTION, url: "/" + raw });
+        }
+        // A pasted Salesforce link opens its page in this org.
+        const linkPath = pastedLinkPath(raw, host);
+        if (linkPath) {
+            out.push({ label: `Open this page in ${orgName || "this org"}`, sub: linkPath, hint: "Link", group: GROUPS.ACTION, url: linkPath });
+            return out;
         }
         if (!q) return out;
         // Setup pages, setup tabs, and bookmarks are deliberate destinations, so
@@ -413,7 +420,8 @@
 
     // ---- Recents persistence --------------------------------------------
     function pushRecent(item) {
-        if (!item || !SFEN_RECENTS.isSetup(item.url)) return;
+        // Action rows (a pasted Id or link) have no name worth keeping.
+        if (!item || item.group === GROUPS.ACTION || !SFEN_RECENTS.isSetup(item.url)) return;
         // Optimistic in-memory update; SFEN_RECENTS.record persists (setup-only).
         recents = recents.filter((r) => r.url !== item.url && !(item.flow && r.flow === item.flow));
         recents.unshift({ label: item.label, hint: item.hint, url: item.url, flow: item.flow });
@@ -680,7 +688,7 @@
         // Verb results are local, except "login", which searches users.
         if (activeVerb && VERBS[activeVerb].kind !== "login") return;
         const term = inputEl.value;
-        if (term.trim().length >= 2) searchTimer = setTimeout(() => runLiveSearch(term), 140);
+        if (term.trim().length >= 2 && !pastedLinkPath(term, host)) searchTimer = setTimeout(() => runLiveSearch(term), 140);
     }
 
     function highlight(label, query) {

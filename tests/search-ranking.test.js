@@ -111,4 +111,23 @@ assert.strictEqual(acts.length, 3 + window.SFEN_OBJECT_PAGES.length + 1);
 assert(acts.some((a) => a.label === "Validation Rules" && a.url === "/lightning/setup/ObjectManager/Opportunity/ValidationRules/view"));
 assert.strictEqual(acts[acts.length - 1].url, "/lightning/setup/ObjectManager/Opportunity/Details/view");
 console.log("PASS object actions include Object Manager pages");
+
+// A pasted link opens its page here; another org's record pages don't.
+require(path.resolve(__dirname, "../src/shared/orgs.js"));
+const { pastedLinkPath } = window.SFEN_CMDK_DATA;
+const PROD = "acme.lightning.force.com";
+for (const [text, expected] of [
+    ["https://acme--uat.sandbox.lightning.force.com/lightning/setup/Profiles/home", "/lightning/setup/Profiles/home"],
+    [" https://acme--uat.sandbox.my.salesforce-setup.com/lightning/setup/ObjectManager/Account/ValidationRules/view ", "/lightning/setup/ObjectManager/Account/ValidationRules/view"],
+    ["https://acme--uat.sandbox.lightning.force.com/lightning/o/Case/list?filterName=Recent", "/lightning/o/Case/list?filterName=Recent"],
+    ["https://acme--uat.sandbox.lightning.force.com/lightning/r/Account/001000000000001AAA/view", null], // another org's record
+    ["https://acme.lightning.force.com/lightning/r/Account/001000000000001AAA/view", "/lightning/r/Account/001000000000001AAA/view"], // this org's
+    ["https://acme--uat.sandbox.lightning.force.com/lightning/setup/EnhancedProfiles/page?address=%2F00e000000000001", null],
+    ["http://acme--uat.sandbox.lightning.force.com/lightning/setup/Profiles/home", null],
+    ["https://evil.example.com/lightning/setup/Profiles/home", null],
+    ["https://acme.lightning.force.com/", null],
+    ["profiles", null],
+])
+    assert.strictEqual(pastedLinkPath(text, PROD), expected, text);
+console.log("PASS pasted links open their page here, except another org's records");
 console.log("ALL PASS");
