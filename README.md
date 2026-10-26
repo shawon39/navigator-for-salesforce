@@ -36,6 +36,9 @@ Press `Alt+K` (`Option+K` on a Mac) on any Salesforce page and start typing:
 | `record` and a space | See the current record's field values, with API names, ready to copy |
 | `org uat` | Open a saved org in a new tab, or press `→` to open the page you're on in that org |
 | `login jane` | Log in as Jane, if you're allowed to log in as other users |
+| A Salesforce link from another org | Open the same page in this org, for example a Setup page from a sandbox |
+
+Each command has a short form: `f` (fields), `li` (list), `n` (new), `a` (app), `o` (org), `lo` (login) and `r` (record), so `f account indus` works too. On a record or list, the palette starts with that object in Object Manager, and `fields`, `new` and `list` put it first. Results you pick often rank higher.
 
 You can also paste a 15- or 18-character record Id. The closest match comes first. Press `Enter` to open it, `Ctrl/⌘+Enter` to open it in a new tab, or `→` for more actions, like **Login as** on a user.
 
