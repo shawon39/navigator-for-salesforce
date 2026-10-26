@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 5.1.1
 
 ### Changed
 - Navigator has a website: https://navigator-sf.netlify.app. Settings → About links to it, its Privacy link opens the policy there, and Chrome's extension details link to it as the homepage.
 
 ### Fixed
+- `Alt+K` (`Option+K` on a Mac) opens the command palette in browsers that don't pass extension shortcuts on, such as Arc. There it works while focus is in the page itself, not inside an embedded Setup frame.
 - Recent Setup is now kept per org. A Flow, Profile, Permission Set or field opened in one org (for example a UAT sandbox) no longer shows up in another org's Recent list, where its link fails. History saved by earlier versions is cleared once, because it doesn't say which org it came from.
 - A Flow in Recent Setup now opens its current version. Before, it kept opening the version that was latest when you first opened it, and failed with "We can't open this flow" once that version was deleted. Needs live org access.
 
