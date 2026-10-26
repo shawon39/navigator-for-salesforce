@@ -1383,7 +1383,9 @@
                 },
             ]);
         }
-        const recent = recents.slice(0, 7).map((r) => ({ ...r, group: GROUPS.RECENT }));
+        // Stored entries name their org (a string); a row's `org` is a saved
+        // org, drawn as its color dot, so leave it out.
+        const recent = recents.slice(0, 7).map(({ org, ...r }) => ({ ...r, group: GROUPS.RECENT }));
         const records = recentRecords.slice(0, 20);
         const bookmarks = staticCatalog.filter((i) => i.group === GROUPS.BOOKMARK).slice(0, 8);
         const setupTabs = staticCatalog.filter((i) => i.group === GROUPS.SETUP_TAB).slice(0, 8);
