@@ -16,17 +16,22 @@
         PALETTE_CSS,
         GROUPS,
         VERBS,
+        VERB_SHORT,
         SETUP_PAGES,
         FALLBACK_OBJECTS,
         isRelevantObject,
         objectEntries,
+        objectActions,
         objectScore,
         objectVerbEntries,
         PACKAGE_PENALTY,
         packageQuery,
+        pickBonus,
+        addPick,
         iconSvg,
         UI_ICONS,
         looksLikeRecordId,
+        pastedLink,
         highlightPositions,
         escapeHtml,
         navigate,
@@ -126,6 +131,14 @@
         if (looksLikeRecordId(raw)) {
             out.push({ label: "Open record: " + raw, hint: "ID", group: GROUPS.ACTION, url: "/" + raw });
         }
+        // A pasted link to an org's page opens that page in this org;
+        // renderList explains the ones that can't.
+        const link = pastedLink(raw, host);
+        if (link) {
+            if (link.path)
+                out.push({ label: `Open this page in ${orgName || "this org"}`, sub: link.path, hint: "Link", group: GROUPS.ACTION, url: link.path });
+            return out;
+        }
         if (!q) return out;
         // Setup pages, setup tabs, and bookmarks are deliberate destinations, so
         // rank them above incidental object matches (e.g. "flows" -> Setup, not objects).
@@ -143,13 +156,13 @@
             if (itemQuery === null) continue;
             const sc = SFEN_URL.matchScore(itemQuery, item.label, item.keywords);
             if (sc >= 0)
-                scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) - (item.pkg ? PACKAGE_PENALTY : 0) });
+                scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) - (item.pkg ? PACKAGE_PENALTY : 0) + boost(item.url) });
         }
         liveRecords.forEach((item) => {
             const sc = SFEN_URL.matchScore(q, item.label, item.keywords);
             // Records came back from a server search for this term; always
             // include them, but only boost the ones that match the query.
-            scored.push({ item, sc: sc >= 0 ? sc + 6 : 0 });
+            scored.push({ item, sc: sc >= 0 ? sc + 6 + boost(item.url) : 0 });
         });
         scored.sort((a, b) => b.sc - a.sc);
 
@@ -411,7 +424,8 @@
 
     // ---- Recents persistence --------------------------------------------
     function pushRecent(item) {
-        if (!item || !SFEN_RECENTS.isSetup(item.url)) return;
+        // Action rows (a pasted Id or link) have no name worth keeping.
+        if (!item || item.group === GROUPS.ACTION || !SFEN_RECENTS.isSetup(item.url)) return;
         // Optimistic in-memory update; SFEN_RECENTS.record persists (setup-only).
         recents = recents.filter((r) => r.url !== item.url && !(item.flow && r.flow === item.flow));
         recents.unshift({ label: item.label, hint: item.hint, url: item.url, flow: item.flow });
@@ -419,8 +433,27 @@
         SFEN_RECENTS.record(item, host);
     }
 
+    // ---- Often picked ----------------------------------------------------
+    // Pick counts per org and url (chrome.storage.local "palettePicks"); the
+    // org's push results up (pickBonus). Kept in memory and written with one
+    // set, which still goes out when the pick navigates away.
+    const PICKS_KEY = "palettePicks";
+    const pickOrg = SFEN_ORGS.shortHost(host);
+    let allPicks = null; // null until loaded
+    const boost = (url) => pickBonus(allPicks && allPicks[pickOrg] ? allPicks[pickOrg][url] || 0 : 0);
+
+    function recordPick(url) {
+        if (!allPicks || !url) return;
+        allPicks = addPick(allPicks, pickOrg, url);
+        try {
+            chrome.storage.local.set({ [PICKS_KEY]: allPicks });
+        } catch (e) {
+            /* context invalidated */
+        }
+    }
+
     // ---- Overlay UI ------------------------------------------------------
-    let overlayHost, shadow, inputEl, listEl, footerEl, loaderEl, panelEl, orgEl;
+    let overlayHost, shadow, inputEl, listEl, footerEl, loaderEl, panelEl, orgEl, noticeEl;
     let opened = false;
     let activeIndex = 0;
     let footerCount = "";
@@ -524,7 +557,12 @@
         footerEl.className = "footer";
         footerEl.innerHTML = footerHtml();
 
+        noticeEl = document.createElement("div");
+        noticeEl.className = "notice";
+        noticeEl.hidden = true;
+
         panel.appendChild(searchWrap);
+        panel.appendChild(noticeEl);
         panel.appendChild(listEl);
         panel.appendChild(footerEl);
         backdrop.appendChild(panel);
@@ -655,13 +693,14 @@
         // in) plain search. A verb locked with Tab or a hint never goes back.
         if (!activeVerb) {
             const m = inputEl.value.match(/^([a-zA-Z]+)\s+(.*)$/);
-            const key = m && m[1].toLowerCase();
-            if (m && VERBS[key] && !startsSetupName(key, m[2])) {
+            const word = m && m[1].toLowerCase();
+            const key = word && (VERB_SHORT[word] || word);
+            if (m && VERBS[key] && !startsSetupName(word, m[2])) {
                 setVerb(key, m[2], m[1]);
                 return;
             }
             render(inputEl.value);
-        } else if (autoVerbWord && startsSetupName(activeVerb, inputEl.value)) {
+        } else if (autoVerbWord && startsSetupName(autoVerbWord, inputEl.value)) {
             const text = autoVerbWord + " " + inputEl.value;
             inputEl.value = text;
             clearVerb(); // renders the plain search
@@ -672,7 +711,7 @@
         // Verb results are local, except "login", which searches users.
         if (activeVerb && VERBS[activeVerb].kind !== "login") return;
         const term = inputEl.value;
-        if (term.trim().length >= 2) searchTimer = setTimeout(() => runLiveSearch(term), 140);
+        if (term.trim().length >= 2 && !pastedLink(term, host)) searchTimer = setTimeout(() => runLiveSearch(term), 140);
     }
 
     function highlight(label, query) {
@@ -902,7 +941,11 @@
             }
         }
         panelEl.classList.remove("board-mode");
-        const items = objectVerbEntries(VERBS[activeVerb].action, objectSource(), query).slice(0, 24);
+        const items = objectVerbEntries(VERBS[activeVerb].action, objectSource(), query, boost);
+        // With nothing typed, the object of the page you're on comes first.
+        const here = !query.trim() && currentObject();
+        if (here) items.sort((a, b) => (b.objectApi === here.obj.api) - (a.objectApi === here.obj.api));
+        items.length = Math.min(items.length, 24);
         if (!items.length) return showEmpty("No objects");
         listEl.appendChild(groupHeader("Objects"));
         renderRows(listEl, items);
@@ -1106,6 +1149,16 @@
         return li;
     }
 
+    // The object of the page you're on: a record or list (/lightning/r|o/...)
+    // or its pages in Object Manager (setup: true). null elsewhere, and for
+    // types that aren't objects in Object Manager (reports, dashboards).
+    function currentObject() {
+        const m = location.pathname.match(/^\/lightning\/(r|o|setup\/ObjectManager)\/([A-Za-z][A-Za-z0-9_]*)\//);
+        const api = m && m[2].toLowerCase();
+        const obj = api && objectSource().find((o) => o.api.toLowerCase() === api);
+        return obj ? { obj, setup: m[1].length > 1 } : null;
+    }
+
     // Parse the current record's type + Id from a /lightning/r/{Type}/{Id}/...
     // URL, for the record inspector.
     function currentRecordContext() {
@@ -1253,6 +1306,14 @@
     function renderList(query) {
         panelEl.classList.remove("board-mode");
         const results = compute(query);
+        // A pasted link to one record of another org can't open here.
+        const link = pastedLink(query, host);
+        if (link && !link.path) {
+            return showEmpty(
+                "This link is to a record in another org",
+                "A record exists in one org only. Links to Setup pages and lists open here."
+            );
+        }
         if (results.length === 0) {
             const verbs =
                 'Try fewer words, or start with <span class="mono">new</span>, ' +
@@ -1283,7 +1344,8 @@
         setActive(0);
     }
 
-    // A hint line teaching the command verbs; each verb is clickable.
+    // A hint line teaching the command verbs and their short forms; each verb
+    // is clickable.
     function buildCmdBar() {
         const bar = document.createElement("div");
         bar.className = "cmd-bar";
@@ -1295,7 +1357,8 @@
                 btn.className = "cmd-verb";
                 btn.textContent = verb;
                 btn.addEventListener("click", () => setVerb(verb, ""));
-                bar.append(btn, after);
+                const short = Object.keys(VERB_SHORT).find((k) => VERB_SHORT[k] === verb);
+                bar.append(btn, ` (${short})${after}`);
             }
         );
         return bar;
@@ -1305,7 +1368,25 @@
     function renderBoard() {
         panelEl.classList.add("board-mode");
         listEl.appendChild(buildCmdBar());
-        const recent = recents.slice(0, 7).map((r) => ({ ...r, group: GROUPS.RECENT }));
+        // On a record or list, its object in Object Manager comes first, so
+        // Alt+K, Enter opens it; → lists the object's other pages.
+        const here = currentObject();
+        if (here && !here.setup) {
+            const url = `/lightning/setup/ObjectManager/${here.obj.api}/Details/view`;
+            listEl.appendChild(groupHeader("This object"));
+            renderRows(listEl, [
+                {
+                    label: `${here.obj.label || here.obj.api} in Object Manager`,
+                    hint: "Setup",
+                    group: GROUPS.OBJECT,
+                    url,
+                    actions: objectActions(here.obj.api).filter((a) => a.url !== url),
+                },
+            ]);
+        }
+        // Stored entries name their org (a string); a row's `org` is a saved
+        // org, drawn as its color dot, so leave it out.
+        const recent = recents.slice(0, 7).map(({ org, ...r }) => ({ ...r, group: GROUPS.RECENT }));
         const records = recentRecords.slice(0, 20);
         const bookmarks = staticCatalog.filter((i) => i.group === GROUPS.BOOKMARK).slice(0, 8);
         const setupTabs = staticCatalog.filter((i) => i.group === GROUPS.SETUP_TAB).slice(0, 8);
@@ -1430,6 +1511,7 @@
             return;
         }
         pushRecent(entry);
+        if (entry.group !== GROUPS.ACTION) recordPick(entry.url);
         close();
         navigate(entry.url, newTab || !!entry.newTab);
     }
@@ -1438,9 +1520,10 @@
         if (e.key === "Tab" && !activeVerb) {
             // Lock a verb typed without a trailing space (e.g. "new" + Tab).
             const first = inputEl.value.trim().toLowerCase().split(/\s+/)[0];
-            if (VERBS[first]) {
+            const key = VERB_SHORT[first] || first;
+            if (VERBS[key]) {
                 e.preventDefault();
-                setVerb(first, inputEl.value.trim().slice(first.length).trim());
+                setVerb(key, inputEl.value.trim().slice(first.length).trim());
             }
         } else if (e.key === "Tab" && activeVerb === "fields") {
             // On an object row, complete "<object> " to search its fields. The
@@ -1490,12 +1573,15 @@
         }
     }
 
-    function open() {
+    // fromKey: opened by the page key (see below), not the Chrome command.
+    function open(fromKey) {
         if (!paletteEnabled) return;
         ensureOverlay();
         opened = true;
         overlayHost.classList.add("open");
         applyTheme();
+        noticeEl.hidden = true;
+        if (fromKey) checkShortcut();
         inputEl.value = "";
         inputEl.placeholder = DEFAULT_PLACEHOLDER;
         clearTimeout(searchTimer);
@@ -1537,8 +1623,60 @@
         flatResults.length = 0;
     }
 
-    function toggle() {
-        opened ? close() : open();
+    function toggle(fromKey) {
+        opened ? close() : open(fromKey);
+    }
+
+    // The page key reaches the page when Chrome has no key for the palette,
+    // which then only opens while the page has focus. Say so, with a button
+    // to Chrome's shortcut page (only Chrome can set the key), unless
+    // settings.shortcutNotice is off.
+    const PALETTE_KEY = MOD === "⌘" ? "Option+K" : "Alt+K";
+    function checkShortcut() {
+        try {
+            chrome.storage.sync.get(["settings"], (res) => {
+                if (chrome.runtime.lastError || !res || !SFEN_SETTINGS.normalize(res.settings).shortcutNotice) return;
+                chrome.runtime.sendMessage({ type: "paletteShortcut" }, (resp) => {
+                    if (chrome.runtime.lastError || !resp || resp.shortcut || !opened) return;
+                    showShortcutNotice();
+                });
+            });
+        } catch (e) {
+            /* context invalidated */
+        }
+    }
+
+    function showShortcutNotice() {
+        noticeEl.innerHTML =
+            '<span class="notice-text"></span>' +
+            '<button class="notice-btn primary" type="button">Set it</button>' +
+            '<button class="notice-btn" type="button">Don’t show again</button>';
+        noticeEl.querySelector(".notice-text").textContent =
+            `${PALETTE_KEY} isn’t set as a Chrome shortcut. Set it so Navigator opens from anywhere on the page.`;
+        const [setBtn, offBtn] = noticeEl.querySelectorAll(".notice-btn");
+        setBtn.addEventListener("click", () => {
+            noticeEl.hidden = true;
+            close();
+            try {
+                chrome.runtime.sendMessage({ type: "paletteShortcut", open: true });
+            } catch (e) {
+                /* context invalidated */
+            }
+        });
+        // Turns the setting off; Settings turns it back on.
+        offBtn.addEventListener("click", () => {
+            noticeEl.hidden = true;
+            focusInput();
+            try {
+                chrome.storage.sync.get(["settings"], (res) => {
+                    if (chrome.runtime.lastError || !res) return;
+                    chrome.storage.sync.set({ settings: { ...(res.settings || {}), shortcutNotice: false } });
+                });
+            } catch (e) {
+                /* context invalidated */
+            }
+        });
+        noticeEl.hidden = false;
     }
 
     // ---- Init ------------------------------------------------------------
@@ -1547,6 +1685,9 @@
     try {
         SFEN_RECENTS.load(host, (list) => {
             recents = list;
+        });
+        chrome.storage.local.get({ [PICKS_KEY]: {} }, (res) => {
+            if (!chrome.runtime.lastError && res) allPicks = res[PICKS_KEY] || {};
         });
         chrome.storage.sync.get(["settings"], (res) => {
             if (chrome.runtime.lastError || !res) return;
@@ -1591,6 +1732,8 @@
             if (area === "local" && changes.paletteRecents) {
                 recents = SFEN_RECENTS.forOrg(changes.paletteRecents.newValue, host);
             }
+            // Picks in other tabs, and Settings' Clear all data.
+            if (area === "local" && changes[PICKS_KEY]) allPicks = changes[PICKS_KEY].newValue || {};
         });
     } catch (e) {
         /* context invalidated */
@@ -1620,7 +1763,7 @@
             if (!paletteEnabled && !opened) return;
             e.preventDefault();
             e.stopPropagation();
-            toggleOnce();
+            toggleOnce(true);
         },
         true
     );
@@ -1628,10 +1771,10 @@
     // A browser that sends both the command and the key would open and close
     // the palette at once: act on the first of the two.
     let lastToggle = 0;
-    function toggleOnce() {
+    function toggleOnce(fromKey) {
         if (Date.now() - lastToggle < 300) return;
         lastToggle = Date.now();
-        toggle();
+        toggle(fromKey);
     }
 
     // Escape isn't a command, so it stays an in-page handler: collapse an open

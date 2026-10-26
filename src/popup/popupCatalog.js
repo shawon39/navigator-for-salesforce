@@ -5,18 +5,10 @@
 (function () {
     "use strict";
 
-    // Extra per-object destinations shown in the kebab menu (Object Manager nodes).
+    // Extra per-object destinations shown in the kebab menu (Object Manager
+    // nodes), shared with the palette (src/shared/setupPages.js).
     // "Open in Object Manager" (/Details/view) is added last by popupUI.js.
-    const OBJ_MENU_ITEMS = [
-        ["Page Layouts", "/PageLayouts/view"],
-        ["Lightning Record Pages", "/LightningPages/view"],
-        ["Record Types", "/RecordTypes/view"],
-        ["Validation Rules", "/ValidationRules/view"],
-        ["Triggers", "/ApexTriggers/view"],
-        ["Buttons, Links & Actions", "/ButtonsLinksActions/view"],
-        ["Search Layouts", "/MySearchLayouts/view"],
-        ["Object Access", "/ObjectAccess/view"],
-    ];
+    const OBJ_MENU_ITEMS = (typeof window !== "undefined" && window.SFEN_OBJECT_PAGES) || [];
 
     const FALLBACK_OBJECTS = [
         "Account", "Contact", "Lead", "Opportunity", "Case", "Campaign",

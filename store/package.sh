@@ -12,6 +12,13 @@ if [ -e "$out" ]; then
     exit 1
 fi
 mkdir -p "store/v${version}"
-zip -qr -X "$out" manifest.json popup.html settings.html LICENSE THIRD_PARTY_NOTICES.md images fonts styles src -x "*.DS_Store"
+zip -qr -X "$out" popup.html settings.html LICENSE THIRD_PARTY_NOTICES.md images fonts styles src -x "*.DS_Store"
+# manifest.json's "key" only gives a folder loaded unpacked the store's
+# extension ID; the store sets the ID itself, so the upload leaves it out.
+tmp=$(mktemp -d)
+grep -v '^    "key": ' manifest.json > "$tmp/manifest.json"
+node -e 'if ("key" in require(process.argv[1])) process.exit(1)' "$tmp/manifest.json"
+(cd "$tmp" && zip -q -X "$OLDPWD/$out" manifest.json)
+rm -rf "$tmp"
 echo "$out"
 unzip -l "$out" | tail -1

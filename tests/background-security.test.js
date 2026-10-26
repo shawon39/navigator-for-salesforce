@@ -8,6 +8,7 @@ const ROOT = require("path").resolve(__dirname, "..");
 
 let fetchCalls = [], created = [], storage = {}, commands = [];
 let listener, installed, cookies = [];
+const listeners = []; // every onMessage listener; `listener` is the palette's (the last)
 const ctx = {
     console, URL, Set, Promise, Date, encodeURIComponent,
     fetch: async (url) => {
@@ -21,7 +22,7 @@ const ctx = {
     chrome: {
         runtime: {
             id: "EXT",
-            onMessage: { addListener: (f) => (listener = f) },
+            onMessage: { addListener: (f) => listeners.push((listener = f)) },
             onInstalled: { addListener: (f) => (installed = f) },
             getURL: (p) => "chrome-extension://EXT/" + p,
             lastError: undefined,
@@ -147,6 +148,23 @@ const H = "acme.my.salesforce.com";
     installed({ reason: "update" }); assert.strictEqual(created.length, 0);
     installed({ reason: "install" }); await new Promise((r) => setTimeout(r, 10));
     assert.deepStrictEqual(created, ["chrome-extension://EXT/settings.html#shortcuts"]); console.log("PASS onInstalled opens shortcuts only on install with a missing key");
+
+    // paletteShortcut: the palette's key in Chrome, and Chrome's shortcut page
+    const shortcut = listeners[0];
+    const page = { id: "EXT", tab: { url: "https://acme.lightning.force.com/", index: 3 } };
+    const ask = (msg, sender) => new Promise((resolve) => {
+        if (shortcut(msg, sender, resolve) !== true) setTimeout(() => resolve("__no_async__"), 50);
+    });
+    commands = [{ name: "open_command_palette", shortcut: "" }];
+    assert.deepStrictEqual({ ...(await ask({ type: "paletteShortcut" }, page)) }, { ok: true, shortcut: "" });
+    commands = [{ name: "open_command_palette", shortcut: "⌥K" }];
+    assert.deepStrictEqual({ ...(await ask({ type: "paletteShortcut" }, page)) }, { ok: true, shortcut: "⌥K" });
+    assert.strictEqual(await ask({ type: "paletteShortcut" }, { id: "OTHER", tab: page.tab }), "__no_async__");
+    assert.strictEqual(await ask({ type: "paletteShortcut" }, popup), "__no_async__");
+    created = [];
+    await ask({ type: "paletteShortcut", open: true }, page);
+    assert.deepStrictEqual(created, ["chrome://extensions/shortcuts"]);
+    console.log("PASS paletteShortcut reports the palette key and opens Chrome's shortcut page, for pages only");
 
     // non-palette messages ignored
     assert.strictEqual(listener({ type: "other" }, popup, () => {}), undefined); console.log("PASS non-palette ignored");

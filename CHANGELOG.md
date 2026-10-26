@@ -2,6 +2,14 @@
 
 ## 5.1.1
 
+### Added
+- Short forms of the palette commands: `f` (fields), `li` (list), `n` (new), `a` (app), `o` (org), `lo` (login) and `r` (record). `f acc` is the same as `fields acc`. The palette's start line shows each one.
+- On a record or list, the palette starts with that object in Object Manager: `Alt+K` (`Option+K` on a Mac), then `Enter`, opens it, and `→` lists its other pages. With nothing typed after them, `fields`, `new` and `list` put that object first.
+- `→` on an object now offers all of its Object Manager pages, as the popup's object menu does: Page Layouts, Lightning Record Pages, Record Types, Validation Rules, Triggers, Buttons, Links & Actions, Search Layouts and Object Access.
+- Paste a Salesforce link from another org, such as a Setup page from a sandbox, to open the same page in this org. Links to a single record only open in their own org.
+- Results you pick often rank higher, per org. They only move ahead of results that match about as well.
+- If `Alt+K` (`Option+K`) has no Chrome shortcut, the palette says so and offers **Set it**, which opens Chrome's shortcut page. Extensions can't set the key themselves. Turn the reminder off with **Don't show again** or in **Settings → On Salesforce pages → Shortcut reminder**.
+
 ### Changed
 - Navigator has a website: https://navigator-sf.netlify.app. Settings → About links to it, its Privacy link opens the policy there, and Chrome's extension details link to it as the homepage.
 

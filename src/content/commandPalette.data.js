@@ -122,6 +122,13 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
 .insp-key.labeled { display:flex; flex-direction:column; font-family:inherit; }
 .insp-label { font-size:13px; font-weight:500; }
 .insp-api { font-size:11px; color:var(--nv-text-3); }
+.notice { display:flex; align-items:center; gap:8px; flex-shrink:0; padding:8px 10px 8px 16px; border-bottom:1px solid var(--nv-border);
+  background:var(--nv-surface-2); font-size:12px; line-height:1.45; color:var(--nv-text-2); }
+.notice[hidden] { display:none; }
+.notice-text { flex:1; min-width:0; }
+.notice-btn { flex-shrink:0; height:26px; padding:0 10px; border:0; border-radius:6px; background:transparent;
+  color:var(--nv-primary-text); font:600 12px "Figtree","Segoe UI",system-ui,sans-serif; cursor:pointer; }
+.notice-btn.primary { background:var(--nv-primary); color:var(--nv-on-primary); }
 .org { display:inline-flex; align-items:center; gap:7px; flex-shrink:0; font-size:12px; font-weight:500;
   color:var(--nv-text-3); white-space:nowrap; }
 .org[hidden] { display:none; }
@@ -220,13 +227,24 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
                 pkg: SFEN_URL.namespaceOf(api), // installed package, ranked after the org's own
                 url: `/lightning/o/${api}/home`,
                 keywords: `${api} ${label || ""} list view records new create fields object manager schema`,
-                actions: [
-                    { label: "Open list view", hint: "List", kind: "nav", url: `/lightning/o/${api}/home` },
-                    { label: "New record", hint: "New", kind: "nav", url: `/lightning/o/${api}/new?useRecordTypeCheck=1` },
-                    { label: "Fields & Relationships", hint: "Fields", kind: "nav", url: `/lightning/setup/ObjectManager/${api}/FieldsAndRelationships/view` },
-                ],
+                actions: objectActions(api),
             },
         ];
+    }
+
+    // An object's → actions: its list view and a new record, then its pages
+    // in Object Manager (shared with the popup's object menu).
+    const OBJECT_PAGES = (typeof window !== "undefined" && window.SFEN_OBJECT_PAGES) || [];
+    function objectActions(api) {
+        const om = `/lightning/setup/ObjectManager/${api}`;
+        return [
+            { label: "Open list view", hint: "List", kind: "nav", url: `/lightning/o/${api}/home` },
+            { label: "New record", hint: "New", kind: "nav", url: `/lightning/o/${api}/new?useRecordTypeCheck=1` },
+            { label: "Fields & Relationships", hint: "Fields", kind: "nav", url: `${om}/FieldsAndRelationships/view` },
+        ].concat(
+            OBJECT_PAGES.map(([label, suffix]) => ({ label, hint: "Setup", kind: "nav", url: om + suffix })),
+            [{ label: "Open in Object Manager", hint: "Setup", kind: "nav", url: `${om}/Details/view` }]
+        );
     }
 
     // ---- Command verbs ---------------------------------------------------
@@ -252,6 +270,9 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         json: { kind: "inspect", label: "Record" }, // alias of record
         api: { kind: "inspect", label: "Record" }, // alias of record
     };
+    // Short forms, typed like the words: "f acc" is "fields acc". "lo" and
+    // "li" because login and list both start with l.
+    const VERB_SHORT = { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record" };
 
     // How well `q` names object `o`. The plural label counts too, so
     // "contacts" finds Contact rather than Contact Request.
@@ -263,20 +284,22 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     }
 
     // One result per object matching `arg`, navigating to the verb's destination.
-    function objectVerbEntries(action, objects, arg) {
+    // boost: optional (url) => extra score, for results you pick often.
+    function objectVerbEntries(action, objects, arg, boost) {
         const q = (arg || "").trim().toLowerCase();
         const scored = [];
         objects.forEach((o) => {
             const sc = q ? objectScore(q, o) : 0;
             if (sc < 0) return;
+            const url = VERB_URL[action](o.api);
             scored.push({
-                sc: sc - (SFEN_URL.namespaceOf(o.api) ? PACKAGE_PENALTY : 0),
+                sc: sc - (SFEN_URL.namespaceOf(o.api) ? PACKAGE_PENALTY : 0) + (boost ? boost(url) : 0),
                 item: {
                     label: o.label || o.api,
                     api: o.label && o.label !== o.api ? o.api : "",
                     hint: VERB_HINT[action],
                     group: GROUPS.OBJECT,
-                    url: VERB_URL[action](o.api),
+                    url,
                     keywords: `${o.api} ${o.label || ""}`,
                     objectApi: o.api, // the "fields" verb's Tab completes to this object
                 },
@@ -305,6 +328,30 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         return words.filter((w) => w !== ns).join(" ") || q;
     }
 
+    // ---- Often picked ----------------------------------------------------
+    // Results you pick often rank higher. The bonus grows with each pick but
+    // stays well under the 100-200 points between match kinds (exact, prefix,
+    // word start...), so it reorders similar matches only.
+    function pickBonus(count) {
+        return count > 0 ? Math.min(40, Math.round(12 * Math.log2(1 + count))) : 0;
+    }
+
+    // Pick counts, { [org]: { [url]: count } }, with one more pick of `url`
+    // in `org`. Each org keeps its 200 most picked; the least picked other
+    // url makes room for a new one.
+    const PICKS_PER_ORG = 200;
+    function addPick(picks, org, url) {
+        const all = picks && typeof picks === "object" ? picks : {};
+        const counts = { ...(all[org] || {}) };
+        counts[url] = (counts[url] || 0) + 1;
+        const entries = Object.entries(counts);
+        if (entries.length > PICKS_PER_ORG) {
+            const others = entries.filter(([u]) => u !== url).sort((a, b) => a[1] - b[1]);
+            delete counts[others[0][0]];
+        }
+        return { ...all, [org]: counts };
+    }
+
     // ---- Fuzzy matching --------------------------------------------------
     // Scoring is SFEN_URL.fuzzy (src/shared/sfUrl.js).
 
@@ -329,6 +376,32 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     // ---- Record Ids ------------------------------------------------------
     // A pasted token that looks like a record Id (see src/shared/sfUrl.js).
     const looksLikeRecordId = (s) => SFEN_URL.looksLikeRecordId(s);
+
+    // ---- Pasted links ----------------------------------------------------
+    // A pasted link to a page of an org (not Help, Trailhead, login or a
+    // site), to open in the org of `host`: the same Setup page or list from
+    // a sandbox, say. { path } to open, { path: null } for a page about one
+    // record of another org (like SFEN_ORGS.samePageUrl), since that record
+    // doesn't exist here, and null for anything else.
+    function pastedLink(text, host) {
+        let u;
+        try {
+            u = new URL(String(text).trim());
+        } catch (e) {
+            return null;
+        }
+        if (u.protocol !== "https:" || !SFEN_ORGS.myDomainHost(u.hostname)) return null;
+        const path = u.pathname + u.search;
+        if (path === "/" || !SFEN_URL.isSafePath(path)) return null;
+        if (SFEN_ORGS.shortHost(u.hostname) === SFEN_ORGS.shortHost(host)) return { path };
+        let plain = path;
+        try {
+            plain = decodeURIComponent(path);
+        } catch (e) {
+            /* keep it encoded */
+        }
+        return { path: plain.split(/[/?&=]/).some(SFEN_URL.looksLikeRecordId) ? null : path };
+    }
 
     // ---- Icons -----------------------------------------------------------
     // Lucide-style 24px stroke shapes.
@@ -380,14 +453,19 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         ICONS,
         UI_ICONS,
         VERBS,
+        VERB_SHORT,
         isRelevantObject,
         objectEntries,
+        objectActions,
         objectScore,
         objectVerbEntries,
         PACKAGE_PENALTY,
         packageQuery,
+        pickBonus,
+        addPick,
         iconSvg,
         looksLikeRecordId,
+        pastedLink,
         highlightPositions,
         escapeHtml,
         lightningOrigin,

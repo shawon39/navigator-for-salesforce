@@ -496,5 +496,20 @@
         ["View Setup Audit Trail", S("SecurityEvents"), "Security"],
     ];
 
+    // One object's pages in Object Manager, after
+    // /lightning/setup/ObjectManager/<api>: the popup's object menu and the
+    // palette's → actions. Fields and Details are added by each.
+    const OBJECT_PAGES = [
+        ["Page Layouts", "/PageLayouts/view"],
+        ["Lightning Record Pages", "/LightningPages/view"],
+        ["Record Types", "/RecordTypes/view"],
+        ["Validation Rules", "/ValidationRules/view"],
+        ["Triggers", "/ApexTriggers/view"],
+        ["Buttons, Links & Actions", "/ButtonsLinksActions/view"],
+        ["Search Layouts", "/MySearchLayouts/view"],
+        ["Object Access", "/ObjectAccess/view"],
+    ];
+
     window.SFEN_SETUP_PAGES = SETUP_PAGES;
+    window.SFEN_OBJECT_PAGES = OBJECT_PAGES;
 })();

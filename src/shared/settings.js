@@ -12,6 +12,7 @@
         confirmDelete: true,
         liveOrgAccess: true,
         commandPalette: true,
+        shortcutNotice: true, // the palette says when its Chrome shortcut isn't set
         setupTabs: true,
         headerPopupButton: true,
         showManaged: false,

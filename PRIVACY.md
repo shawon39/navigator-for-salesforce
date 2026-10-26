@@ -12,6 +12,7 @@ Navigator for Salesforce is a browser extension that helps you move around Sales
 - **Which orgs you are logged in to.** When you open the popup, the extension checks which Salesforce domains have a session cookie, so the Orgs tab can offer to add orgs that are open in your browser. Only the domain names are used, and they stay in your browser.
 - **Your settings and saved items.** Settings, bookmarks, Setup quick tabs, pinned objects and saved orgs (a name you choose, the org's web address and its tab color) are stored with Chrome's storage and synced through your own Chrome profile.
 - **Recent Setup pages.** A short list of Setup pages you opened, with the My Domain name of the org you opened each one in, is kept in your browser's local storage so they can be shown under "Recent" on that org.
+- **What you pick in the command palette.** How many times you opened each palette result, with the My Domain name of the org you opened it in, is kept in your browser's local storage so the ones you use most rank first on that org.
 
 ## What the extension does not do
 

@@ -94,4 +94,84 @@ assert.strictEqual(packageQuery({ group: G.APEX, pkg: null }, "selector"), "sele
 assert.strictEqual(packageQuery({ group: G.OBJECT, pkg: "SBQQ" }, "quote"), "quote");
 assert(matchScore(packageQuery(pkgApex, "dlrs selector"), "ApexClassesSelector", "ApexClassesSelector dlrs apex class code") >= 0);
 console.log("PASS package Apex needs its package name in the query");
+
+// Short verb forms name a verb and never shadow one.
+const { VERBS, VERB_SHORT } = window.SFEN_CMDK_DATA;
+assert.deepStrictEqual(VERB_SHORT, { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record" });
+for (const [short, verb] of Object.entries(VERB_SHORT)) {
+    assert(VERBS[verb], `${short} -> ${verb}`);
+    assert(!VERBS[short], `${short} is already a verb`);
+}
+console.log("PASS short verb forms");
+
+// An object's → actions include its Object Manager pages, shared with the popup.
+const { objectActions } = window.SFEN_CMDK_DATA;
+const acts = objectActions("Opportunity");
+assert.strictEqual(acts.length, 3 + window.SFEN_OBJECT_PAGES.length + 1);
+assert(acts.some((a) => a.label === "Validation Rules" && a.url === "/lightning/setup/ObjectManager/Opportunity/ValidationRules/view"));
+assert.strictEqual(acts[acts.length - 1].url, "/lightning/setup/ObjectManager/Opportunity/Details/view");
+console.log("PASS object actions include Object Manager pages");
+
+// A pasted link to an org's page opens it here; another org's record pages
+// can't ({ path: null }), and other links aren't org pages (null).
+require(path.resolve(__dirname, "../src/shared/orgs.js"));
+const { pastedLink } = window.SFEN_CMDK_DATA;
+const PROD = "acme.lightning.force.com";
+const RECORD = "another org's record";
+for (const [text, expected] of [
+    ["https://acme--uat.sandbox.lightning.force.com/lightning/setup/EnhancedProfiles/home", "/lightning/setup/EnhancedProfiles/home"],
+    [" https://acme--uat.sandbox.my.salesforce-setup.com/lightning/setup/ObjectManager/Account/ValidationRules/view ", "/lightning/setup/ObjectManager/Account/ValidationRules/view"],
+    ["https://acme--uat.sandbox.lightning.force.com/lightning/o/Case/list?filterName=Recent", "/lightning/o/Case/list?filterName=Recent"],
+    ["https://acme--uat--c.sandbox.vf.force.com/apex/Invoices", "/apex/Invoices"],
+    ["https://acme--uat.sandbox.lightning.force.com/lightning/r/Account/001000000000001AAA/view", RECORD],
+    ["https://acme--uat.sandbox.lightning.force.com/lightning/setup/EnhancedProfiles/page?address=%2F00e000000000001", RECORD],
+    ["https://acme.lightning.force.com/lightning/r/Account/001000000000001AAA/view", "/lightning/r/Account/001000000000001AAA/view"], // this org's
+    ["https://help.salesforce.com/s/articleView?id=sf.users.htm", null],
+    ["https://trailhead.salesforce.com/content/learn/modules/x", null],
+    ["https://login.salesforce.com/?startURL=%2Fhome", null],
+    ["https://acme.my.site.com/s/login", null],
+    ["http://acme--uat.sandbox.lightning.force.com/lightning/setup/EnhancedProfiles/home", null],
+    ["https://evil.example.com/lightning/setup/EnhancedProfiles/home", null],
+    ["https://acme.lightning.force.com/", null],
+    ["profiles", null],
+]) {
+    const link = pastedLink(text, PROD);
+    assert.deepStrictEqual(link && link.path, expected === RECORD ? null : expected, text);
+    assert.strictEqual(link !== null, expected !== null, text);
+}
+console.log("PASS pasted org links open their page here, except another org's records; other links are left alone");
+
+// Results you pick often rank higher, but only among similar matches.
+const { pickBonus, addPick } = window.SFEN_CMDK_DATA;
+assert.deepStrictEqual([0, 1, 3, 100].map(pickBonus), [0, 12, 24, 40]);
+const usersPage = PAGES.find(([label]) => label === "Users")[1];
+const userMgmt = PAGES.find(([label]) => label === "User Management Settings");
+assert(userMgmt, "User Management Settings is in the Setup list");
+const rank = (query, picks) =>
+    PAGES.map(([label, url, category]) => ({ label, sc: matchScore(query, label, `${label} ${category || ""} setup`) + pickBonus(picks[url] || 0) }))
+        .filter((r) => r.sc >= 0)
+        .sort((a, b) => b.sc - a.sc)[0].label;
+assert.strictEqual(rank("user", {}), "Users");
+assert.strictEqual(rank("user", { [userMgmt[1]]: 2 }), "User Management Settings"); // a prefix match like Users
+assert.strictEqual(rank("users", { [userMgmt[1]]: 100 }), "Users"); // an exact match still wins
+assert.strictEqual(rank("user", { [userMgmt[1]]: 2, [usersPage]: 3 }), "Users");
+// Object verbs: the often-picked object first, by a prefix match or with nothing typed.
+const boostList = (url) => pickBonus(url === "/lightning/o/Account/home" ? 2 : 0);
+assert.strictEqual(objectVerbEntries("list", OBJECTS, "", boostList)[0].url, "/lightning/o/Account/home");
+assert.strictEqual(objectVerbEntries("list", OBJECTS, "contact", boostList)[0].url, "/lightning/o/Contact/home");
+console.log("PASS often-picked results rank higher among similar matches");
+
+// Pick counts are kept per org, at most 200 per org, and a new pick is never dropped.
+let picks = addPick(undefined, "acme", "/a");
+picks = addPick(picks, "acme", "/a");
+picks = addPick(picks, "acme--uat.sandbox", "/a");
+assert.deepStrictEqual(picks, { acme: { "/a": 2 }, "acme--uat.sandbox": { "/a": 1 } });
+let many = {};
+for (let i = 0; i < 200; i++) many = addPick(many, "acme", "/p" + i);
+many = addPick(many, "acme", "/p0");
+many = addPick(many, "acme", "/new");
+assert.strictEqual(Object.keys(many.acme).length, 200);
+assert.strictEqual(many.acme["/new"], 1);
+assert.strictEqual(many.acme["/p0"], 2);
+console.log("PASS pick counts are per org and capped");
 console.log("ALL PASS");

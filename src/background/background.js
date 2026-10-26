@@ -197,6 +197,23 @@ function paletteDenied(msg, sender) {
     return null;
 }
 
+// The palette opened by its page key asks whether Chrome has a key for it
+// (none means it only works while the page has focus), and its "Set it"
+// button opens Chrome's shortcut page: only Chrome can set the key.
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (!msg || msg.type !== "paletteShortcut") return;
+    if (!sender || sender.id !== chrome.runtime.id || !sender.tab) return;
+    if (msg.open) {
+        chrome.tabs.create({ url: "chrome://extensions/shortcuts", windowId: sender.tab.windowId, index: sender.tab.index + 1 });
+        return;
+    }
+    chrome.commands.getAll((commands) => {
+        const palette = (commands || []).find((c) => c.name === "open_command_palette");
+        sendResponse({ ok: true, shortcut: (palette && palette.shortcut) || "" });
+    });
+    return true;
+});
+
 // The "N" button in the Salesforce header (headerButton.js) opens the popup.
 // chrome.action.openPopup needs Chrome 127+.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
