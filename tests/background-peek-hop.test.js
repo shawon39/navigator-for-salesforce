@@ -48,6 +48,7 @@ function recordUi(layoutType, items) {
                 fields: {
                     AccountId: { relationshipName: "Account", referenceToInfos: [{ apiName: "Account" }] },
                     OwnerId: { relationshipName: "Owner", referenceToInfos: [{ apiName: "User" }] },
+                    CreatedById: { relationshipName: "CreatedBy", referenceToInfos: [{ apiName: "User" }] },
                     Bad__c: { relationshipName: "Bad__r", referenceToInfos: [{ apiName: "Bad'Type" }] },
                 },
             },
@@ -63,9 +64,11 @@ function recordUi(layoutType, items) {
                     CloseDate: { value: "2027-01-31", displayValue: "1/31/2027" },
                     NextStep: { value: null, displayValue: null },
                     AccountId: { value: "001000000000001AAA", displayValue: null },
-                    Account: { displayValue: "Globex Inc.", value: { apiName: "Account", id: "001000000000001AAA", fields: {} } },
+                    Account: { displayValue: "Globex &amp; Sons", value: { apiName: "Account", id: "001000000000001AAA", fields: {} } },
                     OwnerId: { value: "005000000000001AAA", displayValue: null },
                     Owner: { displayValue: "Jane Cooper", value: { apiName: "User", id: "005000000000001AAA", fields: {} } },
+                    CreatedById: { value: "005000000000001AAA", displayValue: null },
+                    CreatedBy: { displayValue: "Jane Cooper", value: { apiName: "User", id: "005000000000001AAA", fields: {} } },
                     Bad__c: { value: "a00000000000001AAA", displayValue: null },
                     Bad__r: { displayValue: "Odd", value: null },
                     BillingStreet: { value: "1 Main St", displayValue: null },
@@ -98,12 +101,12 @@ function recordUi(layoutType, items) {
         fields: [
             { label: "Amount", value: "$125,000.00", lookup: null },
             { label: "Close Date", value: "1/31/2027", lookup: null },
-            { label: "Account Name", value: "Globex Inc.", lookup: { id: "001000000000001AAA", type: "Account" } },
+            { label: "Account Name", value: "Globex & Sons", lookup: { id: "001000000000001AAA", type: "Account", field: "AccountId" } },
             { label: "Next Step", value: "", lookup: null },
             { label: "Address", value: "1 Main St, Springfield", lookup: null },
         ],
     });
-    console.log("PASS peek: compact layout fields in order, display values, lookup names, name row dropped");
+    console.log("PASS peek: compact layout fields in order, display values unescaped, lookup names, name row dropped");
 
     for (const bad of ["../x", "001'OR'1", ""]) {
         fetchCalls = [];
@@ -119,11 +122,13 @@ function recordUi(layoutType, items) {
                 field("Opportunity Name", "Name"),
                 field("Account Name", "AccountId", "AccountId"),
                 field("Opportunity Owner", "OwnerId", "OwnerId"),
+                field("Created By", "CreatedById", "CreatedById"),
                 field("Odd", "Bad__c", "Bad__c"),
                 field("Amount", "Amount"),
             ]));
         if (url.includes("/ui-api/related-list-info/"))
             return json({ relatedLists: [
+                { label: "Notes &amp; Attachments", relatedListId: "CombinedAttachments" },
                 { label: "Contact Roles", relatedListId: "OpportunityContactRoles" },
                 { label: "Quotes", relatedListId: "Quotes" },
                 { label: "Evil", relatedListId: "../x" },
@@ -136,15 +141,16 @@ function recordUi(layoutType, items) {
     assert.strictEqual(r.ok, true, JSON.stringify(r));
     assert.strictEqual(fetchCalls[1], "https://acme.my.salesforce.com/services/data/v60.0/ui-api/related-list-info/Opportunity?recordTypeId=012000000000000AAA");
     assert.deepStrictEqual(r.lookups, [
-        { label: "Account Name", name: "Globex Inc.", id: "001000000000001AAA", type: "Account" },
+        { label: "Account Name", name: "Globex & Sons", id: "001000000000001AAA", type: "Account" },
         { label: "Opportunity Owner", name: "Jane Cooper", id: "005000000000001AAA", type: "User" },
     ]);
     assert.deepStrictEqual(r.lists, [
+        { label: "Notes & Attachments", id: "CombinedAttachments" },
         { label: "Contact Roles", id: "OpportunityContactRoles" },
         { label: "Quotes", id: "Quotes" },
     ]);
     assert.deepStrictEqual([r.id, r.type, r.name], [OPP, "Opportunity", "Globex — Renewal FY27"]);
-    console.log("PASS hop: layout lookups with names and types; bad types and list ids dropped");
+    console.log("PASS hop: layout lookups with names and types; Created By left out, labels unescaped, bad types and list ids dropped");
 
     route = (url) => (url.includes("/ui-api/related-list-info/") ? { ok: false, status: 404, json: async () => [] } : route0(url));
     const route0 = (url) => (url.includes("/ui-api/record-ui/") ? json(recordUi("Full", [field("Account Name", "AccountId", "AccountId")])) : null);

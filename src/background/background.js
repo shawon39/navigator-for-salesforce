@@ -176,6 +176,12 @@ async function appHomePath(host) {
 // shows the related record's name) and lookup is { id, type } for a lookup
 // that has a value. layoutType is "Compact" (the record's key fields) or
 // "Full" (its page layout).
+// UI API labels and display values are HTML-escaped; the palette shows text.
+const HTML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", "#x27": "'" };
+function unescapeHtml(s) {
+    return s.replace(/&(amp|lt|gt|quot|#39|#x27);/g, (m, e) => HTML_ENTITIES[e]);
+}
+
 async function sfRecordUi(host, id, layoutType) {
     const d = await sfFetch(host, `/services/data/${SF_API_VERSION}/ui-api/record-ui/${id}?layoutTypes=${layoutType}&modes=View`);
     const rec = Object.values((d && d.records) || {})[0];
@@ -184,8 +190,10 @@ async function sfRecordUi(host, id, layoutType) {
     const fieldInfo = info.fields || {};
     const fields = rec.fields || {};
     // A nested record (a relationship's value) has no text of its own.
+    // Display values come HTML-escaped ("Grand Hotels &amp; Resorts").
     const text = (f) => {
-        const v = f ? (f.displayValue != null ? f.displayValue : f.value) : null;
+        if (!f) return "";
+        const v = f.displayValue != null ? unescapeHtml(String(f.displayValue)) : f.value;
         return v === null || v === undefined || typeof v === "object" ? "" : String(v).slice(0, 300);
     };
     // layouts: object -> record type -> layout type -> mode -> layout.
@@ -210,9 +218,9 @@ async function sfRecordUi(host, id, layoutType) {
                     const rel = fields[fi.relationshipName];
                     const target = (rel && rel.value && rel.value.apiName) || (fi.referenceToInfos && fi.referenceToInfos[0] && fi.referenceToInfos[0].apiName);
                     value = text(rel) || value;
-                    if (API_NAME_RE.test(target || "")) lookup = { id: idValue, type: target };
+                    if (API_NAME_RE.test(target || "")) lookup = { id: idValue, type: target, field: idField };
                 }
-                items.push({ label: String(item.label || comps[0].apiName), value, lookup });
+                items.push({ label: unescapeHtml(String(item.label || comps[0].apiName)), value, lookup });
             })
         )
     );
@@ -665,9 +673,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 const id = msg.recordId;
                 if (!RECORD_ID_RE.test(id || "")) throw new Error("Invalid record Id");
                 const rec = await sfRecordUi(host, id, "Full");
+                // Created By and Last Modified By are on every layout: noise here.
                 const seen = new Set();
                 const lookups = rec.items
-                    .filter((it) => it.lookup && !seen.has(it.label + it.lookup.id) && seen.add(it.label + it.lookup.id))
+                    .filter((it) => it.lookup && !["CreatedById", "LastModifiedById"].includes(it.lookup.field))
+                    .filter((it) => !seen.has(it.label + it.lookup.id) && seen.add(it.label + it.lookup.id))
                     .map((it) => ({ label: it.label, name: it.value || it.lookup.id, id: it.lookup.id, type: it.lookup.type }));
                 let lists = [];
                 try {
@@ -675,7 +685,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     const d = await sfFetch(host, `/services/data/${SF_API_VERSION}/ui-api/related-list-info/${rec.type}${rt}`);
                     lists = ((d && d.relatedLists) || [])
                         .filter((l) => l && typeof l.label === "string" && API_NAME_RE.test(l.relatedListId || ""))
-                        .map((l) => ({ label: l.label, id: l.relatedListId }));
+                        .map((l) => ({ label: unescapeHtml(l.label), id: l.relatedListId }));
                 } catch (e) {
                     /* no related lists for this object */
                 }

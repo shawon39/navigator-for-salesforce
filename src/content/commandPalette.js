@@ -174,8 +174,13 @@
         for (const item of fullCatalog().concat(hopItems())) {
             const itemQuery = packageQuery(item, q);
             if (itemQuery === null) continue;
-            // Admin shorthand ("psg") ranks just under an exact name.
-            const sc = item.group === GROUPS.SETUP && item.label === alias ? 950 : SFEN_URL.matchScore(itemQuery, item.label, item.keywords);
+            // Admin shorthand ("psg") ranks just under an exact name. A lookup
+            // of the record you're on also matches its field as a name, so
+            // "acc" on an Opportunity finds its Account like a page named so.
+            const sc =
+                item.group === GROUPS.SETUP && item.label === alias
+                    ? 950
+                    : Math.max(SFEN_URL.matchScore(itemQuery, item.label, item.keywords), item.field ? SFEN_URL.matchScore(itemQuery, item.field) : -1);
             if (sc >= 0)
                 scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) - (item.pkg ? PACKAGE_PENALTY : 0) + boost(item.url) });
         }
@@ -467,6 +472,7 @@
             url: recordUrl(l.type, l.id),
             recordId: l.id,
             keywords: `${l.name} ${l.label} ${l.type}`,
+            field: l.label, // searched as a second name (see compute)
             side: "up",
         }));
         const lists = hop.lists.map((l) => ({
