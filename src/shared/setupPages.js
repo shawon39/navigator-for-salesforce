@@ -510,6 +510,34 @@
         ["Object Access", "/ObjectAccess/view"],
     ];
 
+    // Admin shorthand: typed exactly, each puts its Setup page first. Loose
+    // letter matching alone sends "psg" to Path Settings and "dl" to Token
+    // Exchange Handlers. Values are labels from SETUP_PAGES.
+    const SETUP_ALIASES = {
+        ps: "Permission Sets",
+        psg: "Permission Set Groups",
+        dl: "Debug Logs",
+        cmdt: "Custom Metadata Types",
+        cmt: "Custom Metadata Types",
+        cs: "Custom Settings",
+        lwc: "Lightning Components",
+        sr: "Static Resources",
+        aj: "Apex Jobs",
+        sj: "Scheduled Jobs",
+        vf: "Visualforce Pages",
+        om: "Object Manager",
+        ip: "Installed Packages",
+        nc: "Named Credentials",
+        rss: "Remote Site Settings",
+        lh: "Login History",
+        sat: "View Setup Audit Trail",
+        ds: "Deployment Status",
+        ocs: "Outbound Change Sets",
+        ics: "Inbound Change Sets",
+        lab: "Lightning App Builder",
+    };
+
     window.SFEN_SETUP_PAGES = SETUP_PAGES;
     window.SFEN_OBJECT_PAGES = OBJECT_PAGES;
+    window.SFEN_SETUP_ALIASES = SETUP_ALIASES;
 })();

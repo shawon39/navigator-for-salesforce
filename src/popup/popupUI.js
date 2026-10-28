@@ -284,8 +284,9 @@
         results.hidden = false;
 
         const byKind = {};
+        const alias = window.SFEN_SETUP_ALIASES[query];
         for (const item of searchCatalog()) {
-            const sc = SFEN_URL.matchScore(query, item.label, item.keywords);
+            const sc = item.kind === "setup" && item.label === alias ? 950 : SFEN_URL.matchScore(query, item.label, item.keywords);
             if (sc >= 0) (byKind[item.kind] = byKind[item.kind] || []).push({ item, sc });
         }
         results.innerHTML = "";

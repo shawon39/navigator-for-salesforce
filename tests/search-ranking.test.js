@@ -30,6 +30,18 @@ for (const [query, expected] of [
     console.log(`PASS "${query}" -> ${expected}`);
 }
 
+// Admin shorthand ("psg") names a Setup page that exists, once, and isn't
+// what loose matching finds anyway.
+const ALIASES = window.SFEN_SETUP_ALIASES;
+for (const [alias, label] of Object.entries(ALIASES)) {
+    assert.strictEqual(PAGES.filter(([l]) => l === label).length, 1, `alias "${alias}" -> "${label}" should be one Setup page`);
+}
+for (const [alias, label] of [["psg", "Permission Set Groups"], ["dl", "Debug Logs"], ["ps", "Permission Sets"], ["cmdt", "Custom Metadata Types"]]) {
+    assert.notStrictEqual(top(alias), label, `"${alias}" already ranks ${label} first; the alias isn't needed`);
+    assert.strictEqual(ALIASES[alias], label);
+}
+console.log(`PASS ${Object.keys(ALIASES).length} admin shorthands name real Setup pages`);
+
 // Verbs match an object's plural label too: "list contacts" finds Contact
 // first, not Contact Request.
 require(path.resolve(__dirname, "../src/content/commandPalette.data.js"));

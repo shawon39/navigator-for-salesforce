@@ -168,8 +168,67 @@ async function appHomePath(host) {
         return HOME_PATH;
     }
 }
+// One record as the user sees it on its record page, from the UI API's
+// record-ui resource (record data, object metadata and the user's layout),
+// reduced to plain strings: { id, type, typeLabel, name, recordTypeId,
+// items } with one item per layout field, in layout order. An item is
+// { label, value, lookup }: value is what Salesforce displays (a lookup
+// shows the related record's name) and lookup is { id, type } for a lookup
+// that has a value. layoutType is "Compact" (the record's key fields) or
+// "Full" (its page layout).
+async function sfRecordUi(host, id, layoutType) {
+    const d = await sfFetch(host, `/services/data/${SF_API_VERSION}/ui-api/record-ui/${id}?layoutTypes=${layoutType}&modes=View`);
+    const rec = Object.values((d && d.records) || {})[0];
+    if (!rec || !API_NAME_RE.test(rec.apiName || "") || !RECORD_ID_RE.test(rec.id || "")) throw new Error("Record not found");
+    const info = (d.objectInfos || {})[rec.apiName] || {};
+    const fieldInfo = info.fields || {};
+    const fields = rec.fields || {};
+    // A nested record (a relationship's value) has no text of its own.
+    const text = (f) => {
+        const v = f ? (f.displayValue != null ? f.displayValue : f.value) : null;
+        return v === null || v === undefined || typeof v === "object" ? "" : String(v).slice(0, 300);
+    };
+    // layouts: object -> record type -> layout type -> mode -> layout.
+    const layout = Object.values((d.layouts || {})[rec.apiName] || {})
+        .map((byType) => byType && byType[layoutType] && byType[layoutType].View)
+        .find(Boolean);
+    const items = [];
+    const seen = new Set();
+    ((layout && layout.sections) || []).forEach((section) =>
+        (section.layoutRows || []).forEach((row) =>
+            (row.layoutItems || []).forEach((item) => {
+                // An address is one item made of several fields.
+                const comps = (item.layoutComponents || []).filter((c) => c && c.componentType === "Field" && typeof c.apiName === "string");
+                if (!comps.length || seen.has(comps[0].apiName)) return;
+                seen.add(comps[0].apiName);
+                let value = comps.map((c) => text(fields[c.apiName])).filter(Boolean).join(", ");
+                let lookup = null;
+                const idField = item.lookupIdApiName;
+                const idValue = idField && fields[idField] && fields[idField].value;
+                if (typeof idValue === "string" && RECORD_ID_RE.test(idValue)) {
+                    const fi = fieldInfo[idField] || {};
+                    const rel = fields[fi.relationshipName];
+                    const target = (rel && rel.value && rel.value.apiName) || (fi.referenceToInfos && fi.referenceToInfos[0] && fi.referenceToInfos[0].apiName);
+                    value = text(rel) || value;
+                    if (API_NAME_RE.test(target || "")) lookup = { id: idValue, type: target };
+                }
+                items.push({ label: String(item.label || comps[0].apiName), value, lookup });
+            })
+        )
+    );
+    const nameField = (info.nameFields || [])[0] || "Name";
+    return {
+        id: rec.id,
+        type: rec.apiName,
+        typeLabel: typeof info.label === "string" ? info.label : rec.apiName,
+        name: text(fields[nameField]) || text(fields.Name) || rec.id,
+        recordTypeId: RECORD_ID_RE.test(rec.recordTypeId || "") ? rec.recordTypeId : null,
+        items,
+    };
+}
+
 // Actions that read org data; all are gated by the liveOrgAccess setting.
-const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "fields", "flowVersions"]);
+const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "fields", "flowVersions", "peek", "hop", "recentWork"]);
 
 // Why a palette message must be refused, or null when it's allowed.
 function paletteDenied(msg, sender) {
@@ -212,6 +271,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: true, shortcut: (palette && palette.shortcut) || "" });
     });
     return true;
+});
+
+// Shift+Enter in the palette opens a result in a background tab, next to
+// the page, and the palette stays open for the next one.
+chrome.runtime.onMessage.addListener((msg, sender) => {
+    if (!msg || msg.type !== "openTab") return;
+    if (!sender || sender.id !== chrome.runtime.id || !sender.tab) return;
+    if (typeof msg.url !== "string" || !SFEN_URL.isSalesforceUrl(msg.url)) return;
+    chrome.tabs.create({ url: msg.url, active: false, windowId: sender.tab.windowId, index: sender.tab.index + 1 });
 });
 
 // The "N" button in the Salesforce header (headerButton.js) opens the popup.
@@ -578,6 +646,119 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     return { api: f.QualifiedApiName, label: f.Label, type: f.DataType, key: id.slice(id.indexOf(".") + 1) };
                 });
                 sendResponse({ ok: true, fields });
+            } else if (msg.action === "peek") {
+                // The palette's preview of a record: its compact layout, the
+                // key fields Salesforce shows at the top of its page.
+                const id = msg.recordId;
+                if (!RECORD_ID_RE.test(id || "")) throw new Error("Invalid record Id");
+                const rec = await sfRecordUi(host, id, "Compact");
+                const nameLabel = (it) => it.value === rec.name && !it.lookup;
+                sendResponse({
+                    ok: true,
+                    record: { id: rec.id, type: rec.type, typeLabel: rec.typeLabel, name: rec.name, fields: rec.items.filter((it) => !nameLabel(it)).slice(0, 10) },
+                });
+            } else if (msg.action === "hop") {
+                // Where the palette can go from the record you're on: the
+                // records its page layout links to (lookups), and the
+                // related lists of its layout. A failed related-list request
+                // only drops the lists.
+                const id = msg.recordId;
+                if (!RECORD_ID_RE.test(id || "")) throw new Error("Invalid record Id");
+                const rec = await sfRecordUi(host, id, "Full");
+                const seen = new Set();
+                const lookups = rec.items
+                    .filter((it) => it.lookup && !seen.has(it.label + it.lookup.id) && seen.add(it.label + it.lookup.id))
+                    .map((it) => ({ label: it.label, name: it.value || it.lookup.id, id: it.lookup.id, type: it.lookup.type }));
+                let lists = [];
+                try {
+                    const rt = rec.recordTypeId ? `?recordTypeId=${rec.recordTypeId}` : "";
+                    const d = await sfFetch(host, `/services/data/${SF_API_VERSION}/ui-api/related-list-info/${rec.type}${rt}`);
+                    lists = ((d && d.relatedLists) || [])
+                        .filter((l) => l && typeof l.label === "string" && API_NAME_RE.test(l.relatedListId || ""))
+                        .map((l) => ({ label: l.label, id: l.relatedListId }));
+                } catch (e) {
+                    /* no related lists for this object */
+                }
+                sendResponse({ ok: true, id: rec.id, type: rec.type, typeLabel: rec.typeLabel, name: rec.name, lookups, lists });
+            } else if (msg.action === "recentWork") {
+                // Setup items changed in the last 30 days, newest first, and
+                // who changed them, for the palette's "Recent work": flows,
+                // Apex, permission sets, profiles and custom fields. Packages'
+                // items are left out (an upgrade changes them all). Flows and
+                // fields come from the Tooling API. Each query fails on its own.
+                const recent = "LastModifiedDate = LAST_N_DAYS:30 ORDER BY LastModifiedDate DESC LIMIT 20";
+                const q = async (api, soql) => {
+                    try {
+                        const d = await sfFetch(host, `/services/data/${SF_API_VERSION}/${api}/?q=${encodeURIComponent(soql)}`);
+                        return d.records || [];
+                    } catch (e) {
+                        return [];
+                    }
+                };
+                const [classes, triggers, permSets, profiles, flows, fields] = await Promise.all([
+                    q("query", `SELECT Id, Name, LastModifiedDate, LastModifiedById FROM ApexClass WHERE NamespacePrefix = null AND ${recent}`),
+                    q("query", `SELECT Id, Name, LastModifiedDate, LastModifiedById FROM ApexTrigger WHERE NamespacePrefix = null AND ${recent}`),
+                    q(
+                        "query",
+                        "SELECT Id, Label, LastModifiedDate, LastModifiedById FROM PermissionSet " +
+                            `WHERE IsOwnedByProfile = false AND NamespacePrefix = null AND ${recent}`
+                    ),
+                    q("query", `SELECT Id, Name, LastModifiedDate, LastModifiedById FROM Profile WHERE ${recent}`),
+                    // One row per flow version; Id is the 301 version id Flow Builder opens.
+                    q("tooling/query", `SELECT Id, DefinitionId, MasterLabel, LastModifiedDate, LastModifiedById FROM Flow WHERE ${recent}`),
+                    q(
+                        "tooling/query",
+                        "SELECT Id, DeveloperName, TableEnumOrId, LastModifiedDate, LastModifiedById FROM CustomField " +
+                            `WHERE NamespacePrefix = null AND ${recent}`
+                    ),
+                ]);
+                const ok = (r, label) => RECORD_ID_RE.test(r.Id || "") && typeof label === "string" && !isNaN(Date.parse(r.LastModifiedDate));
+                const row = (kind, r, label, extra) => ({
+                    kind,
+                    id: r.Id,
+                    label,
+                    date: r.LastModifiedDate,
+                    by: USER_ID_RE.test(r.LastModifiedById || "") ? r.LastModifiedById : null,
+                    ...extra,
+                });
+                const flowSeen = new Set();
+                const items = [
+                    ...classes.filter((r) => ok(r, r.Name)).map((r) => row("apexClass", r, r.Name)),
+                    ...triggers.filter((r) => ok(r, r.Name)).map((r) => row("apexTrigger", r, r.Name)),
+                    ...permSets.filter((r) => ok(r, r.Label)).map((r) => row("permSet", r, r.Label)),
+                    ...profiles.filter((r) => ok(r, r.Name)).map((r) => row("profile", r, r.Name)),
+                    ...flows
+                        .filter((r) => ok(r, r.MasterLabel) && FLOW_VERSION_ID_RE.test(r.Id) && FLOW_DEF_ID_RE.test(r.DefinitionId || ""))
+                        // Newest version of each flow only.
+                        .filter((r) => !flowSeen.has(r.DefinitionId) && flowSeen.add(r.DefinitionId))
+                        .map((r) => row("flow", r, r.MasterLabel, { flow: r.DefinitionId })),
+                    ...fields
+                        .filter((r) => ok(r, r.DeveloperName) && (API_NAME_RE.test(r.TableEnumOrId || "") || CUSTOM_OBJECT_ID_RE.test(r.TableEnumOrId || "")))
+                        .map((r) => row("field", r, r.DeveloperName + "__c", { object: r.TableEnumOrId })),
+                ]
+                    .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
+                    .slice(0, 40);
+                // Who changed each one, in one query.
+                const userIds = [...new Set(items.map((i) => i.by).filter(Boolean))];
+                const names = {};
+                if (userIds.length) {
+                    (await q("query", `SELECT Id, Name FROM User WHERE Id IN ('${userIds.join("','")}')`)).forEach((u) => {
+                        if (typeof u.Name === "string") names[u.Id] = u.Name;
+                    });
+                }
+                let me = null;
+                try {
+                    const info = await sfGetUserInfo(host);
+                    me = info && USER_ID_RE.test(info.user_id || "") ? info.user_id : null;
+                } catch (e) {
+                    /* "You" then lists nothing */
+                }
+                // Ids compared on 15 characters: userinfo and SOQL can differ in length.
+                const same = (a, b) => !!a && !!b && a.slice(0, 15) === b.slice(0, 15);
+                sendResponse({
+                    ok: true,
+                    items: items.map((i) => ({ ...i, byName: names[i.by] || null, mine: same(i.by, me) })),
+                });
             } else if (msg.action === "loginAs") {
                 const userId = msg.userId;
                 if (typeof userId !== "string" || !USER_ID_RE.test(userId)) {

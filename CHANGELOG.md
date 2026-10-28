@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Peek: `→` on a record in the palette shows its key fields (the record's compact layout) beside the results, without leaving the page. The preview follows as you move through the list; a lookup in it opens that record. `←` or `Esc` closes it. Needs live org access.
+- Recent work: with nothing typed, the palette lists the flows, Apex classes and triggers, permission sets, profiles and custom fields changed in the last 30 days, newest first. **You** shows your changes, **Everyone** shows everyone's and who made them; `Tab` switches. Changes made outside Navigator count too. Needs live org access.
+- On a record, the palette lists the records it links to (its Account, Owner and other lookups on the page layout) and its related lists. Typing finds them too, so `acc` on an Opportunity offers its Account. Needs live org access.
+- Admin shorthand in the palette and popup search: `ps`, `psg`, `dl`, `cmdt`, `cs`, `lwc`, `sr`, `aj`, `sj`, `vf`, `om`, `ip`, `nc`, `rss`, `lh`, `sat`, `ds`, `ics`, `ocs` and `lab` open Permission Sets, Permission Set Groups, Debug Logs and the other Setup pages they stand for.
+- Text you select on the page fills the palette's search when you open it. A selection left on the page fills it only once.
+- `Shift+Enter` (or `Shift`+click) opens a palette result in a background tab and keeps the palette open, to open several pages in a row.
+- A pasted record Id shows the record's name and object before you open it.
+
+### Changed
+- Recent Setup also keeps the Setup pages you open by clicking through Setup, not only those opened with Navigator.
+
 ## 5.1.1
 
 ### Added
