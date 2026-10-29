@@ -106,6 +106,7 @@ mark { background:var(--nv-mark); color:inherit; border-radius:3px; padding:0 1p
 .sub { font-size:12px; color:var(--nv-text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hint { font-size:12px; color:var(--nv-text-3); flex-shrink:0; white-space:nowrap; }
 .result.active .hint, .result.active .sub, .result.active .label .api { color:var(--nv-on-sel-2); }
+.result.dim:not(.active) .label { color:var(--nv-text-3); }
 .enter { display:none; width:14px; height:14px; flex-shrink:0; }
 .result.active .enter { display:inline-flex; }
 .more { flex-shrink:0; background:transparent; border:none; color:var(--nv-text-3); cursor:pointer;

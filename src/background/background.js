@@ -689,6 +689,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 } catch (e) {
                     /* no related lists for this object */
                 }
+                // Record counts for all lists in one request. Salesforce stops
+                // counting at 20 and says there are more. A failure only drops
+                // the counts.
+                try {
+                    if (lists.length) {
+                        const d = await sfFetch(host, `/services/data/${SF_API_VERSION}/ui-api/related-list-count/batch/${rec.id}/${lists.map((l) => l.id).join(",")}`);
+                        ((d && d.results) || []).forEach((r, i) => {
+                            if (!lists[i] || !r || r.statusCode !== 200 || !r.result || !Number.isInteger(r.result.count)) return;
+                            lists[i].count = r.result.count;
+                            lists[i].more = r.result.hasMore === true;
+                        });
+                    }
+                } catch (e) {
+                    /* no counts */
+                }
                 sendResponse({ ok: true, id: rec.id, type: rec.type, typeLabel: rec.typeLabel, name: rec.name, lookups, lists });
             } else if (msg.action === "recentWork") {
                 // Setup items changed in the last 30 days, newest first, and

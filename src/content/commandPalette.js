@@ -81,6 +81,7 @@
     const peekCache = {}; // record Id -> peek record, "loading" or "failed"
     let hop = null; // the current record's lookups and related lists ("hop" action)
     let hopKey = null; // record Id hop was requested for
+    let hopAt = 0; // when hop was requested
     let recentWork = null; // "recentWork" rows, newest first
     let workAt = 0; // when recentWork was requested
     let workEveryone = false; // Recent work lists everyone's changes, not only yours
@@ -443,16 +444,18 @@
     }
 
     // The record you're on: its lookups and related lists, for the board's
-    // "This record" rows and search. Fetched once per record.
+    // "This record" rows and search. Refreshed when older than a minute, so
+    // related list counts catch up with records you added.
     function loadHop() {
         const ctx = currentRecordContext();
-        if (!ctx || !liveEnabled || hopKey === ctx.id) return;
+        if (!ctx || !liveEnabled || (hopKey === ctx.id && Date.now() - hopAt < 60000)) return;
+        if (hopKey !== ctx.id) hop = null;
         hopKey = ctx.id;
-        hop = null;
+        hopAt = Date.now();
         ask("hop", { recordId: ctx.id }, (resp) => {
             if (hopKey !== ctx.id) return; // stale: another record since
             if (!resp) {
-                hopKey = null; // retry on the next open
+                hopAt = 0; // retry on the next open
                 return;
             }
             hop = resp;
@@ -475,15 +478,20 @@
             field: l.label, // searched as a second name (see compute)
             side: "up",
         }));
-        const lists = hop.lists.map((l) => ({
-            label: l.label,
-            hint: "Related list",
-            group: GROUPS.RELATED,
-            iconGroup: GROUPS.FIELD,
-            url: `/lightning/r/${hop.type}/${hop.id}/related/${l.id}/view`,
-            keywords: `${l.label} related list`,
-            side: "down",
-        }));
+        const lists = hop.lists.map((l) => {
+            const n = l.count;
+            const count = n === 0 ? "Empty" : n === 1 && !l.more ? "1 record" : `${n}${l.more ? "+" : ""} records`;
+            return {
+                label: l.label,
+                hint: n === undefined ? "Related list" : count,
+                dim: n === 0, // nothing to open there
+                group: GROUPS.RELATED,
+                iconGroup: GROUPS.FIELD,
+                url: `/lightning/r/${hop.type}/${hop.id}/related/${l.id}/view`,
+                keywords: `${l.label} related list`,
+                side: "down",
+            };
+        });
         return lookups.concat(lists);
     }
 
@@ -854,7 +862,7 @@
     // passes isSub=true with a lighter shape ({label,hint}).
     function makeRow(item, idx, isSub) {
         const li = document.createElement("li");
-        li.className = "result" + (isSub ? " subaction" : "");
+        li.className = "result" + (isSub ? " subaction" : "") + (item.dim ? " dim" : "");
         li.id = "sfen-opt-" + idx;
         li.dataset.index = idx;
         li.setAttribute("role", "option");

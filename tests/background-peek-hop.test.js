@@ -1,5 +1,5 @@
 // Background worker: "peek" (a record's compact layout for the palette's
-// preview), "hop" (the record's lookups and related lists) and "recentWork"
+// preview), "hop" (the record's lookups, related lists and their counts) and "recentWork"
 // (Setup items changed lately). Values come back as plain strings, Ids and
 // names are checked before they reach palette URLs, and live access gates all three.
 const fs = require("fs");
@@ -134,6 +134,12 @@ function recordUi(layoutType, items) {
                 { label: "Evil", relatedListId: "../x" },
                 { label: null, relatedListId: "NoLabel" },
             ] });
+        if (url.includes("/ui-api/related-list-count/batch/"))
+            return json({ results: [
+                { statusCode: 200, result: { count: 4, hasMore: false } },
+                { statusCode: 200, result: { count: 20, hasMore: true } },
+                { statusCode: 404, result: [{ errorCode: "NOT_FOUND" }] },
+            ] });
         return null;
     };
     fetchCalls = [];
@@ -144,13 +150,20 @@ function recordUi(layoutType, items) {
         { label: "Account Name", name: "Globex & Sons", id: "001000000000001AAA", type: "Account" },
         { label: "Opportunity Owner", name: "Jane Cooper", id: "005000000000001AAA", type: "User" },
     ]);
+    assert.strictEqual(fetchCalls[2], `https://acme.my.salesforce.com/services/data/v60.0/ui-api/related-list-count/batch/${OPP}/CombinedAttachments,OpportunityContactRoles,Quotes`);
     assert.deepStrictEqual(r.lists, [
-        { label: "Notes & Attachments", id: "CombinedAttachments" },
-        { label: "Contact Roles", id: "OpportunityContactRoles" },
+        { label: "Notes & Attachments", id: "CombinedAttachments", count: 4, more: false },
+        { label: "Contact Roles", id: "OpportunityContactRoles", count: 20, more: true },
         { label: "Quotes", id: "Quotes" },
     ]);
     assert.deepStrictEqual([r.id, r.type, r.name], [OPP, "Opportunity", "Globex & Sons — Renewal FY27"]);
-    console.log("PASS hop: layout lookups with names and types; Created By left out, labels unescaped, bad types and list ids dropped");
+    console.log("PASS hop: layout lookups with names and types; Created By left out, labels unescaped, bad types and list ids dropped, record counts in one request");
+
+    const routeCounts = route;
+    route = (url) => (url.includes("/ui-api/related-list-count/") ? { ok: false, status: 500, json: async () => [] } : routeCounts(url));
+    r = await send({ action: "hop", recordId: OPP });
+    assert.deepStrictEqual([r.ok, r.lists.length, r.lists.some((l) => "count" in l)], [true, 3, false]);
+    console.log("PASS hop: a failed count request only drops the counts");
 
     route = (url) => (url.includes("/ui-api/related-list-info/") ? { ok: false, status: 404, json: async () => [] } : route0(url));
     const route0 = (url) => (url.includes("/ui-api/record-ui/") ? json(recordUi("Full", [field("Account Name", "AccountId", "AccountId")])) : null);

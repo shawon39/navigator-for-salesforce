@@ -42,7 +42,7 @@ Each command has a short form: `f` (fields), `li` (list), `n` (new), `a` (app), 
 
 You can also paste a 15- or 18-character record Id. The closest match comes first. Press `Enter` to open it, `Ctrl/⌘+Enter` to open it in a new tab, `Shift+Enter` to open it in a background tab and keep the palette open, or `→` for more actions, like **Login as** on a user. On a record, `→` previews its key fields beside the results. Admin shorthand works too: `ps`, `psg`, `dl`, `cmdt` and others open the Setup page they stand for. Text you select on the page fills the search when you open the palette.
 
-With nothing typed, the palette also shows **Recent work**: the flows, Apex, permission sets, profiles and custom fields changed in the last 30 days, yours or everyone's (`Tab` switches). On a record, it lists the records it links to (like its Account and Owner) and its related lists.
+With nothing typed, the palette also shows **Recent work**: the flows, Apex, permission sets, profiles and custom fields changed in the last 30 days, yours or everyone's (`Tab` switches). On a record, it lists the records it links to (like its Account and Owner) and its related lists, with how many records each has.
 
 **The popup** (`Alt+N`, or `Option+N` on a Mac) has four tabs:
 
