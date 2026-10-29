@@ -28,15 +28,18 @@
         packageQuery,
         pickBonus,
         addPick,
+        workItem,
         iconSvg,
         UI_ICONS,
         looksLikeRecordId,
         pastedLink,
         highlightPositions,
         escapeHtml,
+        lightningOrigin,
         navigate,
         recordUrl,
     } = window.SFEN_CMDK_DATA;
+    const SETUP_ALIASES = window.SFEN_SETUP_ALIASES || {};
 
     const DEFAULT_PLACEHOLDER =
         "Search Salesforce — objects, setup, records, bookmarks…";
@@ -73,6 +76,15 @@
     let tabColors = false; // settings.orgTabColors: org color icons instead of type dots
     let orgColorMap = Object.create(null); // org key -> color name (SFEN_ORG_COLORS.assign)
     let paletteDark = false; // the palette's resolved theme, for icon shades
+    let peekOpen = false; // the record preview beside the results is showing
+    let peekTimer = null;
+    const peekCache = {}; // record Id -> peek record, "loading" or "failed"
+    let hop = null; // the current record's lookups and related lists ("hop" action)
+    let hopKey = null; // record Id hop was requested for
+    let hopAt = 0; // when hop was requested
+    let recentWork = null; // "recentWork" rows, newest first
+    let workAt = 0; // when recentWork was requested
+    let workEveryone = false; // Recent work lists everyone's changes, not only yours
 
     // Key hints: ⌘ on Mac, Ctrl elsewhere.
     const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl+";
@@ -127,9 +139,16 @@
         const raw = query.trim();
         const q = raw.toLowerCase();
         const out = [];
-        // Pasting a 15/18-char record Id jumps straight to that record.
+        // Pasting a 15/18-char record Id jumps straight to that record. Its
+        // preview names it once loaded; Ids of things that aren't records
+        // (a profile, a class) keep the plain row.
         if (looksLikeRecordId(raw)) {
-            out.push({ label: "Open record: " + raw, hint: "ID", group: GROUPS.ACTION, url: "/" + raw });
+            const known = peekRecord(raw);
+            out.push(
+                known
+                    ? { label: known.name, sub: `${known.typeLabel} · ${raw}`, hint: "ID", group: GROUPS.ACTION, url: recordUrl(known.type, raw), recordId: raw }
+                    : { label: "Open record: " + raw, hint: "ID", group: GROUPS.ACTION, url: "/" + raw, recordId: raw }
+            );
         }
         // A pasted link to an org's page opens that page in this org;
         // renderList explains the ones that can't.
@@ -149,12 +168,20 @@
             [GROUPS.APP]: 8,
             [GROUPS.OBJECT]: 0,
             [GROUPS.RECORD]: 0,
+            [GROUPS.RELATED]: 9,
         };
+        const alias = SETUP_ALIASES[q];
         const scored = [];
-        for (const item of fullCatalog()) {
+        for (const item of fullCatalog().concat(hopItems())) {
             const itemQuery = packageQuery(item, q);
             if (itemQuery === null) continue;
-            const sc = SFEN_URL.matchScore(itemQuery, item.label, item.keywords);
+            // Admin shorthand ("psg") ranks just under an exact name. A lookup
+            // of the record you're on also matches its field as a name, so
+            // "acc" on an Opportunity finds its Account like a page named so.
+            const sc =
+                item.group === GROUPS.SETUP && item.label === alias
+                    ? 950
+                    : Math.max(SFEN_URL.matchScore(itemQuery, item.label, item.keywords), item.field ? SFEN_URL.matchScore(itemQuery, item.field) : -1);
             if (sc >= 0)
                 scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) - (item.pkg ? PACKAGE_PENALTY : 0) + boost(item.url) });
         }
@@ -179,6 +206,7 @@
             [GROUPS.APP]: 6,
             [GROUPS.APEX]: 6,
             [GROUPS.CMDT]: 4,
+            [GROUPS.RELATED]: 6,
         };
         const counts = {};
         for (const s of scored) {
@@ -366,6 +394,7 @@
             hint: type,
             group: GROUPS.RECORD,
             url: recordUrl(type, r.Id),
+            recordId: r.Id, // → previews it (Peek)
             keywords: `${name} ${type} record`,
         };
         if (type === "User") {
@@ -394,6 +423,89 @@
             if (!list) return;
             recents = list;
             if (opened && !inputEl.value.trim()) render("");
+        });
+    }
+
+    // ---- Peek, hop and recent work ---------------------------------------
+    // A record's preview ("peek" action), cached for the page's life (failed
+    // ones until the next open). Returns it once loaded, else null and loads
+    // it; then, while open, the results render again, or with onLoad, that.
+    function peekRecord(id, onLoad) {
+        const got = peekCache[id];
+        if (got && typeof got === "object") return got;
+        if (!got && liveEnabled) {
+            peekCache[id] = "loading";
+            ask("peek", { recordId: id }, (resp) => {
+                peekCache[id] = resp ? resp.record : "failed";
+                if (opened) onLoad ? onLoad() : render(inputEl.value);
+            });
+        }
+        return null;
+    }
+
+    // The record you're on: its lookups and related lists, for the board's
+    // "This record" rows and search. Refreshed when older than a minute, so
+    // related list counts catch up with records you added.
+    function loadHop() {
+        const ctx = currentRecordContext();
+        if (!ctx || !liveEnabled || (hopKey === ctx.id && Date.now() - hopAt < 60000)) return;
+        if (hopKey !== ctx.id) hop = null;
+        hopKey = ctx.id;
+        hopAt = Date.now();
+        ask("hop", { recordId: ctx.id }, (resp) => {
+            if (hopKey !== ctx.id) return; // stale: another record since
+            if (!resp) {
+                hopAt = 0; // retry on the next open
+                return;
+            }
+            hop = resp;
+            if (opened && !activeVerb && !inputEl.value.trim()) render("");
+        });
+    }
+
+    // Rows for the record you're on: lookups first, then related lists.
+    function hopItems() {
+        const ctx = currentRecordContext();
+        if (!hop || !ctx || hopKey !== ctx.id) return [];
+        const lookups = hop.lookups.map((l) => ({
+            label: l.name,
+            hint: l.label,
+            group: GROUPS.RELATED,
+            iconGroup: GROUPS.RECORD,
+            url: recordUrl(l.type, l.id),
+            recordId: l.id,
+            keywords: `${l.name} ${l.label} ${l.type}`,
+            field: l.label, // searched as a second name (see compute)
+            side: "up",
+        }));
+        const lists = hop.lists.map((l) => {
+            const n = l.count;
+            const count = n === 0 ? "Empty" : n === 1 && !l.more ? "1 record" : `${n}${l.more ? "+" : ""} records`;
+            return {
+                label: l.label,
+                hint: n === undefined ? "Related list" : count,
+                dim: n === 0, // nothing to open there
+                group: GROUPS.RELATED,
+                iconGroup: GROUPS.FIELD,
+                url: `/lightning/r/${hop.type}/${hop.id}/related/${l.id}/view`,
+                keywords: `${l.label} related list`,
+                side: "down",
+            };
+        });
+        return lookups.concat(lists);
+    }
+
+    // Setup items changed lately, refreshed when older than 5 minutes.
+    function loadWork() {
+        if (!liveEnabled || Date.now() - workAt < 5 * 60000) return;
+        workAt = Date.now();
+        ask("recentWork", {}, (resp) => {
+            if (!resp || !liveEnabled) {
+                workAt = 0;
+                return;
+            }
+            recentWork = resp.items || [];
+            if (opened && !activeVerb && !inputEl.value.trim()) render("");
         });
     }
 
@@ -453,7 +565,7 @@
     }
 
     // ---- Overlay UI ------------------------------------------------------
-    let overlayHost, shadow, inputEl, listEl, footerEl, loaderEl, panelEl, orgEl, noticeEl;
+    let overlayHost, shadow, inputEl, listEl, footerEl, loaderEl, panelEl, orgEl, noticeEl, peekEl;
     let opened = false;
     let activeIndex = 0;
     let footerCount = "";
@@ -561,9 +673,18 @@
         noticeEl.className = "notice";
         noticeEl.hidden = true;
 
+        // The record preview (Peek) sits beside the results.
+        peekEl = document.createElement("div");
+        peekEl.className = "peek";
+        peekEl.hidden = true;
+        const body = document.createElement("div");
+        body.className = "body";
+        body.appendChild(listEl);
+        body.appendChild(peekEl);
+
         panel.appendChild(searchWrap);
         panel.appendChild(noticeEl);
-        panel.appendChild(listEl);
+        panel.appendChild(body);
         panel.appendChild(footerEl);
         backdrop.appendChild(panel);
         shadow.appendChild(backdrop);
@@ -599,12 +720,12 @@
             '<span><kbd>↑↓</kbd> move</span>' +
             '<span><kbd>↵</kbd> open</span>' +
             `<span><kbd>${MOD}↵</kbd> new tab</span>` +
-            '<span><kbd>→</kbd> actions</span>' +
+            '<span><kbd>⇧↵</kbd> background</span>' +
+            '<span><kbd>→</kbd> <span class="right-key">actions</span></span>' +
             // In the "fields" verb's object step, Tab completes the object instead.
             (activeVerb === "fields" && !fieldsTarget(inputEl.value)
                 ? '<span><kbd>tab</kbd> search fields</span>'
                 : '<span><kbd>tab</kbd> lock verb</span>') +
-            '<span><kbd>esc</kbd> close</span>' +
             '<span class="footer-count"></span>'
         );
     }
@@ -741,7 +862,7 @@
     // passes isSub=true with a lighter shape ({label,hint}).
     function makeRow(item, idx, isSub) {
         const li = document.createElement("li");
-        li.className = "result" + (isSub ? " subaction" : "");
+        li.className = "result" + (isSub ? " subaction" : "") + (item.dim ? " dim" : "");
         li.id = "sfen-opt-" + idx;
         li.dataset.index = idx;
         li.setAttribute("role", "option");
@@ -749,7 +870,7 @@
         const icon = document.createElement("span");
         icon.className = "icon";
         if (!isSub && item.org) icon.appendChild(orgMarker(item.org, 16));
-        else icon.innerHTML = iconSvg(isSub ? GROUPS.ACTION : item.group);
+        else icon.innerHTML = iconSvg(isSub ? GROUPS.ACTION : item.iconGroup || item.group);
 
         const wrap = document.createElement("span");
         wrap.className = "label-wrap";
@@ -776,8 +897,9 @@
         li.appendChild(wrap);
         // Group headers already name Setup/object/bookmark rows; only records
         // (their object type), actions (e.g. "ID"), apps (console or not) and
-        // fields (their data type) carry a trailing hint.
-        const hinted = [GROUPS.RECORD, GROUPS.ACTION, GROUPS.APP, GROUPS.FIELD, GROUPS.ORG, GROUPS.APEX];
+        // fields (their data type) carry a trailing hint, as do the current
+        // record's rows (the lookup's field) and Recent work (what it is).
+        const hinted = [GROUPS.RECORD, GROUPS.ACTION, GROUPS.APP, GROUPS.FIELD, GROUPS.ORG, GROUPS.APEX, GROUPS.RELATED, GROUPS.WORK];
         if (!isSub && hinted.includes(item.group)) {
             const hint = document.createElement("span");
             hint.className = "hint";
@@ -796,6 +918,18 @@
                 toggleExpand(item.url);
             });
             li.appendChild(more);
+        } else if (!isSub && peekable(item)) {
+            const more = document.createElement("button");
+            more.className = "more";
+            more.type = "button";
+            more.textContent = "⋯";
+            more.setAttribute("aria-label", "Preview");
+            more.addEventListener("click", (e) => {
+                e.stopPropagation();
+                setActive(idx);
+                setPeek(!peekOpen);
+            });
+            li.appendChild(more);
         }
 
         const enter = document.createElement("span");
@@ -803,9 +937,127 @@
         enter.innerHTML = UI_ICONS.enter;
         li.appendChild(enter);
 
-        li.addEventListener("mousemove", () => setActive(idx));
-        li.addEventListener("click", (e) => choose(idx, e.metaKey || e.ctrlKey));
+        li.addEventListener("mousemove", () => activeIndex !== idx && setActive(idx));
+        li.addEventListener("click", (e) => choose(idx, e.metaKey || e.ctrlKey, e.shiftKey));
         return li;
+    }
+
+    // ---- Peek ------------------------------------------------------------
+    // → on a record shows its key fields beside the results, and the preview
+    // follows the selection until ← or Esc.
+    function peekable(item) {
+        return !!(item && !item.__action && item.recordId && !(item.actions && item.actions.length));
+    }
+
+    function setPeek(on) {
+        peekOpen = on;
+        clearTimeout(peekTimer);
+        if (!peekEl) return;
+        peekEl.hidden = !on;
+        panelEl.classList.toggle("peek-mode", on);
+        if (on) renderPeek();
+        else peekEl.textContent = ""; // don't leave record values in the page
+    }
+
+    function peekNote(text) {
+        const n = document.createElement("div");
+        n.className = "peek-note";
+        n.textContent = text;
+        peekEl.appendChild(n);
+    }
+
+    function renderPeek() {
+        if (!peekOpen || !peekEl) return;
+        clearTimeout(peekTimer);
+        peekEl.textContent = "";
+        const entry = flatResults[activeIndex];
+        if (!peekable(entry)) return peekNote("Select a record to preview it.");
+        if (!liveEnabled) return peekNote("Live org access is off (turn it on in Settings).");
+        const id = entry.recordId;
+        const rec = peekCache[id];
+        if (rec === "failed") return peekNote("There's no preview for this record.");
+        if (!rec || rec === "loading") {
+            peekNote("Loading…");
+            // Wait a moment, so moving through the list doesn't load every row.
+            if (!rec) peekTimer = setTimeout(() => peekRecord(id, renderPeek), 150);
+            return;
+        }
+        const head = document.createElement("div");
+        head.className = "peek-head";
+        head.innerHTML =
+            `<span class="peek-tile">${UI_ICONS.record}</span>` +
+            '<span class="peek-head-text"><div class="peek-title"></div><div class="peek-type"></div></span>';
+        head.querySelector(".peek-title").textContent = rec.name;
+        head.querySelector(".peek-type").textContent = rec.typeLabel;
+        peekEl.appendChild(head);
+
+        // Each field's name above its value.
+        const list = document.createElement("div");
+        list.className = "peek-fields";
+        rec.fields.forEach((f) => {
+            const row = document.createElement("div");
+            row.className = "peek-field";
+            const label = document.createElement("span");
+            label.className = "peek-label";
+            label.textContent = f.label;
+            let val;
+            if (f.lookup) {
+                // A lookup opens the record it points to.
+                val = document.createElement("button");
+                val.type = "button";
+                val.className = "peek-link";
+                val.addEventListener("click", () => {
+                    close();
+                    navigate(recordUrl(f.lookup.type, f.lookup.id), false);
+                });
+            } else {
+                val = document.createElement("span");
+                val.className = "peek-val" + (f.value ? "" : " dim");
+            }
+            val.textContent = f.value || "Empty";
+            row.append(label, val);
+            list.appendChild(row);
+        });
+        peekEl.appendChild(list);
+
+        // Open, then icon buttons; stays at the bottom while the fields scroll.
+        const actions = document.createElement("div");
+        actions.className = "peek-actions";
+        const i = activeIndex;
+        const open = document.createElement("button");
+        open.type = "button";
+        open.className = "peek-open";
+        open.textContent = "Open ↵";
+        open.addEventListener("click", () => choose(i, false));
+        actions.appendChild(open);
+        const iconBtn = (icon, label, onClick) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "peek-icon";
+            b.title = label;
+            b.setAttribute("aria-label", label);
+            b.innerHTML = UI_ICONS[icon];
+            b.dataset.icon = icon;
+            b.addEventListener("click", () => onClick(b));
+            actions.appendChild(b);
+        };
+        // A copy button shows a check (or turns red) for a moment.
+        const copy = (b, text) => {
+            if (b.classList.contains("copied") || b.classList.contains("failed")) return;
+            const done = (cls) => {
+                b.classList.add(cls);
+                if (cls === "copied") b.innerHTML = UI_ICONS.check;
+                setTimeout(() => {
+                    b.classList.remove(cls);
+                    b.innerHTML = UI_ICONS[b.dataset.icon];
+                }, 1500);
+            };
+            writeClipboard(text).then(() => done("copied"), () => done("failed"));
+        };
+        iconBtn("newTab", "Open in a new tab", () => choose(i, true));
+        iconBtn("copy", "Copy Id", (b) => copy(b, rec.id));
+        iconBtn("link", "Copy link", (b) => copy(b, lightningOrigin() + entry.url));
+        peekEl.appendChild(actions);
     }
 
     // Append result rows to `container`, expanding ⋯ actions inline for the row
@@ -1384,6 +1636,20 @@
                 },
             ]);
         }
+        // On a record: the records it links to, and its related lists.
+        const related = hopItems();
+        if (related.length) {
+            const hopBoard = document.createElement("div");
+            hopBoard.className = "board";
+            const up = document.createElement("div");
+            up.className = "column";
+            const down = document.createElement("div");
+            down.className = "column";
+            boardSection(up, "Linked from this record", related.filter((r) => r.side === "up").slice(0, 8));
+            boardSection(down, "Related lists", related.filter((r) => r.side === "down").slice(0, 8));
+            hopBoard.append(up, down);
+            listEl.appendChild(hopBoard);
+        }
         // Stored entries name their org (a string); a row's `org` is a saved
         // org, drawn as its color dot, so leave it out.
         const recent = recents.slice(0, 7).map(({ org, ...r }) => ({ ...r, group: GROUPS.RECENT }));
@@ -1401,6 +1667,7 @@
         // Fill left fully, then right, so ↑/↓ flat order reads column by column.
         boardSection(left, "Recent Setup", recent);
         boardSection(left, "Recently viewed", records);
+        workSection(right);
         boardSection(right, GROUPS.BOOKMARK, bookmarks);
         boardSection(right, "Setup quick tabs", setupTabs);
 
@@ -1408,6 +1675,37 @@
         board.appendChild(right);
         listEl.appendChild(board);
         if (flatResults.length) setActive(0);
+    }
+
+    // Recent work: Setup items changed lately, yours or everyone's (the
+    // header's switch, or Tab). With none of yours, everyone's.
+    function workSection(col) {
+        if (!recentWork || !recentWork.length) return;
+        const mine = recentWork.filter((w) => w.mine);
+        const everyone = workEveryone || !mine.length;
+        const head = document.createElement("li");
+        head.className = "group-header";
+        head.append(GROUPS.WORK);
+        const scope = document.createElement("span");
+        scope.className = "work-scope";
+        [["You", false], ["Everyone", true]].forEach(([text, all]) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.textContent = text;
+            b.title = "Tab switches";
+            b.className = all === everyone ? "on" : "";
+            b.setAttribute("aria-pressed", String(all === everyone));
+            b.addEventListener("click", () => {
+                workEveryone = all;
+                render("");
+                focusInput();
+            });
+            scope.appendChild(b);
+        });
+        if (mine.length) head.appendChild(scope);
+        col.appendChild(head);
+        const now = Date.now();
+        renderRows(col, (everyone ? recentWork : mine).slice(0, 5).map((w) => workItem(w, now, everyone)));
     }
 
     function boardSection(col, name, items) {
@@ -1467,11 +1765,27 @@
         const entry = flatResults[i];
         if (entry && entry.loginUserId)
             setFooterCount(`You'll land on this same page as ${entry.label.split(" ")[0]}`);
+        const rightKey = footerEl && footerEl.querySelector(".right-key");
+        if (rightKey) rightKey.textContent = peekable(entry) ? "preview" : "actions";
+        renderPeek();
     }
 
-    function runAction(action, newTab) {
+    // Shift+Enter: open `url` in a background tab and keep the palette open.
+    function openInBackground(url) {
+        const full = /^https?:\/\//.test(url) ? url : lightningOrigin() + url;
+        try {
+            chrome.runtime.sendMessage({ type: "openTab", url: full });
+            flashFooter("Opened in a background tab");
+        } catch (e) {
+            /* context invalidated */
+        }
+    }
+
+    function runAction(action, newTab, background) {
         if (!opened) return;
-        if (action.kind === "nav") {
+        if (action.kind === "nav" && background) {
+            openInBackground(action.url);
+        } else if (action.kind === "nav") {
             close();
             navigate(action.url, newTab || !!action.newTab);
         } else if (action.kind === "copy") {
@@ -1498,12 +1812,12 @@
         }
     }
 
-    function choose(i, newTab) {
+    function choose(i, newTab, background) {
         if (!opened) return;
         const entry = flatResults[i];
         if (!entry) return;
         if (entry.__action) {
-            runAction(entry.__action, newTab);
+            runAction(entry.__action, newTab, background);
             return;
         }
         if (entry.loginUserId) {
@@ -1512,12 +1826,18 @@
         }
         pushRecent(entry);
         if (entry.group !== GROUPS.ACTION) recordPick(entry.url);
+        if (background) return openInBackground(entry.url);
         close();
         navigate(entry.url, newTab || !!entry.newTab);
     }
 
     function onInputKeydown(e) {
-        if (e.key === "Tab" && !activeVerb) {
+        if (e.key === "Tab" && !activeVerb && !inputEl.value.trim() && recentWork && recentWork.some((w) => w.mine)) {
+            // On the board, Tab switches Recent work between yours and everyone's.
+            e.preventDefault();
+            workEveryone = !workEveryone;
+            render("");
+        } else if (e.key === "Tab" && !activeVerb) {
             // Lock a verb typed without a trailing space (e.g. "new" + Tab).
             const first = inputEl.value.trim().toLowerCase().split(/\s+/)[0];
             const key = VERB_SHORT[first] || first;
@@ -1551,15 +1871,21 @@
             if (entry && !entry.__action && entry.actions && entry.actions.length) {
                 e.preventDefault();
                 if (expandedKey !== entry.url) toggleExpand(entry.url);
+            } else if (peekable(entry) && !peekOpen) {
+                e.preventDefault();
+                setPeek(true);
             }
         } else if (e.key === "ArrowLeft") {
             if (expandedKey) {
                 e.preventDefault();
                 toggleExpand(expandedKey);
+            } else if (peekOpen) {
+                e.preventDefault();
+                setPeek(false);
             }
         } else if (e.key === "Enter") {
             e.preventDefault();
-            choose(activeIndex, e.metaKey || e.ctrlKey);
+            choose(activeIndex, e.metaKey || e.ctrlKey, e.shiftKey);
         }
         e.stopPropagation();
     }
@@ -1573,9 +1899,16 @@
         }
     }
 
+    let lastSelection = ""; // page selection at the last open
     // fromKey: opened by the page key (see below), not the Chrome command.
     function open(fromKey) {
         if (!paletteEnabled) return;
+        // Text selected on the page (a name, an Id) becomes the search, once:
+        // a selection left behind doesn't fill every later open. Read before
+        // the palette takes focus.
+        const selected = String((window.getSelection && window.getSelection()) || "").replace(/\s+/g, " ").trim();
+        const picked = selected !== lastSelection ? selected : "";
+        lastSelection = selected;
         ensureOverlay();
         opened = true;
         overlayHost.classList.add("open");
@@ -1591,6 +1924,9 @@
         autoVerbWord = null;
         inspectKey = null;
         inspectRecord = null;
+        setPeek(false);
+        // Retry previews that failed.
+        Object.keys(peekCache).forEach((id) => peekCache[id] === "failed" && delete peekCache[id]);
         renderChip();
         resetFooter();
         render("");
@@ -1598,7 +1934,13 @@
         loadRecent();
         loadAdmin();
         loadApps();
+        loadHop();
+        loadWork();
         fieldsFailed = {}; // retry objects whose fields failed to load
+        if (picked.length >= 2 && picked.length <= 80) {
+            inputEl.value = picked;
+            onInput();
+        }
         // Robust focus: wait for paint, then re-assert on the next tick so we
         // win even if Lightning grabs focus back during the open animation.
         requestAnimationFrame(() =>
@@ -1621,6 +1963,7 @@
         // Don't leave the last results (record values, users) in the page.
         listEl.textContent = "";
         flatResults.length = 0;
+        setPeek(false);
     }
 
     function toggle(fromKey) {
@@ -1721,6 +2064,12 @@
                         objectsRequested = false;
                         adminRequested = false;
                         appsRequested = false;
+                        hop = null;
+                        hopKey = null;
+                        recentWork = null;
+                        workAt = 0;
+                        Object.keys(peekCache).forEach((id) => delete peekCache[id]);
+                        setPeek(false);
                         runLiveSearch("");
                         if (opened) render(inputEl.value);
                     }
@@ -1738,6 +2087,22 @@
     } catch (e) {
         /* context invalidated */
     }
+
+    // ---- Setup visits ----------------------------------------------------
+    // Recent Setup also keeps the Setup pages you reach without Navigator,
+    // by clicking through Setup: landing on a page of the Setup list records
+    // it under its name. Lightning changes pages without a reload, so the
+    // address is checked every second.
+    const SETUP_BY_PATH = new Map(SETUP_PAGES.map(([label, url]) => [url, label]));
+    let lastPath = "";
+    const visitTimer = setInterval(() => {
+        if (!extAlive()) return clearInterval(visitTimer);
+        const path = location.pathname;
+        if (path === lastPath) return;
+        lastPath = path;
+        const label = SETUP_BY_PATH.get(path);
+        if (label && !(recents[0] && recents[0].url === path)) pushRecent({ label, hint: "Setup", group: GROUPS.SETUP, url: path });
+    }, 1000);
 
     // ---- Open via the Alt+K Chrome command ------------------------------
     // Alt+K is a browser command (see manifest), captured before the page and
@@ -1778,7 +2143,7 @@
     }
 
     // Escape isn't a command, so it stays an in-page handler: collapse an open
-    // ⋯ menu first, then a verb chip; only then close the palette.
+    // ⋯ menu first, then the preview, then a verb chip; only then close the palette.
     document.addEventListener(
         "keydown",
         (e) => {
@@ -1786,6 +2151,7 @@
                 e.preventDefault();
                 e.stopPropagation();
                 if (expandedKey) toggleExpand(expandedKey);
+                else if (peekOpen) setPeek(false);
                 else if (activeVerb) clearVerb();
                 else close();
             }

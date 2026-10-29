@@ -35,6 +35,40 @@
   border-radius:12px; box-shadow:var(--nv-shadow-lg); overflow:hidden;
   animation:sfen-pop 0.14s cubic-bezier(0.2,0.8,0.2,1); }
 .panel.board-mode { width:720px; }
+.panel.peek-mode { width:960px; }
+.body { display:flex; flex:1 1 auto; min-height:0; }
+.peek { width:300px; flex-shrink:0; display:flex; flex-direction:column; box-sizing:border-box; padding:16px 16px 0;
+  border-left:1px solid var(--nv-border); overflow-y:auto; scrollbar-width:thin; }
+.peek[hidden] { display:none; }
+.peek-head { display:flex; align-items:center; gap:10px; }
+.peek-tile { width:34px; height:34px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:8px; background:var(--nv-sel); color:var(--nv-sel-icon); }
+.peek-head-text { min-width:0; }
+.peek-title { font-size:15px; font-weight:600; line-height:1.3; color:var(--nv-text); word-break:break-word; }
+.peek-type { margin-top:1px; font-size:12px; color:var(--nv-text-3); }
+.peek-fields { margin-top:14px; border-top:1px solid var(--nv-border); }
+.peek-field { padding:8px 0; border-bottom:1px solid var(--nv-border); }
+.peek-field:last-child { border-bottom:0; }
+.peek-label { display:block; margin-bottom:2px; font-size:11px; color:var(--nv-text-3); word-break:break-word; }
+.peek-val { font-size:13px; color:var(--nv-text); word-break:break-word; white-space:pre-wrap; }
+.peek-val.dim { color:var(--nv-text-3); }
+.peek-link { background:none; border:0; padding:0; font:inherit; font-size:13px; color:var(--nv-primary-text); cursor:pointer;
+  text-align:left; word-break:break-word; }
+.peek-link:hover { text-decoration:underline; }
+.peek-actions { position:sticky; bottom:0; display:flex; align-items:center; gap:6px; margin-top:auto; padding:12px 0 14px;
+  background:var(--nv-surface); }
+.peek-open { flex:1; height:30px; border:0; border-radius:8px; background:var(--nv-primary); color:var(--nv-on-primary);
+  font:600 12px "Figtree","Segoe UI",system-ui,sans-serif; cursor:pointer; }
+.peek-icon { width:30px; height:30px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; padding:0;
+  border:1px solid var(--nv-border); border-radius:8px; background:transparent; color:var(--nv-text-2); cursor:pointer; }
+.peek-icon:hover { background:var(--nv-surface-2); color:var(--nv-text); }
+.peek-icon.copied { color:var(--nv-success); }
+.peek-icon.failed { color:var(--nv-danger); }
+.peek-note { padding:28px 4px; font-size:13px; line-height:1.5; color:var(--nv-text-3); text-align:center; }
+.work-scope { margin-left:auto; display:inline-flex; gap:2px; }
+.work-scope button { height:22px; padding:0 8px; border:0; border-radius:6px; background:transparent; cursor:pointer;
+  color:var(--nv-text-3); font:600 11px "Figtree","Segoe UI",system-ui,sans-serif; }
+.work-scope button.on { background:var(--nv-sel); color:var(--nv-primary-text); }
 @keyframes sfen-pop { from { opacity:0; transform:translateY(-8px) scale(0.985); }
   to { opacity:1; transform:translateY(0) scale(1); } }
 .mono { font-family:"JetBrains Mono",monospace; }
@@ -48,7 +82,7 @@
   border-top-color:var(--nv-primary); border-radius:50%; opacity:0; transition:opacity 0.15s; }
 .loader.on { opacity:1; animation:sfen-spin 0.7s linear infinite; }
 @keyframes sfen-spin { to { transform:rotate(360deg); } }
-.results { list-style:none; margin:0; padding:8px; overflow-y:auto; scrollbar-width:thin; }
+.results { flex:1; min-width:0; list-style:none; margin:0; padding:8px; overflow-y:auto; scrollbar-width:thin; }
 .panel.board-mode .results { padding-top:0; }
 .results::-webkit-scrollbar { width:8px; }
 .results::-webkit-scrollbar-thumb { background:var(--nv-surface-3); border-radius:8px; }
@@ -72,6 +106,7 @@ mark { background:var(--nv-mark); color:inherit; border-radius:3px; padding:0 1p
 .sub { font-size:12px; color:var(--nv-text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hint { font-size:12px; color:var(--nv-text-3); flex-shrink:0; white-space:nowrap; }
 .result.active .hint, .result.active .sub, .result.active .label .api { color:var(--nv-on-sel-2); }
+.result.dim:not(.active) .label { color:var(--nv-text-3); }
 .enter { display:none; width:14px; height:14px; flex-shrink:0; }
 .result.active .enter { display:inline-flex; }
 .more { flex-shrink:0; background:transparent; border:none; color:var(--nv-text-3); cursor:pointer;
@@ -192,6 +227,8 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         FIELD: "Fields",
         ORG: "Orgs",
         ACTION: "Actions",
+        RELATED: "This record",
+        WORK: "Recent work",
     };
 
     // Master Setup list is shared with the popup; see src/shared/setupPages.js
@@ -373,6 +410,48 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         return qi === query.length ? pos : [];
     }
 
+    // ---- Recent work ----------------------------------------------------
+    // When a Setup item was changed, for its row: "5m ago", "3h ago" today,
+    // then "yesterday", a weekday within the week, else a date.
+    function timeAgo(iso, now) {
+        const t = Date.parse(iso);
+        if (isNaN(t)) return "";
+        const mins = Math.max(0, Math.floor((now - t) / 60000));
+        const day = (ms) => new Date(ms).setHours(0, 0, 0, 0);
+        const days = Math.round((day(now) - day(t)) / 86400000);
+        if (mins < 1) return "just now";
+        if (mins < 60) return mins + "m ago";
+        if (days === 0) return Math.floor(mins / 60) + "h ago";
+        if (days === 1) return "yesterday";
+        if (days < 7) return new Date(t).toLocaleDateString(undefined, { weekday: "short" });
+        return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    }
+
+    // A "recentWork" row (background worker) as a palette item. Flows open
+    // their changed version in Flow Builder; the rest open their Setup page.
+    const WORK_KINDS = {
+        flow: ["Flow", GROUPS.FLOW, (w) => `/builder_platform_interaction/flowBuilder.app?flowId=${w.id}`],
+        apexClass: ["Apex class", GROUPS.APEX, (w) => `/lightning/setup/ApexClasses/page?address=%2F${w.id}`],
+        apexTrigger: ["Apex trigger", GROUPS.APEX, (w) => `/lightning/setup/ApexTriggers/page?address=%2F${w.id}`],
+        permSet: ["Permission set", GROUPS.PERMSET, (w) => `/lightning/setup/PermSets/page?address=%2F${w.id}`],
+        profile: ["Profile", GROUPS.PROFILE, (w) => `/lightning/setup/EnhancedProfiles/page?address=%2F${w.id}`],
+        field: ["Field", GROUPS.FIELD, (w) => `/lightning/setup/ObjectManager/${w.object}/FieldsAndRelationships/${w.id.slice(0, 15)}/view`],
+    };
+    // everyone: also say who changed it.
+    function workItem(w, now, everyone) {
+        const [typeLabel, iconGroup, url] = WORK_KINDS[w.kind];
+        const who = everyone ? (w.mine ? "you" : w.byName) : "";
+        return {
+            label: w.label,
+            sub: [timeAgo(w.date, now), who].filter(Boolean).join(" · "),
+            hint: typeLabel,
+            group: GROUPS.WORK,
+            iconGroup,
+            url: url(w),
+            flow: w.flow,
+        };
+    }
+
     // ---- Record Ids ------------------------------------------------------
     // A pasted token that looks like a record Id (see src/shared/sfUrl.js).
     const looksLikeRecordId = (s) => SFEN_URL.looksLikeRecordId(s);
@@ -435,6 +514,11 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         searchLarge: svg(26, 1.6, SEARCH_PATH),
         enter: svg(14, 2, '<path d="M20 4v7a4 4 0 0 1-4 4H4"/><path d="m9 10-5 5 5 5"/>'),
         close: svg(12, 2.4, '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+        record: svg(18, 1.8, ICONS[GROUPS.RECORD]),
+        newTab: svg(15, 2, '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>'),
+        copy: svg(15, 2, '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>'),
+        link: svg(15, 2, '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+        check: svg(15, 2.4, '<path d="M20 6 9 17l-5-5"/>'),
     };
 
     function escapeHtml(s) {
@@ -463,6 +547,8 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         packageQuery,
         pickBonus,
         addPick,
+        timeAgo,
+        workItem,
         iconSvg,
         looksLikeRecordId,
         pastedLink,

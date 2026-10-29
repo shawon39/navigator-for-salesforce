@@ -2,16 +2,17 @@
 
 This policy is also published at https://navigator-sf.netlify.app/privacy/, which the Chrome Web Store listing links to. The two have the same text; the website adds a short note about the website itself.
 
-Last updated: 26 October 2026
+Last updated: 29 October 2026
 
 Navigator for Salesforce is a browser extension that helps you move around Salesforce faster. This page explains what it touches and what it does not.
 
 ## What the extension uses
 
-- **Your Salesforce session.** When you open the command palette or popup, search, or go Home, the extension reads the session cookie of the Salesforce org you are already logged in to. It uses that session only to send read-only requests to that same org's Salesforce API, for example to list objects, fields, records, users, apps, flows, profiles, permission sets, Apex classes and triggers, and custom metadata types. The cookie is not saved by the extension and is never sent anywhere else. When you use "Login as" in Incognito, the session is passed in the link to that same org's `frontdoor.jsp` page, because that is the only way to carry it into a private window. The link stays in that window's history until you close the window.
+- **Your Salesforce session.** When you open the command palette or popup, search, or go Home, the extension reads the session cookie of the Salesforce org you are already logged in to. It uses that session only to send read-only requests to that same org's Salesforce API, for example to list objects, fields, records, users, apps, flows, profiles, permission sets, Apex classes and triggers, and custom metadata types, to preview a record and its related lists and count their records, and to list the Setup items changed in the last 30 days and who changed them. The cookie is not saved by the extension and is never sent anywhere else. When you use "Login as" in Incognito, the session is passed in the link to that same org's `frontdoor.jsp` page, because that is the only way to carry it into a private window. The link stays in that window's history until you close the window.
 - **Which orgs you are logged in to.** When you open the popup, the extension checks which Salesforce domains have a session cookie, so the Orgs tab can offer to add orgs that are open in your browser. Only the domain names are used, and they stay in your browser.
 - **Your settings and saved items.** Settings, bookmarks, Setup quick tabs, pinned objects and saved orgs (a name you choose, the org's web address and its tab color) are stored with Chrome's storage and synced through your own Chrome profile.
-- **Recent Setup pages.** A short list of Setup pages you opened, with the My Domain name of the org you opened each one in, is kept in your browser's local storage so they can be shown under "Recent" on that org.
+- **Text you select.** When you open the command palette, text you have selected on the Salesforce page is put in its search box. It isn't stored.
+- **Recent Setup pages.** A short list of Setup pages you opened, with Navigator or by clicking through Setup, with the My Domain name of the org you opened each one in, is kept in your browser's local storage so they can be shown under "Recent" on that org.
 - **What you pick in the command palette.** How many times you opened each palette result, with the My Domain name of the org you opened it in, is kept in your browser's local storage so the ones you use most rank first on that org.
 
 ## What the extension does not do

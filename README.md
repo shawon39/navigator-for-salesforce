@@ -40,11 +40,13 @@ Press `Alt+K` (`Option+K` on a Mac) on any Salesforce page and start typing:
 
 Each command has a short form: `f` (fields), `li` (list), `n` (new), `a` (app), `o` (org), `lo` (login) and `r` (record), so `f account indus` works too. On a record or list, the palette starts with that object in Object Manager, and `fields`, `new` and `list` put it first. Results you pick often rank higher.
 
-You can also paste a 15- or 18-character record Id. The closest match comes first. Press `Enter` to open it, `Ctrl/⌘+Enter` to open it in a new tab, or `→` for more actions, like **Login as** on a user.
+You can also paste a 15- or 18-character record Id. The closest match comes first. Press `Enter` to open it, `Ctrl/⌘+Enter` to open it in a new tab, `Shift+Enter` to open it in a background tab and keep the palette open, or `→` for more actions, like **Login as** on a user. On a record, `→` previews its key fields beside the results. Admin shorthand works too: `ps`, `psg`, `dl`, `cmdt` and others open the Setup page they stand for. Text you select on the page fills the search when you open the palette.
+
+With nothing typed, the palette also shows **Recent work**: the flows, Apex, permission sets, profiles and custom fields changed in the last 30 days, yours or everyone's (`Tab` switches). On a record, it lists the records it links to (like its Account and Owner) and its related lists, with how many records each has.
 
 **The popup** (`Alt+N`, or `Option+N` on a Mac) has four tabs:
 
-- **Recent**: Setup pages you opened with Navigator, and records you viewed
+- **Recent**: Setup pages you opened, and records you viewed
 - **Navigate**: Home, Setup, Object Manager, Dev Console, Flows, Users, change sets, and up to 10 bookmarks
 - **Objects**: your org's objects, with list, new record and fields, and a menu for layouts, record types, validation rules and triggers. Objects from installed packages are hidden from the list until you turn them on (in Settings or under the list), but search always finds them
 - **Orgs**: your saved orgs, with a colored dot for production, sandbox, scratch and developer orgs. Rename them, pin your favorites, open any of them in one click, or open the page you're on in another org
