@@ -37,19 +37,33 @@
 .panel.board-mode { width:720px; }
 .panel.peek-mode { width:960px; }
 .body { display:flex; flex:1 1 auto; min-height:0; }
-.peek { width:300px; flex-shrink:0; box-sizing:border-box; padding:14px 16px; border-left:1px solid var(--nv-border);
-  overflow-y:auto; scrollbar-width:thin; }
+.peek { width:300px; flex-shrink:0; display:flex; flex-direction:column; box-sizing:border-box; padding:16px 16px 0;
+  border-left:1px solid var(--nv-border); overflow-y:auto; scrollbar-width:thin; }
 .peek[hidden] { display:none; }
-.peek-title { font-size:15px; font-weight:600; color:var(--nv-text); word-break:break-word; }
-.peek-type { margin-top:2px; font-size:12px; color:var(--nv-text-3); }
-.peek-fields { display:grid; grid-template-columns:minmax(0,104px) minmax(0,1fr); gap:8px 12px; margin-top:14px; font-size:13px; }
-.peek-label { color:var(--nv-text-3); word-break:break-word; }
-.peek-val { color:var(--nv-text); word-break:break-word; white-space:pre-wrap; }
+.peek-head { display:flex; align-items:center; gap:10px; }
+.peek-tile { width:34px; height:34px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:8px; background:var(--nv-sel); color:var(--nv-sel-icon); }
+.peek-head-text { min-width:0; }
+.peek-title { font-size:15px; font-weight:600; line-height:1.3; color:var(--nv-text); word-break:break-word; }
+.peek-type { margin-top:1px; font-size:12px; color:var(--nv-text-3); }
+.peek-fields { margin-top:14px; border-top:1px solid var(--nv-border); }
+.peek-field { padding:8px 0; border-bottom:1px solid var(--nv-border); }
+.peek-field:last-child { border-bottom:0; }
+.peek-label { display:block; margin-bottom:2px; font-size:11px; color:var(--nv-text-3); word-break:break-word; }
+.peek-val { font-size:13px; color:var(--nv-text); word-break:break-word; white-space:pre-wrap; }
 .peek-val.dim { color:var(--nv-text-3); }
-.peek-link { background:none; border:0; padding:0; font:inherit; color:var(--nv-primary-text); cursor:pointer; text-align:left; }
+.peek-link { background:none; border:0; padding:0; font:inherit; font-size:13px; color:var(--nv-primary-text); cursor:pointer;
+  text-align:left; word-break:break-word; }
 .peek-link:hover { text-decoration:underline; }
-.peek-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:16px; }
-.peek-actions .notice-btn:not(.primary) { border:1px solid var(--nv-border); }
+.peek-actions { position:sticky; bottom:0; display:flex; align-items:center; gap:6px; margin-top:auto; padding:12px 0 14px;
+  background:var(--nv-surface); }
+.peek-open { flex:1; height:30px; border:0; border-radius:8px; background:var(--nv-primary); color:var(--nv-on-primary);
+  font:600 12px "Figtree","Segoe UI",system-ui,sans-serif; cursor:pointer; }
+.peek-icon { width:30px; height:30px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; padding:0;
+  border:1px solid var(--nv-border); border-radius:8px; background:transparent; color:var(--nv-text-2); cursor:pointer; }
+.peek-icon:hover { background:var(--nv-surface-2); color:var(--nv-text); }
+.peek-icon.copied { color:var(--nv-success); }
+.peek-icon.failed { color:var(--nv-danger); }
 .peek-note { padding:28px 4px; font-size:13px; line-height:1.5; color:var(--nv-text-3); text-align:center; }
 .work-scope { margin-left:auto; display:inline-flex; gap:2px; }
 .work-scope button { height:22px; padding:0 8px; border:0; border-radius:6px; background:transparent; cursor:pointer;
@@ -499,6 +513,11 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         searchLarge: svg(26, 1.6, SEARCH_PATH),
         enter: svg(14, 2, '<path d="M20 4v7a4 4 0 0 1-4 4H4"/><path d="m9 10-5 5 5 5"/>'),
         close: svg(12, 2.4, '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+        record: svg(18, 1.8, ICONS[GROUPS.RECORD]),
+        newTab: svg(15, 2, '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>'),
+        copy: svg(15, 2, '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>'),
+        link: svg(15, 2, '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+        check: svg(15, 2.4, '<path d="M20 6 9 17l-5-5"/>'),
     };
 
     function escapeHtml(s) {

@@ -190,11 +190,11 @@ async function sfRecordUi(host, id, layoutType) {
     const fieldInfo = info.fields || {};
     const fields = rec.fields || {};
     // A nested record (a relationship's value) has no text of its own.
-    // Display values come HTML-escaped ("Grand Hotels &amp; Resorts").
+    // Values and display values come HTML-escaped ("Grand Hotels &amp; Resorts").
     const text = (f) => {
         if (!f) return "";
-        const v = f.displayValue != null ? unescapeHtml(String(f.displayValue)) : f.value;
-        return v === null || v === undefined || typeof v === "object" ? "" : String(v).slice(0, 300);
+        const v = f.displayValue != null ? f.displayValue : f.value;
+        return v === null || v === undefined || typeof v === "object" ? "" : unescapeHtml(String(v)).slice(0, 300);
     };
     // layouts: object -> record type -> layout type -> mode -> layout.
     const layout = Object.values((d.layouts || {})[rec.apiName] || {})

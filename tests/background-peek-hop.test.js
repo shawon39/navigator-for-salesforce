@@ -59,7 +59,7 @@ function recordUi(layoutType, items) {
                 id: OPP,
                 recordTypeId: "012000000000000AAA",
                 fields: {
-                    Name: { value: "Globex — Renewal FY27", displayValue: null },
+                    Name: { value: "Globex &amp; Sons — Renewal FY27", displayValue: null },
                     Amount: { value: 125000, displayValue: "$125,000.00" },
                     CloseDate: { value: "2027-01-31", displayValue: "1/31/2027" },
                     NextStep: { value: null, displayValue: null },
@@ -97,7 +97,7 @@ function recordUi(layoutType, items) {
         id: OPP,
         type: "Opportunity",
         typeLabel: "Opportunity",
-        name: "Globex — Renewal FY27",
+        name: "Globex & Sons — Renewal FY27",
         fields: [
             { label: "Amount", value: "$125,000.00", lookup: null },
             { label: "Close Date", value: "1/31/2027", lookup: null },
@@ -106,7 +106,7 @@ function recordUi(layoutType, items) {
             { label: "Address", value: "1 Main St, Springfield", lookup: null },
         ],
     });
-    console.log("PASS peek: compact layout fields in order, display values unescaped, lookup names, name row dropped");
+    console.log("PASS peek: compact layout fields in order, values unescaped, lookup names, name row dropped");
 
     for (const bad of ["../x", "001'OR'1", ""]) {
         fetchCalls = [];
@@ -149,7 +149,7 @@ function recordUi(layoutType, items) {
         { label: "Contact Roles", id: "OpportunityContactRoles" },
         { label: "Quotes", id: "Quotes" },
     ]);
-    assert.deepStrictEqual([r.id, r.type, r.name], [OPP, "Opportunity", "Globex — Renewal FY27"]);
+    assert.deepStrictEqual([r.id, r.type, r.name], [OPP, "Opportunity", "Globex & Sons — Renewal FY27"]);
     console.log("PASS hop: layout lookups with names and types; Created By left out, labels unescaped, bad types and list ids dropped");
 
     route = (url) => (url.includes("/ui-api/related-list-info/") ? { ok: false, status: 404, json: async () => [] } : route0(url));

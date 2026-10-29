@@ -974,17 +974,21 @@
             if (!rec) peekTimer = setTimeout(() => peekRecord(id, renderPeek), 150);
             return;
         }
-        const title = document.createElement("div");
-        title.className = "peek-title";
-        title.textContent = rec.name;
-        const type = document.createElement("div");
-        type.className = "peek-type";
-        type.textContent = rec.typeLabel;
-        peekEl.append(title, type);
+        const head = document.createElement("div");
+        head.className = "peek-head";
+        head.innerHTML =
+            `<span class="peek-tile">${UI_ICONS.record}</span>` +
+            '<span class="peek-head-text"><div class="peek-title"></div><div class="peek-type"></div></span>';
+        head.querySelector(".peek-title").textContent = rec.name;
+        head.querySelector(".peek-type").textContent = rec.typeLabel;
+        peekEl.appendChild(head);
 
-        const grid = document.createElement("div");
-        grid.className = "peek-fields";
+        // Each field's name above its value.
+        const list = document.createElement("div");
+        list.className = "peek-fields";
         rec.fields.forEach((f) => {
+            const row = document.createElement("div");
+            row.className = "peek-field";
             const label = document.createElement("span");
             label.className = "peek-label";
             label.textContent = f.label;
@@ -1003,25 +1007,48 @@
                 val.className = "peek-val" + (f.value ? "" : " dim");
             }
             val.textContent = f.value || "Empty";
-            grid.append(label, val);
+            row.append(label, val);
+            list.appendChild(row);
         });
-        peekEl.appendChild(grid);
+        peekEl.appendChild(list);
 
+        // Open, then icon buttons; stays at the bottom while the fields scroll.
         const actions = document.createElement("div");
         actions.className = "peek-actions";
-        const btn = (text, primary, onClick) => {
+        const i = activeIndex;
+        const open = document.createElement("button");
+        open.type = "button";
+        open.className = "peek-open";
+        open.textContent = "Open ↵";
+        open.addEventListener("click", () => choose(i, false));
+        actions.appendChild(open);
+        const iconBtn = (icon, label, onClick) => {
             const b = document.createElement("button");
             b.type = "button";
-            b.className = "notice-btn" + (primary ? " primary" : "");
-            b.textContent = text;
+            b.className = "peek-icon";
+            b.title = label;
+            b.setAttribute("aria-label", label);
+            b.innerHTML = UI_ICONS[icon];
+            b.dataset.icon = icon;
             b.addEventListener("click", () => onClick(b));
             actions.appendChild(b);
         };
-        const i = activeIndex;
-        btn("Open", true, () => choose(i, false));
-        btn("New tab", false, () => choose(i, true));
-        btn("Copy Id", false, (b) => copyWithFeedback(b, rec.id));
-        btn("Copy link", false, (b) => copyWithFeedback(b, lightningOrigin() + entry.url));
+        // A copy button shows a check (or turns red) for a moment.
+        const copy = (b, text) => {
+            if (b.classList.contains("copied") || b.classList.contains("failed")) return;
+            const done = (cls) => {
+                b.classList.add(cls);
+                if (cls === "copied") b.innerHTML = UI_ICONS.check;
+                setTimeout(() => {
+                    b.classList.remove(cls);
+                    b.innerHTML = UI_ICONS[b.dataset.icon];
+                }, 1500);
+            };
+            writeClipboard(text).then(() => done("copied"), () => done("failed"));
+        };
+        iconBtn("newTab", "Open in a new tab", () => choose(i, true));
+        iconBtn("copy", "Copy Id", (b) => copy(b, rec.id));
+        iconBtn("link", "Copy link", (b) => copy(b, lightningOrigin() + entry.url));
         peekEl.appendChild(actions);
     }
 
