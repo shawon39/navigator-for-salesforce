@@ -252,8 +252,9 @@
             }
             liveObjects = resp.sobjects
                 .filter(isRelevantObject)
-                .map((s) => ({ api: s.name, label: s.label, plural: s.labelPlural }));
+                .map((s) => ({ api: s.name, label: s.label, plural: s.labelPlural, prefix: s.keyPrefix }));
             catalogCache = null;
+            loadHop(); // a /lightning/r/{Id}/view page needs the objects to know its record
             if (opened) render(inputEl.value);
         });
     }
@@ -473,8 +474,8 @@
             hint: l.label,
             group: GROUPS.RELATED,
             iconGroup: GROUPS.RECORD,
-            url: recordUrl(l.type, l.id),
-            recordId: l.id,
+            url: recordUrl(l.type, l.id, hop.type),
+            recordId: l.type === "RecordType" ? null : l.id, // a record type has no preview
             keywords: `${l.name} ${l.label} ${l.type}`,
             field: l.label, // searched as a second name (see compute)
             side: "up",
@@ -1010,7 +1011,7 @@
                 val.className = "peek-link";
                 val.addEventListener("click", () => {
                     close();
-                    navigate(recordUrl(f.lookup.type, f.lookup.id), false);
+                    navigate(recordUrl(f.lookup.type, f.lookup.id, rec.type), false);
                 });
             } else {
                 val = document.createElement("span");
@@ -1408,16 +1409,21 @@
     // types that aren't objects in Object Manager (reports, dashboards).
     function currentObject() {
         const m = location.pathname.match(/^\/lightning\/(r|o|setup\/ObjectManager)\/([A-Za-z][A-Za-z0-9_]*)\//);
-        const api = m && m[2].toLowerCase();
+        const ctx = currentRecordContext(); // also names the type of /lightning/r/{Id}/view
+        const api = (ctx ? ctx.type : m ? m[2] : "").toLowerCase();
         const obj = api && objectSource().find((o) => o.api.toLowerCase() === api);
-        return obj ? { obj, setup: m[1].length > 1 } : null;
+        return obj ? { obj, setup: !!m && m[1].length > 1 } : null;
     }
 
     // Parse the current record's type + Id from a /lightning/r/{Type}/{Id}/...
-    // URL, for the record inspector.
+    // URL, for the record inspector. A record just created opens at
+    // /lightning/r/{Id}/view instead; its Id's prefix names the object then.
     function currentRecordContext() {
         const m = location.pathname.match(/\/lightning\/r\/([^/]+)\/([^/]+)\//);
-        return m ? { type: m[1], id: m[2] } : null;
+        if (m) return { type: m[1], id: m[2] };
+        const bare = location.pathname.match(/^\/lightning\/r\/([A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?)\/view$/);
+        const obj = bare && objectSource().find((o) => o.prefix === bare[1].slice(0, 3));
+        return obj ? { type: obj.api, id: bare[1] } : null;
     }
 
     function fetchInspect() {

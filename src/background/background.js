@@ -57,6 +57,10 @@ async function sfFetch(host, path) {
     const session = await sfGetSession(host);
     if (!session) throw new Error("No Salesforce session found");
     const res = await fetch("https://" + session.apiHost + path, {
+        // Salesforce sends some responses (the object list) with a date but
+        // no expiry, which Chrome would reuse for hours: a new object stayed
+        // missing. Always check with Salesforce first.
+        cache: "no-cache",
         headers: {
             Authorization: "Bearer " + session.token,
             Accept: "application/json",
@@ -211,7 +215,9 @@ async function sfRecordUi(host, id, layoutType) {
                 seen.add(comps[0].apiName);
                 let value = comps.map((c) => text(fields[c.apiName])).filter(Boolean).join(", ");
                 let lookup = null;
-                const idField = item.lookupIdApiName;
+                // A custom lookup's item names "Id" here; the field itself holds the Id.
+                const own = fieldInfo[comps[0].apiName];
+                const idField = own && own.reference ? comps[0].apiName : item.lookupIdApiName;
                 const idValue = idField && fields[idField] && fields[idField].value;
                 if (typeof idValue === "string" && RECORD_ID_RE.test(idValue)) {
                     const fi = fieldInfo[idField] || {};

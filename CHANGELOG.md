@@ -14,6 +14,9 @@
 ### Changed
 - Recent Setup also keeps the Setup pages you open by clicking through Setup, not only those opened with Navigator.
 
+### Fixed
+- A new custom object could stay missing from search and the palette for hours, because Chrome reused an older copy of the org's object list. Navigator now checks with Salesforce first.
+
 ## 5.1.1
 
 ### Added

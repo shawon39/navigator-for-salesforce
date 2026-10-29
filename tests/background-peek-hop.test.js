@@ -50,6 +50,7 @@ function recordUi(layoutType, items) {
                     OwnerId: { relationshipName: "Owner", referenceToInfos: [{ apiName: "User" }] },
                     CreatedById: { relationshipName: "CreatedBy", referenceToInfos: [{ apiName: "User" }] },
                     Bad__c: { relationshipName: "Bad__r", referenceToInfos: [{ apiName: "Bad'Type" }] },
+                    Partner__c: { reference: true, relationshipName: "Partner__r", referenceToInfos: [{ apiName: "Account" }] },
                 },
             },
         },
@@ -71,6 +72,8 @@ function recordUi(layoutType, items) {
                     CreatedBy: { displayValue: "Jane Cooper", value: { apiName: "User", id: "005000000000001AAA", fields: {} } },
                     Bad__c: { value: "a00000000000001AAA", displayValue: null },
                     Bad__r: { displayValue: "Odd", value: null },
+                    Partner__c: { value: "001000000000002AAA", displayValue: null },
+                    Partner__r: { displayValue: "Initech", value: { apiName: "Account", id: "001000000000002AAA", fields: {} } },
                     BillingStreet: { value: "1 Main St", displayValue: null },
                     BillingCity: { value: "Springfield", displayValue: null },
                 },
@@ -124,6 +127,8 @@ function recordUi(layoutType, items) {
                 field("Opportunity Owner", "OwnerId", "OwnerId"),
                 field("Created By", "CreatedById", "CreatedById"),
                 field("Odd", "Bad__c", "Bad__c"),
+                // Salesforce names "Id" as a custom lookup's lookupIdApiName.
+                field("Partner", "Partner__c", "Id"),
                 field("Amount", "Amount"),
             ]));
         if (url.includes("/ui-api/related-list-info/"))
@@ -149,6 +154,7 @@ function recordUi(layoutType, items) {
     assert.deepStrictEqual(r.lookups, [
         { label: "Account Name", name: "Globex & Sons", id: "001000000000001AAA", type: "Account" },
         { label: "Opportunity Owner", name: "Jane Cooper", id: "005000000000001AAA", type: "User" },
+        { label: "Partner", name: "Initech", id: "001000000000002AAA", type: "Account" },
     ]);
     assert.strictEqual(fetchCalls[2], `https://acme.my.salesforce.com/services/data/v60.0/ui-api/related-list-count/batch/${OPP}/CombinedAttachments,OpportunityContactRoles,Quotes`);
     assert.deepStrictEqual(r.lists, [
@@ -157,7 +163,7 @@ function recordUi(layoutType, items) {
         { label: "Quotes", id: "Quotes" },
     ]);
     assert.deepStrictEqual([r.id, r.type, r.name], [OPP, "Opportunity", "Globex & Sons — Renewal FY27"]);
-    console.log("PASS hop: layout lookups with names and types; Created By left out, labels unescaped, bad types and list ids dropped, record counts in one request");
+    console.log("PASS hop: layout lookups (custom ones too) with names and types; Created By left out, labels unescaped, bad types and list ids dropped, record counts in one request");
 
     const routeCounts = route;
     route = (url) => (url.includes("/ui-api/related-list-count/") ? { ok: false, status: 500, json: async () => [] } : routeCounts(url));

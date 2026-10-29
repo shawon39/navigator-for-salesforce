@@ -201,11 +201,15 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     }
 
     // Lightning URL for a record. Users open on their Setup detail page (the
-    // /lightning/r/User/... route renders poorly); everything else uses the
-    // standard record view.
-    function recordUrl(type, id) {
+    // /lightning/r/User/... route renders poorly), and record types, which have
+    // no record page, on theirs in Object Manager (`of`: the record's object
+    // the record type belongs to). Everything else uses the standard record view.
+    function recordUrl(type, id, of) {
         if (type === "User") {
             return `/lightning/setup/ManageUsers/page?address=%2F${id}%3Fnoredirect%3D1`;
+        }
+        if (type === "RecordType" && of) {
+            return `/lightning/setup/ObjectManager/${of}/RecordTypes/${id}/view`;
         }
         return `/lightning/r/${type}/${id}/view`;
     }
