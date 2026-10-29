@@ -82,6 +82,7 @@
     let hop = null; // the current record's lookups and related lists ("hop" action)
     let hopKey = null; // record Id hop was requested for
     let hopAt = 0; // when hop was requested
+    let allLists = false; // the board shows every related list, empty ones too
     let recentWork = null; // "recentWork" rows, newest first
     let workAt = 0; // when recentWork was requested
     let workEveryone = false; // Recent work lists everyone's changes, not only yours
@@ -485,6 +486,7 @@
                 label: l.label,
                 hint: n === undefined ? "Related list" : count,
                 dim: n === 0, // nothing to open there
+                size: (n || 0) + (l.more ? 0.5 : 0), // the board lists the fullest first
                 group: GROUPS.RELATED,
                 iconGroup: GROUPS.FIELD,
                 url: `/lightning/r/${hop.type}/${hop.id}/related/${l.id}/view`,
@@ -1636,19 +1638,21 @@
                 },
             ]);
         }
-        // On a record: the records it links to, and its related lists.
+        // On a record, in one column: the records it links to, then its
+        // related lists with records, fullest first. Empty lists (and any
+        // past 8) fold into one row that shows them all.
         const related = hopItems();
         if (related.length) {
-            const hopBoard = document.createElement("div");
-            hopBoard.className = "board";
-            const up = document.createElement("div");
-            up.className = "column";
-            const down = document.createElement("div");
-            down.className = "column";
-            boardSection(up, "Linked from this record", related.filter((r) => r.side === "up").slice(0, 8));
-            boardSection(down, "Related lists", related.filter((r) => r.side === "down").slice(0, 8));
-            hopBoard.append(up, down);
-            listEl.appendChild(hopBoard);
+            const lists = related.filter((r) => r.side === "down").sort((a, b) => b.size - a.size);
+            const shown = allLists ? lists : lists.filter((l) => !l.dim).slice(0, 8);
+            const rows = related.filter((r) => r.side === "up").slice(0, 8).concat(shown);
+            const folded = lists.filter((l) => !shown.includes(l));
+            if (folded.length) {
+                const n = folded.length;
+                const kind = folded.every((l) => l.dim) ? "empty" : "more";
+                rows.push({ label: `${n} ${kind} list${n === 1 ? "" : "s"}`, group: GROUPS.RELATED, iconGroup: GROUPS.FIELD, dim: true, unfold: true });
+            }
+            boardSection(listEl, GROUPS.RELATED, rows);
         }
         // Stored entries name their org (a string); a row's `org` is a saved
         // org, drawn as its color dot, so leave it out.
@@ -1824,6 +1828,13 @@
             runAction({ kind: "loginAs", userId: entry.loginUserId, incognito: !!newTab });
             return;
         }
+        if (entry.unfold) {
+            // The folded lists take the row's place; the first stays selected.
+            allLists = true;
+            render("");
+            setActive(i);
+            return;
+        }
         pushRecent(entry);
         if (entry.group !== GROUPS.ACTION) recordPick(entry.url);
         if (background) return openInBackground(entry.url);
@@ -1924,6 +1935,7 @@
         autoVerbWord = null;
         inspectKey = null;
         inspectRecord = null;
+        allLists = false;
         setPeek(false);
         // Retry previews that failed.
         Object.keys(peekCache).forEach((id) => peekCache[id] === "failed" && delete peekCache[id]);

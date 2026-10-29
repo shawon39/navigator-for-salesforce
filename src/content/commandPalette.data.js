@@ -88,7 +88,7 @@
 .results::-webkit-scrollbar-thumb { background:var(--nv-surface-3); border-radius:8px; }
 .group-header { display:flex; align-items:center; height:28px; padding:0 10px; font-size:12px;
   font-weight:600; color:var(--nv-text-3); user-select:none; }
-.result + .group-header { margin-top:8px; }
+.result + .group-header, .result + .board { margin-top:8px; }
 .board { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding-bottom:2px; }
 .column { display:flex; flex-direction:column; min-width:0; }
 .result { display:flex; align-items:center; gap:10px; height:36px; box-sizing:border-box; padding:0 10px;
