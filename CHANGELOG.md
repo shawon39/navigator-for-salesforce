@@ -4,8 +4,8 @@
 
 ### Added
 - Peek: `→` on a record in the palette shows its key fields (the record's compact layout) beside the results, without leaving the page. The preview follows as you move through the list; a lookup in it opens that record. `←` or `Esc` closes it. Needs live org access.
-- Recent work: with nothing typed, the palette lists the flows, Apex classes and triggers, permission sets, profiles and custom fields changed in the last 30 days, newest first. **You** shows your changes, **Everyone** shows everyone's and who made them; `Tab` switches. Changes made outside Navigator count too. Needs live org access.
-- On a record, the palette lists the records it links to (its Account, Owner and other lookups on the page layout) and its related lists, with how many records each has (up to 20, then 20+), fullest first, in one column. Empty lists fold into one row; pick it to show them. Typing finds them too, so `acc` on an Opportunity offers its Account. Needs live org access.
+- List view search: `list` (or `li`), an object and a space, like `li account `, lists that object's list views; keep typing to filter them. A number from 1 to 5, like `li account 1`, puts the Account you viewed last (or 2nd to 5th last) first; `Enter` opens it. Needs live org access.
+- On a record, the palette lists the records it links to (its Account, Owner and other lookups on the page layout). Typing finds them too, so `acc` on an Opportunity offers its Account. Needs live org access.
 - Admin shorthand in the palette and popup search: `ps`, `psg`, `dl`, `cmdt`, `cs`, `lwc`, `sr`, `aj`, `sj`, `vf`, `om`, `ip`, `nc`, `rss`, `lh`, `sat`, `ds`, `ics`, `ocs` and `lab` open Permission Sets, Permission Set Groups, Debug Logs and the other Setup pages they stand for.
 - Text you select on the page fills the palette's search when you open it. A selection left on the page fills it only once.
 - `Shift+Enter` (or `Shift`+click) opens a palette result in a background tab and keeps the palette open, to open several pages in a row.

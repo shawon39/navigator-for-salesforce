@@ -28,7 +28,6 @@
         packageQuery,
         pickBonus,
         addPick,
-        workItem,
         iconSvg,
         UI_ICONS,
         looksLikeRecordId,
@@ -60,6 +59,9 @@
     let fieldsCache = {}; // object API name -> [{api,label,type,key}] for the "fields" verb
     let fieldsFailed = {}; // object API names whose fields failed to load (retried on the next open)
     let fieldsKey = null; // object whose fields are being fetched; a response for another is ignored
+    let listViewsCache = {}; // object API name -> [{id,label,api}] or "failed", for the "list" verb
+    let listViewsKey = null; // object whose list views are being fetched
+    let listRecentCache = {}; // object API name -> your last 5 viewed [{id,name}], loaded with its list views
     let catalogCache = null; // fullCatalog() result; reset when its sources change
     let currentQuery = ""; // last query passed to render()
     let expandedKey = null; // url of the row whose ⋯ actions are expanded
@@ -79,13 +81,9 @@
     let peekOpen = false; // the record preview beside the results is showing
     let peekTimer = null;
     const peekCache = {}; // record Id -> peek record, "loading" or "failed"
-    let hop = null; // the current record's lookups and related lists ("hop" action)
+    let hop = null; // the current record's lookups ("hop" action)
     let hopKey = null; // record Id hop was requested for
     let hopAt = 0; // when hop was requested
-    let allLists = false; // the board shows every related list, empty ones too
-    let recentWork = null; // "recentWork" rows, newest first
-    let workAt = 0; // when recentWork was requested
-    let workEveryone = false; // Recent work lists everyone's changes, not only yours
 
     // Key hints: ⌘ on Mac, Ctrl elsewhere.
     const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl+";
@@ -369,6 +367,21 @@
         });
     }
 
+    // One object's list views for the "list" verb, cached for the page's life.
+    function loadListViews(api) {
+        if (listViewsCache[api] || listViewsKey === api) return;
+        listViewsKey = api;
+        setLoading("listViews", true);
+        ask("listViews", { object: api }, (resp) => {
+            if (listViewsKey !== api) return; // stale: another object, or the verb was cleared
+            listViewsKey = null;
+            setLoading("listViews", false);
+            listViewsCache[api] = resp ? resp.listViews || [] : "failed";
+            listRecentCache[api] = (resp && resp.records) || [];
+            if (opened && activeVerb === "list") render(inputEl.value);
+        });
+    }
+
     // ---- Record -> palette item ------------------------------------------
     function userSub(r) {
         const parts = [];
@@ -428,7 +441,7 @@
         });
     }
 
-    // ---- Peek, hop and recent work ---------------------------------------
+    // ---- Peek and hop ---------------------------------------
     // A record's preview ("peek" action), cached for the page's life (failed
     // ones until the next open). Returns it once loaded, else null and loads
     // it; then, while open, the results render again, or with onLoad, that.
@@ -445,9 +458,8 @@
         return null;
     }
 
-    // The record you're on: its lookups and related lists, for the board's
-    // "This record" rows and search. Refreshed when older than a minute, so
-    // related list counts catch up with records you added.
+    // The record you're on: its lookups, for the board's "This record" rows
+    // and search. Refreshed when older than a minute, so edited lookups catch up.
     function loadHop() {
         const ctx = currentRecordContext();
         if (!ctx || !liveEnabled || (hopKey === ctx.id && Date.now() - hopAt < 60000)) return;
@@ -465,11 +477,11 @@
         });
     }
 
-    // Rows for the record you're on: lookups first, then related lists.
+    // Rows for the record you're on: the records it links to.
     function hopItems() {
         const ctx = currentRecordContext();
         if (!hop || !ctx || hopKey !== ctx.id) return [];
-        const lookups = hop.lookups.map((l) => ({
+        return hop.lookups.map((l) => ({
             label: l.name,
             hint: l.label,
             group: GROUPS.RELATED,
@@ -478,38 +490,7 @@
             recordId: l.type === "RecordType" ? null : l.id, // a record type has no preview
             keywords: `${l.name} ${l.label} ${l.type}`,
             field: l.label, // searched as a second name (see compute)
-            side: "up",
         }));
-        const lists = hop.lists.map((l) => {
-            const n = l.count;
-            const count = n === 0 ? "Empty" : n === 1 && !l.more ? "1 record" : `${n}${l.more ? "+" : ""} records`;
-            return {
-                label: l.label,
-                hint: n === undefined ? "Related list" : count,
-                dim: n === 0, // nothing to open there
-                size: (n || 0) + (l.more ? 0.5 : 0), // the board lists the fullest first
-                group: GROUPS.RELATED,
-                iconGroup: GROUPS.FIELD,
-                url: `/lightning/r/${hop.type}/${hop.id}/related/${l.id}/view`,
-                keywords: `${l.label} related list`,
-                side: "down",
-            };
-        });
-        return lookups.concat(lists);
-    }
-
-    // Setup items changed lately, refreshed when older than 5 minutes.
-    function loadWork() {
-        if (!liveEnabled || Date.now() - workAt < 5 * 60000) return;
-        workAt = Date.now();
-        ask("recentWork", {}, (resp) => {
-            if (!resp || !liveEnabled) {
-                workAt = 0;
-                return;
-            }
-            recentWork = resp.items || [];
-            if (opened && !activeVerb && !inputEl.value.trim()) render("");
-        });
     }
 
     let searchTimer = null;
@@ -725,9 +706,9 @@
             `<span><kbd>${MOD}↵</kbd> new tab</span>` +
             '<span><kbd>⇧↵</kbd> background</span>' +
             '<span><kbd>→</kbd> <span class="right-key">actions</span></span>' +
-            // In the "fields" verb's object step, Tab completes the object instead.
-            (activeVerb === "fields" && !fieldsTarget(inputEl.value)
-                ? '<span><kbd>tab</kbd> search fields</span>'
+            // In the "fields" and "list" verbs' object step, Tab completes the object instead.
+            ((activeVerb === "fields" || activeVerb === "list") && !fieldsTarget(inputEl.value)
+                ? `<span><kbd>tab</kbd> search ${activeVerb === "list" ? "list views" : "fields"}</span>`
                 : '<span><kbd>tab</kbd> lock verb</span>') +
             '<span class="footer-count"></span>'
         );
@@ -865,7 +846,7 @@
     // passes isSub=true with a lighter shape ({label,hint}).
     function makeRow(item, idx, isSub) {
         const li = document.createElement("li");
-        li.className = "result" + (isSub ? " subaction" : "") + (item.dim ? " dim" : "");
+        li.className = "result" + (isSub ? " subaction" : "");
         li.id = "sfen-opt-" + idx;
         li.dataset.index = idx;
         li.setAttribute("role", "option");
@@ -901,8 +882,8 @@
         // Group headers already name Setup/object/bookmark rows; only records
         // (their object type), actions (e.g. "ID"), apps (console or not) and
         // fields (their data type) carry a trailing hint, as do the current
-        // record's rows (the lookup's field) and Recent work (what it is).
-        const hinted = [GROUPS.RECORD, GROUPS.ACTION, GROUPS.APP, GROUPS.FIELD, GROUPS.ORG, GROUPS.APEX, GROUPS.RELATED, GROUPS.WORK];
+        // record's rows (the lookup's field).
+        const hinted = [GROUPS.RECORD, GROUPS.ACTION, GROUPS.APP, GROUPS.FIELD, GROUPS.ORG, GROUPS.APEX, GROUPS.RELATED];
         if (!isSub && hinted.includes(item.group)) {
             const hint = document.createElement("span");
             hint.className = "hint";
@@ -1132,6 +1113,8 @@
         setLoading("inspect", false);
         fieldsKey = null;
         setLoading("fields", false);
+        listViewsKey = null;
+        setLoading("listViews", false);
         inputEl.placeholder = DEFAULT_PLACEHOLDER;
         renderChip();
         resetFooter();
@@ -1187,11 +1170,11 @@
             renderOrgs(query);
             return;
         }
-        if (activeVerb === "fields") {
+        if (activeVerb === "fields" || activeVerb === "list") {
             resetFooter(); // the Tab hint differs between the object and field steps
             const target = fieldsTarget(query);
             if (target) {
-                renderFields(target.obj, target.text);
+                (activeVerb === "list" ? renderListViews : renderFields)(target.obj, target.text);
                 return;
             }
         }
@@ -1272,10 +1255,10 @@
         };
     }
 
-    // "fields" verb, second step: "<object> <field text>" searches that object's
-    // fields. The object is the longest run of leading words that exactly names
-    // one (API name first, then label or plural label), else the best match for
-    // the first word.
+    // "fields" and "list" verbs, second step: "<object> <text>" searches that
+    // object's fields or list views. The object is the longest run of leading
+    // words that exactly names one (API name first, then label or plural
+    // label), else the best match for the first word.
     // While the text is still the start of a multi-word object label ("invoice
     // l" -> Invoice Line) it stays in the object step. Returns { obj, text } or
     // null for the object step.
@@ -1342,6 +1325,47 @@
                 highlightQuery: q,
             }))
         );
+        setActive(0);
+    }
+
+    function renderListViews(obj, text) {
+        panelEl.classList.remove("board-mode");
+        if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
+        const name = obj.label || obj.api;
+        const views = listViewsCache[obj.api];
+        if (views === "failed") return showEmpty(`Couldn't load list views for ${name}`);
+        if (!views) {
+            loadListViews(obj.api);
+            return showEmpty("Loading list views…");
+        }
+        const q = text.trim();
+        // "list account 2": your 2nd last viewed Account comes first, above
+        // any list views matching "2".
+        const rec = /^[1-5]$/.test(q) && (listRecentCache[obj.api] || [])[q - 1];
+        const scored = views
+            .map((v) => ({ v, sc: q ? SFEN_URL.matchScore(q, v.label, v.api) : 0 }))
+            .filter((s) => s.sc >= 0)
+            .sort((a, b) => b.sc - a.sc || a.v.label.localeCompare(b.v.label));
+        setFooterCount(`${scored.length} of ${views.length} list views`);
+        if (!scored.length && !rec) return showEmpty(`No ${name} list views match “${q}”`);
+        if (rec) {
+            listEl.appendChild(groupHeader(`Last viewed ${name} #${q}`));
+            renderRows(listEl, [
+                { label: rec.name, hint: name, group: GROUPS.RECORD, url: recordUrl(obj.api, rec.id), recordId: rec.id },
+            ]);
+        }
+        if (scored.length) {
+            listEl.appendChild(groupHeader(`${name} list views`));
+            renderRows(
+                listEl,
+                scored.slice(0, 50).map(({ v }) => ({
+                    label: v.label,
+                    group: GROUPS.OBJECT,
+                    url: `/lightning/o/${obj.api}/list?filterName=${v.id}`,
+                    highlightQuery: q,
+                }))
+            );
+        }
         setActive(0);
     }
 
@@ -1644,22 +1668,8 @@
                 },
             ]);
         }
-        // On a record, in one column: the records it links to, then its
-        // related lists with records, fullest first. Empty lists (and any
-        // past 8) fold into one row that shows them all.
-        const related = hopItems();
-        if (related.length) {
-            const lists = related.filter((r) => r.side === "down").sort((a, b) => b.size - a.size);
-            const shown = allLists ? lists : lists.filter((l) => !l.dim).slice(0, 8);
-            const rows = related.filter((r) => r.side === "up").slice(0, 8).concat(shown);
-            const folded = lists.filter((l) => !shown.includes(l));
-            if (folded.length) {
-                const n = folded.length;
-                const kind = folded.every((l) => l.dim) ? "empty" : "more";
-                rows.push({ label: `${n} ${kind} list${n === 1 ? "" : "s"}`, group: GROUPS.RELATED, iconGroup: GROUPS.FIELD, dim: true, unfold: true });
-            }
-            boardSection(listEl, GROUPS.RELATED, rows);
-        }
+        // On a record, the records it links to.
+        boardSection(listEl, GROUPS.RELATED, hopItems().slice(0, 8));
         // Stored entries name their org (a string); a row's `org` is a saved
         // org, drawn as its color dot, so leave it out.
         const recent = recents.slice(0, 7).map(({ org, ...r }) => ({ ...r, group: GROUPS.RECENT }));
@@ -1677,7 +1687,6 @@
         // Fill left fully, then right, so ↑/↓ flat order reads column by column.
         boardSection(left, "Recent Setup", recent);
         boardSection(left, "Recently viewed", records);
-        workSection(right);
         boardSection(right, GROUPS.BOOKMARK, bookmarks);
         boardSection(right, "Setup quick tabs", setupTabs);
 
@@ -1685,37 +1694,6 @@
         board.appendChild(right);
         listEl.appendChild(board);
         if (flatResults.length) setActive(0);
-    }
-
-    // Recent work: Setup items changed lately, yours or everyone's (the
-    // header's switch, or Tab). With none of yours, everyone's.
-    function workSection(col) {
-        if (!recentWork || !recentWork.length) return;
-        const mine = recentWork.filter((w) => w.mine);
-        const everyone = workEveryone || !mine.length;
-        const head = document.createElement("li");
-        head.className = "group-header";
-        head.append(GROUPS.WORK);
-        const scope = document.createElement("span");
-        scope.className = "work-scope";
-        [["You", false], ["Everyone", true]].forEach(([text, all]) => {
-            const b = document.createElement("button");
-            b.type = "button";
-            b.textContent = text;
-            b.title = "Tab switches";
-            b.className = all === everyone ? "on" : "";
-            b.setAttribute("aria-pressed", String(all === everyone));
-            b.addEventListener("click", () => {
-                workEveryone = all;
-                render("");
-                focusInput();
-            });
-            scope.appendChild(b);
-        });
-        if (mine.length) head.appendChild(scope);
-        col.appendChild(head);
-        const now = Date.now();
-        renderRows(col, (everyone ? recentWork : mine).slice(0, 5).map((w) => workItem(w, now, everyone)));
     }
 
     function boardSection(col, name, items) {
@@ -1834,13 +1812,6 @@
             runAction({ kind: "loginAs", userId: entry.loginUserId, incognito: !!newTab });
             return;
         }
-        if (entry.unfold) {
-            // The folded lists take the row's place; the first stays selected.
-            allLists = true;
-            render("");
-            setActive(i);
-            return;
-        }
         pushRecent(entry);
         if (entry.group !== GROUPS.ACTION) recordPick(entry.url);
         if (background) return openInBackground(entry.url);
@@ -1849,12 +1820,7 @@
     }
 
     function onInputKeydown(e) {
-        if (e.key === "Tab" && !activeVerb && !inputEl.value.trim() && recentWork && recentWork.some((w) => w.mine)) {
-            // On the board, Tab switches Recent work between yours and everyone's.
-            e.preventDefault();
-            workEveryone = !workEveryone;
-            render("");
-        } else if (e.key === "Tab" && !activeVerb) {
+        if (e.key === "Tab" && !activeVerb) {
             // Lock a verb typed without a trailing space (e.g. "new" + Tab).
             const first = inputEl.value.trim().toLowerCase().split(/\s+/)[0];
             const key = VERB_SHORT[first] || first;
@@ -1862,8 +1828,8 @@
                 e.preventDefault();
                 setVerb(key, inputEl.value.trim().slice(first.length).trim());
             }
-        } else if (e.key === "Tab" && activeVerb === "fields") {
-            // On an object row, complete "<object> " to search its fields. The
+        } else if (e.key === "Tab" && (activeVerb === "fields" || activeVerb === "list")) {
+            // On an object row, complete "<object> " to search its fields or list views. The
             // label is used when it names the object back, else the API name.
             const entry = flatResults[activeIndex];
             if (entry && entry.objectApi) {
@@ -1941,7 +1907,6 @@
         autoVerbWord = null;
         inspectKey = null;
         inspectRecord = null;
-        allLists = false;
         setPeek(false);
         // Retry previews that failed.
         Object.keys(peekCache).forEach((id) => peekCache[id] === "failed" && delete peekCache[id]);
@@ -1953,8 +1918,9 @@
         loadAdmin();
         loadApps();
         loadHop();
-        loadWork();
         fieldsFailed = {}; // retry objects whose fields failed to load
+        // Refetched per open: the last viewed records change as you browse.
+        listViewsCache = {};
         if (picked.length >= 2 && picked.length <= 80) {
             inputEl.value = picked;
             onInput();
@@ -1977,6 +1943,7 @@
         runLiveSearch("");
         inspectKey = null; // a late record response is then ignored
         fieldsKey = null; // likewise a late fields response
+        listViewsKey = null;
         setLoading(null);
         // Don't leave the last results (record values, users) in the page.
         listEl.textContent = "";
@@ -2077,6 +2044,10 @@
                         fieldsCache = {};
                         fieldsKey = null;
                         setLoading("fields", false);
+                        listViewsCache = {};
+                        listRecentCache = {};
+                        listViewsKey = null;
+                        setLoading("listViews", false);
                         recentRecords = [];
                         catalogCache = null;
                         objectsRequested = false;
@@ -2084,8 +2055,6 @@
                         appsRequested = false;
                         hop = null;
                         hopKey = null;
-                        recentWork = null;
-                        workAt = 0;
                         Object.keys(peekCache).forEach((id) => delete peekCache[id]);
                         setPeek(false);
                         runLiveSearch("");

@@ -132,6 +132,35 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     }
     console.log("PASS fields: object validation rejects injection / bad input with no API call");
 
+    // ---- listViews: list views plus the last 5 viewed records ----
+    fetchCalls = [];
+    route = (url) => {
+        if (soql(url).includes("FROM ListView")) return json({ records: [{ Id: "00B000000000001AAA", Name: "All Accounts", DeveloperName: "AllAccounts" }] });
+        if (soql(url).includes("FROM RecentlyViewed")) return json({ records: [
+            { Id: "001000000000001AAA", Name: "Acme" },
+            { Id: "../evil", Name: "Bad" },
+            { Id: "001000000000002AAA", Name: null },
+        ] });
+        return null;
+    };
+    r = await send({ action: "listViews", object: "Account" });
+    assert.strictEqual(r.ok, true, JSON.stringify(r));
+    assert.deepStrictEqual(r.listViews, [{ id: "00B000000000001AAA", label: "All Accounts", api: "AllAccounts" }]);
+    assert.deepStrictEqual(r.records, [{ id: "001000000000001AAA", name: "Acme" }, { id: "001000000000002AAA", name: "001000000000002AAA" }]);
+    const recentQ = fetchCalls.map(soql).find((q) => q.includes("FROM RecentlyViewed"));
+    assert(recentQ.includes("WHERE Type = 'Account'") && recentQ.includes("ORDER BY LastViewedDate DESC") && recentQ.includes("LIMIT 5"), recentQ);
+
+    // A failed RecentlyViewed query still returns the list views.
+    route = (url) => {
+        if (soql(url).includes("FROM ListView")) return json({ records: [{ Id: "00B000000000001AAA", Name: "All Accounts", DeveloperName: "AllAccounts" }] });
+        if (soql(url).includes("FROM RecentlyViewed")) return { ok: false, status: 400, json: async () => [{ message: "not supported" }] };
+        return null;
+    };
+    r = await send({ action: "listViews", object: "Account" });
+    assert.deepStrictEqual([r.ok, r.listViews.length, r.records], [true, 1, []], JSON.stringify(r));
+    route = () => null;
+    console.log("PASS listViews: last 5 viewed records, ids checked, optional on failure");
+
     storage = { settings: { liveOrgAccess: false } };
     for (const action of ["apps", "fields"]) {
         fetchCalls = [];
