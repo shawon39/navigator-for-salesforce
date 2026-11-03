@@ -1563,12 +1563,13 @@
             '<span class="insp-title-wrap"><span class="insp-title"></span>' +
             '<span class="insp-type"><span class="insp-type-name"></span> · <span class="mono"></span></span></span>' +
             '<button class="insp-action" type="button">Copy Id</button>' +
-            '<button class="insp-action" type="button">Copy JSON</button>';
+            '<button class="insp-action" type="button">Copy JSON</button>' +
+            '<button class="insp-action" type="button" title="Copy only the fields that have a value">Copy JSON (no blanks)</button>';
         head.querySelector(".insp-title").textContent =
             inspectRecord.Name || inspectRecord.CaseNumber || ctx.id;
         head.querySelector(".insp-type-name").textContent = ctx.type;
         head.querySelector(".insp-type .mono").textContent = ctx.id;
-        const [copyIdBtn, copyJsonBtn] = head.querySelectorAll(".insp-action");
+        const [copyIdBtn, copyJsonBtn, copyFilledBtn] = head.querySelectorAll(".insp-action");
         copyIdBtn.addEventListener("click", () =>
             copyWithFeedback(copyIdBtn, inspectRecord.Id || ctx.id)
         );
@@ -1576,6 +1577,14 @@
             const data = { ...inspectRecord };
             delete data.attributes;
             copyWithFeedback(copyJsonBtn, JSON.stringify(data, null, 2));
+        });
+        copyFilledBtn.addEventListener("click", () => {
+            const data = {};
+            Object.keys(inspectRecord).forEach((k) => {
+                const v = inspectRecord[k];
+                if (k !== "attributes" && v !== null && v !== "") data[k] = v;
+            });
+            copyWithFeedback(copyFilledBtn, JSON.stringify(data, null, 2));
         });
         wrap.appendChild(head);
 

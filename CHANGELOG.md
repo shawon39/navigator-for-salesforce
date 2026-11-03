@@ -11,6 +11,7 @@
 - Text you select on the page fills the palette's search when you open it. A selection left on the page fills it only once.
 - `Shift+Enter` (or `Shift`+click) opens a palette result in a background tab and keeps the palette open, to open several pages in a row.
 - A pasted record Id shows the record's name and object before you open it.
+- Record inspector: Copy JSON (no blanks) copies only the fields that have a value.
 
 ### Changed
 - Recent Setup also keeps the Setup pages you open by clicking through Setup, not only those opened with Navigator.
