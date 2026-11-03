@@ -109,7 +109,7 @@ console.log("PASS package Apex needs its package name in the query");
 
 // Short verb forms name a verb and never shadow one.
 const { VERBS, VERB_SHORT } = window.SFEN_CMDK_DATA;
-assert.deepStrictEqual(VERB_SHORT, { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record" });
+assert.deepStrictEqual(VERB_SHORT, { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record", c: "count" });
 for (const [short, verb] of Object.entries(VERB_SHORT)) {
     assert(VERBS[verb], `${short} -> ${verb}`);
     assert(!VERBS[short], `${short} is already a verb`);

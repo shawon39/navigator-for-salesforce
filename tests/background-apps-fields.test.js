@@ -161,14 +161,57 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     route = () => null;
     console.log("PASS listViews: last 5 viewed records, ids checked, optional on failure");
 
+    // ---- count: total, then each record type's (Master for the rest) ----
+    route = (url) => {
+        const q = soql(url);
+        if (q.includes("FROM RecordType")) return json({ records: [
+            { Id: "012000000000001AAA", Name: "Customer", IsActive: true },
+            { Id: "012000000000002AAA", Name: "Partner", IsActive: true },
+            { Id: "012000000000003AAA", Name: "Old", IsActive: false },
+            { Id: "012000000000004AAA", Name: "Retired", IsActive: false },
+        ] });
+        if (q.includes("GROUP BY RecordTypeId")) return json({ records: [
+            { RecordTypeId: "012000000000001AAA", n: 8020 },
+            { RecordTypeId: "012000000000003AAA", n: 5 },
+            { RecordTypeId: null, n: 200 },
+            { RecordTypeId: "012000000000000AAA", n: 20 },
+        ] });
+        return null;
+    };
+    r = await send({ action: "count", object: "Account" });
+    assert.strictEqual(r.ok, true, JSON.stringify(r));
+    assert.strictEqual(r.total, 8245);
+    assert.deepStrictEqual(r.recordTypes, [
+        { name: "Customer", count: 8020, active: true },
+        { name: "Partner", count: 0, active: true },
+        { name: "Old", count: 5, active: false },
+        { name: "Master", count: 220, active: true },
+    ]);
+
+    // No record types: a plain COUNT(), no GROUP BY (RecordTypeId doesn't exist yet).
+    fetchCalls = [];
+    route = (url) => (soql(url) === "SELECT COUNT() FROM Lead" ? json({ totalSize: 42, records: [] }) : null);
+    r = await send({ action: "count", object: "Lead" });
+    assert.deepStrictEqual([r.ok, r.total, r.recordTypes], [true, 42, []], JSON.stringify(r));
+    assert(!fetchCalls.map(soql).some((q) => q.includes("GROUP BY")));
+
+    fetchCalls = [];
+    for (const object of ["Account WHERE Id != null", "Account'--", "", null]) {
+        r = await send({ action: "count", object });
+        assert.strictEqual(r.ok, false);
+    }
+    assert.strictEqual(fetchCalls.length, 0);
+    route = () => null;
+    console.log("PASS count: total, record types with Master, plain count without them, name checked");
+
     storage = { settings: { liveOrgAccess: false } };
-    for (const action of ["apps", "fields"]) {
+    for (const action of ["apps", "fields", "count"]) {
         fetchCalls = [];
         r = await send({ action, object: "Account" });
         assert.deepStrictEqual([r.ok, r.error, fetchCalls.length], [false, "Live org access is off", 0]);
     }
     storage = {};
-    console.log("PASS apps/fields gated by liveOrgAccess");
+    console.log("PASS apps/fields/count gated by liveOrgAccess");
 
     r = await new Promise((resolve) => listener({ type: "palette", action: "fields", object: "Account", host: "evil.example.com" }, T, resolve));
     assert.strictEqual(r.ok, false);

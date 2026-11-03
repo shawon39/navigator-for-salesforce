@@ -253,7 +253,7 @@ async function sfRecordUi(host, id, layoutType) {
 }
 
 // Actions that read org data; all are gated by the liveOrgAccess setting.
-const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "fields", "flowVersions", "peek", "hop", "listViews"]);
+const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "fields", "flowVersions", "peek", "hop", "listViews", "count"]);
 
 // Why a palette message must be refused, or null when it's allowed.
 function paletteDenied(msg, sender) {
@@ -692,6 +692,35 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     .filter((r) => RECORD_ID_RE.test(r.Id || ""))
                     .map((r) => ({ id: r.Id, name: r.Name || r.Id }));
                 sendResponse({ ok: true, listViews, records });
+            } else if (msg.action === "count") {
+                // One object's record count for the palette's "count" verb, and
+                // each record type's. RecordTypeId only exists once the object
+                // has a record type; records without one are Master.
+                const object = msg.object;
+                if (typeof object !== "string" || !/^[A-Za-z0-9_]+$/.test(object)) {
+                    throw new Error("Invalid object name");
+                }
+                const types = await sfQueryAll(host, `SELECT Id, Name, IsActive FROM RecordType WHERE SobjectType = '${object}'`, 1);
+                if (!types.length) {
+                    const res = await sfFetch(host, `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(`SELECT COUNT() FROM ${object}`)}`);
+                    sendResponse({ ok: true, total: res.totalSize || 0, recordTypes: [] });
+                } else {
+                    const groups = await sfQueryAll(host, `SELECT RecordTypeId, COUNT(Id) n FROM ${object} GROUP BY RecordTypeId`, 1);
+                    const counts = {};
+                    let total = 0;
+                    groups.forEach((g) => {
+                        const n = Number(g.n) || 0;
+                        const id = types.some((t) => t.Id === g.RecordTypeId) ? g.RecordTypeId : "master";
+                        counts[id] = (counts[id] || 0) + n;
+                        total += n;
+                    });
+                    // Inactive record types only while records still use them.
+                    const recordTypes = types
+                        .filter((t) => t.IsActive || counts[t.Id])
+                        .map((t) => ({ name: String(t.Name || t.Id), count: counts[t.Id] || 0, active: !!t.IsActive }));
+                    recordTypes.push({ name: "Master", count: counts.master || 0, active: true });
+                    sendResponse({ ok: true, total, recordTypes });
+                }
             } else if (msg.action === "peek") {
                 // The palette's preview of a record: its compact layout, the
                 // key fields Salesforce shows at the top of its page.

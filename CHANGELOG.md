@@ -5,6 +5,7 @@
 ### Added
 - Peek: `→` on a record in the palette shows its key fields (the record's compact layout) beside the results, without leaving the page. The preview follows as you move through the list; a lookup in it opens that record. `←` or `Esc` closes it. Needs live org access.
 - List view search: `list` (or `li`), an object and a space, like `li account `, lists that object's list views; keep typing to filter them. A number from 1 to 5, like `li account 1`, puts the Account you viewed last (or 2nd to 5th last) first; `Enter` opens it. Needs live org access.
+- Record counts: `count` (or `c`) `account` and `Enter` shows how many Accounts there are, then each record type's count, Master included. Keep typing to filter record types. Counts only the records you can see. Needs live org access.
 - On a record, the palette lists the records it links to (its Account, Owner and other lookups on the page layout). Typing finds them too, so `acc` on an Opportunity offers its Account. Needs live org access.
 - Admin shorthand in the palette and popup search: `ps`, `psg`, `dl`, `cmdt`, `cs`, `lwc`, `sr`, `aj`, `sj`, `vf`, `om`, `ip`, `nc`, `rss`, `lh`, `sat`, `ds`, `ics`, `ocs` and `lab` open Permission Sets, Permission Set Groups, Debug Logs and the other Setup pages they stand for.
 - Text you select on the page fills the palette's search when you open it. A selection left on the page fills it only once.

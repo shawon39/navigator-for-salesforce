@@ -62,6 +62,8 @@
     let listViewsCache = {}; // object API name -> [{id,label,api}] or "failed", for the "list" verb
     let listViewsKey = null; // object whose list views are being fetched
     let listRecentCache = {}; // object API name -> your last 5 viewed [{id,name}], loaded with its list views
+    let countCache = {}; // object API name -> { total, recordTypes } or "failed", for the "count" verb
+    let countKey = null; // object whose records are being counted
     let catalogCache = null; // fullCatalog() result; reset when its sources change
     let currentQuery = ""; // last query passed to render()
     let expandedKey = null; // url of the row whose ⋯ actions are expanded
@@ -382,6 +384,20 @@
         });
     }
 
+    // One object's record counts for the "count" verb, refetched per open.
+    function loadCounts(api) {
+        if (countCache[api] || countKey === api) return;
+        countKey = api;
+        setLoading("count", true);
+        ask("count", { object: api }, (resp) => {
+            if (countKey !== api) return; // stale: another object, or the verb was cleared
+            countKey = null;
+            setLoading("count", false);
+            countCache[api] = resp || "failed";
+            if (opened && activeVerb === "count") render(inputEl.value);
+        });
+    }
+
     // ---- Record -> palette item ------------------------------------------
     function userSub(r) {
         const parts = [];
@@ -698,6 +714,14 @@
                 '<span><kbd>↵</kbd> open in new tab</span>' +
                 '<span><kbd>→</kbd> this page there</span>' +
                 '<span><kbd>esc</kbd> close</span>' +
+                '<span class="footer-count"></span>'
+            );
+        }
+        if (activeVerb === "count") {
+            return (
+                '<span><kbd>↑↓</kbd> move</span>' +
+                (fieldsTarget(inputEl.value) ? "" : "<span><kbd>↵</kbd> count records</span>") +
+                '<span><kbd>⌫</kbd> back to search</span>' +
                 '<span class="footer-count"></span>'
             );
         }
@@ -1124,6 +1148,8 @@
         setLoading("fields", false);
         listViewsKey = null;
         setLoading("listViews", false);
+        countKey = null;
+        setLoading("count", false);
         inputEl.placeholder = DEFAULT_PLACEHOLDER;
         renderChip();
         resetFooter();
@@ -1179,11 +1205,11 @@
             renderOrgs(query);
             return;
         }
-        if (activeVerb === "fields" || activeVerb === "list") {
+        if (activeVerb === "fields" || activeVerb === "list" || activeVerb === "count") {
             resetFooter(); // the Tab hint differs between the object and field steps
             const target = fieldsTarget(query);
             if (target) {
-                (activeVerb === "list" ? renderListViews : renderFields)(target.obj, target.text);
+                ({ list: renderListViews, fields: renderFields, count: renderCounts })[activeVerb](target.obj, target.text);
                 return;
             }
         }
@@ -1375,6 +1401,40 @@
                 }))
             );
         }
+        setActive(0);
+    }
+
+    // "count" verb, second step: the object's total, then each record type's.
+    // The rows only show numbers: Enter does nothing on them.
+    function renderCounts(obj, text) {
+        panelEl.classList.remove("board-mode");
+        if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
+        const name = obj.label || obj.api;
+        const plural = obj.plural || name;
+        const counts = countCache[obj.api];
+        if (counts === "failed") return showEmpty(`Couldn't count ${plural}`);
+        if (!counts) {
+            loadCounts(obj.api);
+            return showEmpty(`Counting ${plural}…`);
+        }
+        const q = text.trim();
+        const row = (label, n, sub) => ({
+            label,
+            sub,
+            hint: n.toLocaleString(),
+            group: GROUPS.RECORD,
+            highlightQuery: q,
+        });
+        const types = counts.recordTypes
+            .map((t) => ({ t, sc: q ? SFEN_URL.matchScore(q, t.name, "") : 0 }))
+            .filter((s) => s.sc >= 0)
+            .sort((a, b) => b.sc - a.sc || b.t.count - a.t.count || a.t.name.localeCompare(b.t.name))
+            .map(({ t }) => row(t.name, t.count, t.active ? "" : "Inactive"));
+        if (counts.recordTypes.length) setFooterCount(`${counts.recordTypes.length} record types`);
+        if (q && !types.length) return showEmpty(`No ${name} record types match “${q}”`);
+        listEl.appendChild(groupHeader(`${name} records`));
+        renderRows(listEl, (q ? [] : [row(`All ${plural}`, counts.total)]).concat(types));
+        listEl.querySelectorAll(".enter").forEach((el) => el.remove()); // no ↵ to offer
         setActive(0);
     }
 
@@ -1821,11 +1881,26 @@
             runAction({ kind: "loginAs", userId: entry.loginUserId, incognito: !!newTab });
             return;
         }
+        // "count account" + Enter counts Accounts: the object row goes to the
+        // count step. The count rows themselves do nothing.
+        if (activeVerb === "count") {
+            if (entry.objectApi) completeObject(entry);
+            return;
+        }
         pushRecent(entry);
         if (entry.group !== GROUPS.ACTION) recordPick(entry.url);
         if (background) return openInBackground(entry.url);
         close();
         navigate(entry.url, newTab || !!entry.newTab);
+    }
+
+    // On an object row, complete "<object> " to search its fields or list views,
+    // or count it. The label is used when it names the object back, else the API name.
+    function completeObject(entry) {
+        const byLabel = fieldsTarget(entry.label + " ");
+        inputEl.value = (byLabel && byLabel.obj.api === entry.objectApi ? entry.label : entry.objectApi) + " ";
+        onInput();
+        focusInput();
     }
 
     function onInputKeydown(e) {
@@ -1837,16 +1912,11 @@
                 e.preventDefault();
                 setVerb(key, inputEl.value.trim().slice(first.length).trim());
             }
-        } else if (e.key === "Tab" && (activeVerb === "fields" || activeVerb === "list")) {
-            // On an object row, complete "<object> " to search its fields or list views. The
-            // label is used when it names the object back, else the API name.
+        } else if (e.key === "Tab" && (activeVerb === "fields" || activeVerb === "list" || activeVerb === "count")) {
             const entry = flatResults[activeIndex];
             if (entry && entry.objectApi) {
                 e.preventDefault();
-                const byLabel = fieldsTarget(entry.label + " ");
-                inputEl.value =
-                    (byLabel && byLabel.obj.api === entry.objectApi ? entry.label : entry.objectApi) + " ";
-                onInput();
+                completeObject(entry);
             }
         } else if (e.key === "Backspace" && activeVerb && inputEl.value === "") {
             // Backspace on an empty argument removes the verb chip.
@@ -1930,6 +2000,7 @@
         fieldsFailed = {}; // retry objects whose fields failed to load
         // Refetched per open: the last viewed records change as you browse.
         listViewsCache = {};
+        countCache = {};
         if (picked.length >= 2 && picked.length <= 80) {
             inputEl.value = picked;
             onInput();
@@ -1953,6 +2024,7 @@
         inspectKey = null; // a late record response is then ignored
         fieldsKey = null; // likewise a late fields response
         listViewsKey = null;
+        countKey = null;
         setLoading(null);
         // Don't leave the last results (record values, users) in the page.
         listEl.textContent = "";
@@ -2057,6 +2129,9 @@
                         listRecentCache = {};
                         listViewsKey = null;
                         setLoading("listViews", false);
+                        countCache = {};
+                        countKey = null;
+                        setLoading("count", false);
                         recentRecords = [];
                         catalogCache = null;
                         objectsRequested = false;

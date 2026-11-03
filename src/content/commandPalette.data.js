@@ -290,12 +290,14 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         new: (api) => `/lightning/o/${api}/new?useRecordTypeCheck=1`,
         list: (api) => `/lightning/o/${api}/home`,
         fields: (api) => `/lightning/setup/ObjectManager/${api}/FieldsAndRelationships/view`,
+        count: (api) => `/lightning/o/${api}/home`, // Enter counts instead (handled in the palette)
     };
-    const VERB_HINT = { new: "New", list: "List", fields: "Fields" };
+    const VERB_HINT = { new: "New", list: "List", fields: "Fields", count: "Count" };
     const VERBS = {
         new: { kind: "object", action: "new", label: "New" },
         list: { kind: "object", action: "list", label: "List" },
         fields: { kind: "object", action: "fields", label: "Fields" },
+        count: { kind: "object", action: "count", label: "Count" }, // records, by record type
         app: { kind: "app", label: "App" }, // the user's Lightning apps
         apps: { kind: "app", label: "App" }, // alias of app
         org: { kind: "org", label: "Org" }, // saved orgs (quickOrgs)
@@ -307,7 +309,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     };
     // Short forms, typed like the words: "f acc" is "fields acc". "lo" and
     // "li" because login and list both start with l.
-    const VERB_SHORT = { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record" };
+    const VERB_SHORT = { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record", c: "count" };
 
     // How well `q` names object `o`. The plural label counts too, so
     // "contacts" finds Contact rather than Contact Request.
