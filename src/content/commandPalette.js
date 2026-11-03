@@ -495,26 +495,35 @@
 
     let searchTimer = null;
     let searchSeq = 0; // bumped per request; a response for an older one is ignored
+    let liveParts = {}; // latest results per action ("users", "search"); liveRecords joins them
     // Search records for `term`. A term under 2 characters (or "") just drops
     // the live results and any search still in flight.
     function runLiveSearch(term) {
         const seq = ++searchSeq;
         if (!liveEnabled || term.trim().length < 2) {
             liveRecords = [];
+            liveParts = {};
             liveRecordsTerm = "";
             setLoading("search", false);
             return;
         }
         setLoading("search", true);
-        // The "login" verb queries users directly; plain search covers all records.
-        const action = activeVerb && VERBS[activeVerb].kind === "login" ? "users" : "search";
-        ask(action, { term }, (resp) => {
-            if (seq !== searchSeq) return;
-            setLoading("search", false);
-            // A failed search counts as "no matches" (so "login" doesn't wait forever).
-            liveRecords = resp ? (resp.records || []).map(mapRecord) : [];
-            liveRecordsTerm = term;
-            if (opened) render(inputEl.value);
+        // The "login" verb lists users only. Plain search asks for its 5 users
+        // and the other records apart and shows each as it arrives: in an org
+        // with many users the user query can be much the slower one. A part
+        // keeps the previous term's rows until its answer replaces them.
+        const parts = activeVerb && VERBS[activeVerb].kind === "login" ? { users: {} } : { users: { limit: 5 }, search: {} };
+        let pending = Object.keys(parts).length;
+        Object.keys(parts).forEach((action) => {
+            ask(action, { term, ...parts[action] }, (resp) => {
+                if (seq !== searchSeq) return;
+                if (--pending === 0) setLoading("search", false);
+                // A failed search counts as "no matches" (so "login" doesn't wait forever).
+                liveParts[action] = resp ? (resp.records || []).map(mapRecord) : [];
+                liveRecords = (liveParts.users || []).concat(liveParts.search || []);
+                liveRecordsTerm = term;
+                if (opened) render(inputEl.value);
+            });
         });
     }
 

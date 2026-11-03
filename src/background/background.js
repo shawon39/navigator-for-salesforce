@@ -53,10 +53,11 @@ async function sfGetSession(host) {
     return null;
 }
 
-async function sfFetch(host, path) {
+async function sfFetch(host, path, signal) {
     const session = await sfGetSession(host);
     if (!session) throw new Error("No Salesforce session found");
     const res = await fetch("https://" + session.apiHost + path, {
+        signal,
         // Salesforce sends some responses (the object list) with a date but
         // no expiry, which Chrome would reuse for hours: a new object stayed
         // missing. Always check with Salesforce first.
@@ -76,11 +77,11 @@ async function sfFetch(host, path) {
 }
 
 // SOQL query records, following nextRecordsUrl for up to maxPages pages.
-async function sfQueryAll(host, soql, maxPages) {
-    let d = await sfFetch(host, `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`);
+async function sfQueryAll(host, soql, maxPages, signal) {
+    let d = await sfFetch(host, `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`, signal);
     let records = d.records || [];
     for (let page = 1; page < maxPages && SFEN_URL.isSafePath(d.nextRecordsUrl); page++) {
-        d = await sfFetch(host, d.nextRecordsUrl);
+        d = await sfFetch(host, d.nextRecordsUrl, signal);
         records = records.concat(d.records || []);
     }
     return records;
@@ -99,14 +100,15 @@ function soqlLikeEscape(term) {
 // palette's record shape. Queried directly rather than via the global SOSL
 // search, which keeps only its top 30 hits: a common name's Accounts,
 // Contacts and Leads can push every User out. SOQL also has no index lag.
-async function sfSearchUsers(host, rawTerm) {
+async function sfSearchUsers(host, rawTerm, limit, signal) {
     const like = `'%${soqlLikeEscape(rawTerm)}%'`;
     const rows = await sfQueryAll(
         host,
         "SELECT Id, Name, Username, IsActive, Profile.Name, Alias FROM User " +
             `WHERE Name LIKE ${like} OR Username LIKE ${like} OR Alias LIKE ${like} ` +
-            "ORDER BY IsActive DESC, Name LIMIT 20",
-        1
+            `ORDER BY IsActive DESC, Name LIMIT ${limit}`,
+        1,
+        signal
     );
     return rows.map((u) => ({
         Id: u.Id,
@@ -117,6 +119,17 @@ async function sfSearchUsers(host, rawTerm) {
         Alias: u.Alias,
         ProfileName: u.Profile ? u.Profile.Name : null,
     }));
+}
+
+// The newest "search" or "users" request per tab. Each one aborts the one
+// before it, so fast typing doesn't stack up requests whose answers the
+// palette would ignore anyway.
+const searchAborts = {};
+function newestSearch(sender, action) {
+    const key = (sender.tab ? sender.tab.id : "") + " " + action;
+    if (searchAborts[key]) searchAborts[key].abort();
+    searchAborts[key] = new AbortController();
+    return searchAborts[key].signal;
 }
 
 // userinfo (org id + current user id, needed for "Login as"), cached per API
@@ -382,13 +395,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     return;
                 }
                 const term = soslEscape(rawTerm);
-                // Users come from their own query (see sfSearchUsers), run
-                // alongside; at most 5, listed first. A failed user query only
-                // drops the users, not the whole search.
-                const usersPromise = sfSearchUsers(host, rawTerm).then(
-                    (users) => users.slice(0, 5),
-                    () => []
-                );
+                const signal = newestSearch(sender, "search");
                 // Phase 1 — a global SOSL with no RETURNING finds matching Ids +
                 // types across ALL searchable objects (custom included). It comes
                 // back with only Id + object type, so names are resolved below.
@@ -396,10 +403,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     host,
                     `/services/data/${SF_API_VERSION}/search/?q=${encodeURIComponent(
                         `FIND {${term}*} IN NAME FIELDS`
-                    )}`
+                    )}`,
+                    signal
                 );
-                // Drop system/non-navigable objects and Users (queried above),
-                // and cap, keeping relevance order.
+                // Drop system/non-navigable objects and Users (the palette gets
+                // those from the "users" action), and cap, keeping relevance order.
                 const hits = (found.searchRecords || [])
                     .filter(
                         (r) =>
@@ -411,7 +419,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     )
                     .slice(0, 30);
                 if (!hits.length) {
-                    sendResponse({ ok: true, records: await usersPromise });
+                    sendResponse({ ok: true, records: [] });
                     return;
                 }
                 // Phase 2 — resolve a display name per matched type, in parallel.
@@ -428,7 +436,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     try {
                         const d = await sfFetch(
                             host,
-                            `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`
+                            `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`,
+                            signal
                         );
                         return d.records || [];
                     } catch (e) {
@@ -458,15 +467,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     attributes: { type: r.attributes.type },
                     ...(byId[r.Id] || {}),
                 }));
-                sendResponse({ ok: true, records: (await usersPromise).concat(records) });
+                sendResponse({ ok: true, records });
             } else if (msg.action === "users") {
-                // Users for the "login" verb.
+                // Users for the "login" verb, or the 5 that plain search lists
+                // first. Plain search asks for them apart from "search", so a
+                // slow User query (an org with many users) doesn't hold up records.
                 const rawTerm = (msg.term || "").trim();
                 if (rawTerm.length < 2) {
                     sendResponse({ ok: true, records: [] });
                     return;
                 }
-                sendResponse({ ok: true, records: await sfSearchUsers(host, rawTerm) });
+                const limit = msg.limit === 5 ? 5 : 20;
+                sendResponse({ ok: true, records: await sfSearchUsers(host, rawTerm, limit, newestSearch(sender, "users")) });
             } else if (msg.action === "appHome") {
                 sendResponse({ ok: true, path: await appHomePath(host) });
             } else if (msg.action === "context") {

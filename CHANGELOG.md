@@ -13,6 +13,7 @@
 
 ### Changed
 - Recent Setup also keeps the Setup pages you open by clicking through Setup, not only those opened with Navigator.
+- Faster palette search in orgs with many users: records no longer wait for the user lookup, and each shows as soon as it arrives. A search you've typed past is stopped instead of running on.
 
 ### Fixed
 - A new custom object could stay missing from search and the palette for hours, because Chrome reused an older copy of the org's object list. Navigator now checks with Salesforce first.
