@@ -187,15 +187,22 @@
         input.addEventListener("blur", () => finish(true));
     }
 
-    // Name + "Type · host" block shared by saved and detected org rows.
-    function orgText(host, name, type) {
+    // Name + host block shared by saved and detected org rows; the type is a
+    // tag at the row's end (typeTag).
+    function orgText(host, name) {
         const text = document.createElement("span");
         text.className = "nv-row-text";
-        text.innerHTML = '<span class="nv-row-label"></span><span class="nv-row-sub"><span></span> · <span class="nv-mono"></span></span>';
+        text.innerHTML = '<span class="nv-row-label"></span><span class="nv-row-sub nv-mono"></span>';
         text.querySelector(".nv-row-label").textContent = name;
-        text.querySelector(".nv-row-sub span").textContent = SFEN_ORGS.TYPES[type];
-        text.querySelector(".nv-mono").textContent = SFEN_ORGS.shortHost(host);
+        text.querySelector(".nv-row-sub").textContent = SFEN_ORGS.shortHost(host);
         return text;
+    }
+
+    function typeTag(type) {
+        const tag = document.createElement("span");
+        tag.className = "nv-type-tag " + type;
+        tag.textContent = SFEN_ORGS.TYPES[type];
+        return tag;
     }
 
     function buildRow(org) {
@@ -210,7 +217,7 @@
         const link = document.createElement("a");
         link.className = "nv-row-link";
         if (SFEN_URL.isOrgHost(org.host)) link.href = "https://" + org.host;
-        link.appendChild(orgText(org.host, name, type));
+        link.appendChild(orgText(org.host, name));
         link.addEventListener("click", (e) => {
             if (e.button !== 0 || e.shiftKey) return;
             e.preventDefault();
@@ -225,6 +232,7 @@
             badge.textContent = "This tab";
             row.appendChild(badge);
         }
+        row.appendChild(typeTag(type));
         if (org.pinned) {
             const mark = document.createElement("span");
             mark.className = "nv-pinned-mark";
@@ -261,10 +269,16 @@
         return row;
     }
 
-    function group(text, gap) {
+    function group(text, gap, count) {
         const g = document.createElement("div");
         g.className = "nv-group" + (gap ? " nv-group-gap" : "");
         g.textContent = text;
+        if (count) {
+            const c = document.createElement("span");
+            c.className = "nv-group-count";
+            c.textContent = count;
+            g.appendChild(c);
+        }
         return g;
     }
 
@@ -276,7 +290,7 @@
         const name = SFEN_ORGS.defaultName(org.host);
         const row = document.createElement("div");
         row.className = "nv-row is-org has-actions";
-        row.append(mark, orgText(org.host, name, type));
+        row.append(mark, orgText(org.host, name), typeTag(type));
         const add = document.createElement("button");
         add.type = "button";
         add.className = "nv-btn-secondary nv-btn-add";
@@ -350,10 +364,24 @@
         );
         const pinned = matched.filter((o) => o.pinned);
         const rest = matched.filter((o) => !o.pinned);
-        if (pinned.length) section.appendChild(group("Pinned", !!offer));
+        if (pinned.length) section.appendChild(group("Pinned", !!offer, pinned.length));
         pinned.forEach((o) => section.appendChild(buildRow(o)));
-        if ((pinned.length || offer) && rest.length) section.appendChild(group("All orgs", true));
+        if (rest.length) section.appendChild(group("All orgs", !!(pinned.length || offer), rest.length));
         rest.forEach((o) => section.appendChild(buildRow(o)));
+
+        // The one Add org button sits at the end of the list's first group line.
+        const first = section.querySelector(".nv-group");
+        if (first) {
+            const add = document.createElement("button");
+            add.type = "button";
+            add.className = "nv-btn-link nv-with-icon";
+            add.innerHTML = icon("plus", 14, 2.2) + "Add org";
+            add.addEventListener("click", openAdd);
+            const bar = document.createElement("div");
+            bar.className = "nv-group-bar is-top";
+            first.replaceWith(bar);
+            bar.append(first, add);
+        }
         if (!matched.length) section.appendChild(Object.assign(document.createElement("div"), {
             className: "nv-note",
             textContent: `No orgs match “${query.trim()}”`,

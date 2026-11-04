@@ -27,22 +27,40 @@
   --nv-surface-3: #E7EBF0;
   --nv-border: #E4E8EE;
   --nv-border-strong: #8A94A3;
-  --nv-text: #1F2937;
+  --nv-text: #111827;
   --nv-text-2: #4B5563;
   --nv-text-3: #5F6B7A;
 
   --nv-brand: #00A1E0;
-  --nv-primary: #0073A8;
-  --nv-primary-hover: #00669A;
+  --nv-primary: #0B63CE;
+  --nv-primary-hover: #0A56B4;
   --nv-on-primary: #FFFFFF;
-  --nv-primary-text: #0073A8;
-  --nv-sel: #E6F5FC;
-  --nv-on-sel: #1F2937;
+  --nv-primary-text: #0B63CE;
+  --nv-sel: #EAF2FD;
+  --nv-on-sel: #111827;
   --nv-on-sel-2: #5F6B7A;
-  --nv-sel-icon: #0073A8;
-  --nv-focus: #0082B8;
-  --nv-focus-ring: rgba(0, 130, 184, 0.18);
-  --nv-mark: #CCEEFB;
+  --nv-sel-icon: #0B63CE;
+  --nv-focus: #0B63CE;
+  --nv-focus-ring: rgba(11, 99, 206, 0.18);
+  --nv-mark: #D3E4FB;
+
+  /* Keycaps, tiles by kind of row, and org type tags (same as the palette). */
+  --nv-key: #FFFFFF;
+  --nv-key-border: #DCE0E6;
+  --nv-tone-setup: #4B5563;
+  --nv-tone-setup-bg: #F0F2F5;
+  --nv-tone-obj: #0B63CE;
+  --nv-tone-obj-bg: #E6F0FC;
+  --nv-tone-rec: #0B7068;
+  --nv-tone-rec-bg: #E3F4F1;
+  --nv-tone-book: #A15C07;
+  --nv-tone-book-bg: #FDF1DE;
+  --nv-tone-flow: #6E3FD1;
+  --nv-tone-flow-bg: #EFEAFC;
+  --nv-tag-prod: #B42318;
+  --nv-tag-prod-bg: #FDECEA;
+  --nv-tag-sandbox: #B54708;
+  --nv-tag-sandbox-bg: #FEF3E2;
 
   --nv-danger: #B42318;
   --nv-danger-soft: #FEF2F2;
@@ -73,17 +91,34 @@
   --nv-text-3: #8C97A7;
 
   --nv-brand: #33B3E6;
-  --nv-primary: #33B3E6;
-  --nv-primary-hover: #5CC4EE;
+  --nv-primary: #6AA5F2;
+  --nv-primary-hover: #8BB9F5;
   --nv-on-primary: #0B1320;
-  --nv-primary-text: #5CC4EE;
-  --nv-sel: #1C3342;
+  --nv-primary-text: #6AA5F2;
+  --nv-sel: #1B2C45;
   --nv-on-sel: #E5E9F0;
   --nv-on-sel-2: #B6BFCC;
-  --nv-sel-icon: #5CC4EE;
-  --nv-focus: #33B3E6;
-  --nv-focus-ring: rgba(51, 179, 230, 0.25);
-  --nv-mark: rgba(51, 179, 230, 0.28);
+  --nv-sel-icon: #6AA5F2;
+  --nv-focus: #6AA5F2;
+  --nv-focus-ring: rgba(106, 165, 242, 0.25);
+  --nv-mark: rgba(106, 165, 242, 0.3);
+
+  --nv-key: #222834;
+  --nv-key-border: #3A4150;
+  --nv-tone-setup: #B6BFCC;
+  --nv-tone-setup-bg: #2B3240;
+  --nv-tone-obj: #6AA5F2;
+  --nv-tone-obj-bg: #1B2C45;
+  --nv-tone-rec: #2DD4BF;
+  --nv-tone-rec-bg: #14302C;
+  --nv-tone-book: #FBBF24;
+  --nv-tone-book-bg: #3A2A12;
+  --nv-tone-flow: #A78BFA;
+  --nv-tone-flow-bg: #2A2245;
+  --nv-tag-prod: #F87171;
+  --nv-tag-prod-bg: #3A1D20;
+  --nv-tag-sandbox: #FBBF24;
+  --nv-tag-sandbox-bg: #3A2A12;
 
   --nv-danger: #F87171;
   --nv-danger-soft: #2A1A1D;
@@ -112,6 +147,6 @@
 .nv-dark mark {
   background: var(--nv-mark);
   color: inherit;
-  border-radius: 3px;
+  border-radius: 4px;
   padding: 0 1px;
 }

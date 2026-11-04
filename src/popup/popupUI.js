@@ -109,7 +109,7 @@
             icon(opts.icon) +
             (opts.sub ? `<span class="nv-row-text">${label}<span class="nv-row-sub"></span></span>` : label) +
             (opts.meta ? '<span class="nv-row-meta"></span>' : "") +
-            `<span class="nv-row-enter" aria-hidden="true">${icon("enter", 14, 2)}</span>`;
+            '<span class="nv-row-enter" aria-hidden="true"><kbd>↵</kbd></span>';
         if (opts.sub) a.querySelector(".nv-row-sub").textContent = opts.sub;
         if (opts.meta) a.querySelector(".nv-row-meta").textContent = opts.meta;
         a.addEventListener("click", (e) => {
@@ -357,7 +357,6 @@
             t.tabIndex = t.dataset.tab === name ? 0 : -1; // roving tabindex
         });
         showPanel(name);
-        $("tabAddOrg").hidden = name !== "orgs";
         $("popupSearch").placeholder = PLACEHOLDERS[name];
         $("popupSearch").setAttribute("aria-label", PLACEHOLDERS[name]);
     }
@@ -407,10 +406,14 @@
         const org = saved || { host: currentHost };
         const type = SFEN_ORGS.orgType(org);
         const name = saved ? SFEN_ORGS.displayName(saved) : SFEN_ORGS.defaultName(currentHost);
-        const mark = SFEN_ORGS_TAB.marker(org, 14);
+        const mark = SFEN_ORGS_TAB.marker(org, 24);
         mark.classList.add("nv-org-mark");
         btn.querySelector(".nv-org-mark").replaceWith(mark);
         btn.querySelector(".nv-org-switch-name").textContent = name;
+        const tag = btn.querySelector(".nv-type-tag");
+        tag.className = "nv-type-tag " + type;
+        tag.textContent = SFEN_ORGS.TYPES[type];
+        btn.querySelector(".nv-org-switch-host").textContent = SFEN_ORGS.shortHost(currentHost);
         const action = settings.popupTabs.orgs ? ". Switch org" : saved ? "" : ". Add this org";
         btn.setAttribute("aria-label", `Current org: ${name}, ${SFEN_ORGS.TYPES[type].toLowerCase()}${action}`);
         btn.hidden = !currentHost;
@@ -727,6 +730,7 @@
 
         const setupItems = recentSetup.filter((it) => SFEN_URL.isSafePath(it.url)).slice(0, 9);
         $("recentSetupLabel").hidden = !setupItems.length;
+        $("recentSetupCount").textContent = setupItems.length;
         setupItems.forEach((it) => {
             const label = it.label || it.url;
             setupList.appendChild(
@@ -742,6 +746,7 @@
 
         const recordItems = recentRecords.slice(0, settings.recentCount);
         $("recentRecordsLabel").hidden = !recordItems.length;
+        $("recentRecordsCount").textContent = recordItems.length;
         recordItems.forEach((r) => {
             const type = r.attributes ? r.attributes.type : "Record";
             const name = r.Name || r.Id;
@@ -769,7 +774,13 @@
             search.dispatchEvent(new Event("input"));
             search.focus();
         });
-        if (!IS_MAC) document.querySelectorAll(".nv-empty-tip b").forEach((b) => (b.textContent = "Alt+K"));
+        if (!IS_MAC) {
+            document.querySelectorAll(".nv-empty-tip b").forEach((b) => (b.textContent = "Alt+K"));
+            document.querySelectorAll(".nv-footer [data-mod]").forEach((k) => (k.textContent = "Ctrl"));
+            document.querySelectorAll(".nv-footer [data-alt]").forEach((k) => (k.textContent = "Alt"));
+        }
+        // The palette opens only on a Salesforce page, and only when it's on.
+        $("paletteHint").hidden = !ready.isSalesforce || !settings.commandPalette;
 
         if (!ready.isSalesforce) {
             // popup.js built the off-Salesforce screen; only the org list is live.
@@ -777,7 +788,6 @@
                 $("searchClear").hidden = !e.target.value;
                 filterOrgs(e.target.value);
             });
-            $("headerAddOrg").addEventListener("click", SFEN_ORGS_TAB.openAdd);
             document.addEventListener("keydown", onKeydown);
             search.focus();
             return;
@@ -814,7 +824,6 @@
             if (settings.popupTabs.orgs) switchTab("orgs");
             else if (!SFEN_ORGS_TAB.find(currentHost)) SFEN_ORGS_TAB.openAdd();
         });
-        $("tabAddOrg").addEventListener("click", SFEN_ORGS_TAB.openAdd);
 
         const openSetup = $("recentOpenSetup");
         openSetup.href = absUrl("/lightning/setup/SetupOneHome/home");

@@ -22,6 +22,7 @@
 
 ### Changed
 - A cleaner palette: one width while you type, one text size for every row and one blue. Each result has a colored tile by kind (Setup, object, record, bookmark, flow). The commands sit under their group's name (Objects, Records, Go to, Setup). The search bar names the org's type (Production, Sandbox and so on). Key hints show as keys, and the selected row shows its own: `Enter` to open, `→` for its actions or preview (the `⋯` button is gone).
+- A cleaner popup: the org you're on is the header, with its type and My Domain. The tabs have icons, rows have the palette's colored tiles, and each saved org shows its type as a tag. One Add org button sits at the top of the Orgs list. A footer shows the keys: move, open, new tab and `Alt+K` (`Option+K` on a Mac) for the palette. The popup and Settings use the palette's blue.
 - A user in the palette no longer lists Login as, Copy User Id and Manage in Setup under its row; they're in the user's preview. Records have a record icon instead of a file icon.
 - Recent Setup also keeps the Setup pages you open by clicking through Setup, not only those opened with Navigator.
 - Faster palette search in orgs with many users: records no longer wait for the user lookup, and each shows as soon as it arrives. A search you've typed past is stopped instead of running on.

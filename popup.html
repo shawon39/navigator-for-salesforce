@@ -27,10 +27,14 @@
                 <svg class="nv-logo" width="22" height="22" viewBox="0 0 128 128" aria-hidden="true"><rect x="3" y="3" width="122" height="122" rx="28" fill="#FFFFFF" stroke="#111111" stroke-width="6"/><path d="M32 94V38L84 90V36M68 52L84 36L100 52" fill="none" stroke="#111111" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span class="nv-brand">Navigator</span>
                 <button id="orgSwitch" type="button" class="nv-org-switch" hidden>
-                    <span class="nv-dot nv-org-mark"></span><span class="nv-org-switch-name"></span><span data-icon="chevronDown" data-size="14" data-stroke="2"></span>
+                    <span class="nv-dot nv-org-mark"></span>
+                    <span class="nv-org-switch-text">
+                        <span class="nv-org-switch-line"><span class="nv-org-switch-name"></span><span class="nv-type-tag"></span></span>
+                        <span class="nv-org-switch-host nv-mono"></span>
+                    </span>
+                    <span data-icon="chevronDown" data-size="16" data-stroke="2"></span>
                 </button>
-                <button id="headerAddOrg" type="button" class="nv-btn-link nv-with-icon" hidden><span data-icon="plus" data-size="14" data-stroke="2.2"></span>Add org</button>
-                <button id="settingsBtn" type="button" class="nv-icon-btn" aria-label="Settings" title="Settings"><span data-icon="gear" data-size="17"></span></button>
+                <button id="settingsBtn" type="button" class="nv-icon-btn" aria-label="Settings" title="Settings"><span data-icon="gear" data-size="16"></span></button>
             </div>
             <label class="nv-search">
                 <span data-icon="search" data-stroke="2"></span>
@@ -41,11 +45,10 @@
 
         <!-- Section tabs -->
         <nav class="nv-tabs" role="tablist" aria-label="Sections">
-            <button type="button" class="nv-tab" id="tabbtn-recent" data-tab="recent" role="tab" aria-selected="false" aria-controls="tab-recent">Recent</button>
-            <button type="button" class="nv-tab" id="tabbtn-navigate" data-tab="navigate" role="tab" aria-selected="false" aria-controls="tab-navigate">Navigate</button>
-            <button type="button" class="nv-tab" id="tabbtn-objects" data-tab="objects" role="tab" aria-selected="false" aria-controls="tab-objects">Objects</button>
-            <button type="button" class="nv-tab" id="tabbtn-orgs" data-tab="orgs" role="tab" aria-selected="false" aria-controls="tab-orgs">Orgs</button>
-            <button id="tabAddOrg" type="button" class="nv-btn-link nv-with-icon nv-tabs-action" hidden><span data-icon="plus" data-size="14" data-stroke="2.2"></span>Add org</button>
+            <button type="button" class="nv-tab" id="tabbtn-recent" data-tab="recent" role="tab" aria-selected="false" aria-controls="tab-recent"><span data-icon="clock" data-size="14" data-stroke="2"></span>Recent</button>
+            <button type="button" class="nv-tab" id="tabbtn-navigate" data-tab="navigate" role="tab" aria-selected="false" aria-controls="tab-navigate"><span data-icon="compass" data-size="14" data-stroke="2"></span>Navigate</button>
+            <button type="button" class="nv-tab" id="tabbtn-objects" data-tab="objects" role="tab" aria-selected="false" aria-controls="tab-objects"><span data-icon="box" data-size="14" data-stroke="2"></span>Objects</button>
+            <button type="button" class="nv-tab" id="tabbtn-orgs" data-tab="orgs" role="tab" aria-selected="false" aria-controls="tab-orgs"><span data-icon="cloud" data-size="14" data-stroke="2"></span>Orgs</button>
         </nav>
 
         <!-- Search results (cover the tabs while searching) -->
@@ -55,11 +58,11 @@
         <main id="tab-recent" class="nv-main nv-list tab-panel" role="tabpanel" aria-labelledby="tabbtn-recent" hidden>
             <div class="nv-recent-cols">
                 <div class="nv-recent-col">
-                    <div id="recentRecordsLabel" class="nv-group" hidden>Records</div>
+                    <div id="recentRecordsLabel" class="nv-group" hidden>Records <span id="recentRecordsCount" class="nv-group-count"></span></div>
                     <div id="recentList"></div>
                 </div>
                 <div class="nv-recent-col">
-                    <div id="recentSetupLabel" class="nv-group" hidden>Setup</div>
+                    <div id="recentSetupLabel" class="nv-group" hidden>Setup <span id="recentSetupCount" class="nv-group-count"></span></div>
                     <div id="recentSetup"></div>
                 </div>
             </div>
@@ -97,5 +100,13 @@
             <!-- Saved orgs. Populated by logins.js. -->
             <div id="quickLogin"></div>
         </main>
+
+        <!-- Key hints. popupUI.js shows Ctrl and Alt off a Mac, and the palette hint only on Salesforce. -->
+        <footer class="nv-footer">
+            <span class="nv-fk"><kbd>↑</kbd><kbd>↓</kbd>Move</span>
+            <span class="nv-fk"><kbd>↵</kbd>Open</span>
+            <span class="nv-fk"><kbd data-mod>⌘</kbd><kbd>↵</kbd>New tab</span>
+            <span id="paletteHint" class="nv-fk nv-footer-end" hidden><kbd data-alt>⌥</kbd><kbd>K</kbd>Palette</span>
+        </footer>
     </body>
 </html>
