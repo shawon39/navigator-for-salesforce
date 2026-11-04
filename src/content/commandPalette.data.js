@@ -133,9 +133,13 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
 .scope-chip .chip-x { display:inline-flex; width:12px; height:12px; opacity:0.8; }
 .scope-chip:hover .chip-x { opacity:1; }
 .search-wrap:has(.scope-chip) { gap:10px; }
-.cmd-bar { min-height:40px; line-height:40px; padding:0 10px; font-size:12px; color:var(--nv-text-3); }
-.cmd-verb { background:none; border:0; padding:0; cursor:pointer; font:inherit; font-family:"JetBrains Mono",monospace; }
+.cmd-bar { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 24px; padding:12px 10px; font-size:12px; color:var(--nv-text-3); }
+.cmd-group { display:inline-flex; align-items:baseline; gap:12px; white-space:nowrap; }
+.cmd-label { font-weight:600; }
+.cmd-verb { display:inline-flex; align-items:baseline; gap:4px; background:none; border:0; padding:0; cursor:pointer;
+  font:inherit; font-family:"JetBrains Mono",monospace; }
 .cmd-verb:hover { text-decoration:underline; }
+.cmd-key { color:var(--nv-text-3); font-size:11px; }
 .inspector { padding:0; }
 .insp-head { display:flex; align-items:center; gap:12px; padding:6px 10px 10px; }
 .insp-title-wrap { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
@@ -318,6 +322,13 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     // Short forms, typed like the words: "f acc" is "fields acc". "lo" and
     // "li" because login and list both start with l, "re" because r is record.
     const VERB_SHORT = { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record", c: "count", re: "recent" };
+    // The board's hint line, by what each command works on. Every verb with a
+    // short form belongs in one group (the tests check).
+    const VERB_GROUPS = [
+        ["Objects", ["new", "list", "fields", "count"]],
+        ["Records", ["recent", "record"]],
+        ["Go to", ["app", "org", "login"]],
+    ];
 
     // How well `q` names object `o`. The plural label counts too, so
     // "contacts" finds Contact rather than Contact Request.
@@ -504,6 +515,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         UI_ICONS,
         VERBS,
         VERB_SHORT,
+        VERB_GROUPS,
         isRelevantObject,
         objectEntries,
         objectActions,

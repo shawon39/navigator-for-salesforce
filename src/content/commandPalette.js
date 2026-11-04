@@ -17,6 +17,7 @@
         GROUPS,
         VERBS,
         VERB_SHORT,
+        VERB_GROUPS,
         SETUP_PAGES,
         FALLBACK_OBJECTS,
         isRelevantObject,
@@ -1775,23 +1776,33 @@
         setActive(0);
     }
 
-    // A hint line teaching the command verbs and their short forms; each verb
-    // is clickable.
+    // A hint line teaching the command verbs and their short forms, grouped by
+    // what they work on; each verb is clickable. A group never splits across
+    // lines, so no verb is left alone on the next one.
     function buildCmdBar() {
         const bar = document.createElement("div");
         bar.className = "cmd-bar";
-        bar.append("Start with ");
-        [["new", ", "], ["list", ", "], ["fields", ", "], ["app", ", "], ["org", ", "], ["login", " or "], ["record", " — or paste a record Id."]].forEach(
-            ([verb, after]) => {
+        VERB_GROUPS.forEach(([name, verbs]) => {
+            const group = document.createElement("span");
+            group.className = "cmd-group";
+            const label = document.createElement("span");
+            label.className = "cmd-label";
+            label.textContent = name;
+            group.appendChild(label);
+            verbs.forEach((verb) => {
                 const btn = document.createElement("button");
                 btn.type = "button";
                 btn.className = "cmd-verb";
                 btn.textContent = verb;
                 btn.addEventListener("click", () => setVerb(verb, ""));
-                const short = Object.keys(VERB_SHORT).find((k) => VERB_SHORT[k] === verb);
-                bar.append(btn, ` (${short})${after}`);
-            }
-        );
+                const key = document.createElement("span");
+                key.className = "cmd-key";
+                key.textContent = Object.keys(VERB_SHORT).find((k) => VERB_SHORT[k] === verb);
+                btn.appendChild(key);
+                group.appendChild(btn);
+            });
+            bar.appendChild(group);
+        });
         return bar;
     }
 

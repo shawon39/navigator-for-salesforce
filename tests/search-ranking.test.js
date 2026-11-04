@@ -114,6 +114,9 @@ for (const [short, verb] of Object.entries(VERB_SHORT)) {
     assert(VERBS[verb], `${short} -> ${verb}`);
     assert(!VERBS[short], `${short} is already a verb`);
 }
+// The board's hint line lists every verb with a short form, once.
+const grouped = window.SFEN_CMDK_DATA.VERB_GROUPS.flatMap(([, verbs]) => verbs);
+assert.deepStrictEqual(grouped.slice().sort(), Object.values(VERB_SHORT).sort());
 console.log("PASS short verb forms");
 
 // An object's → actions include its Object Manager pages, shared with the popup.
