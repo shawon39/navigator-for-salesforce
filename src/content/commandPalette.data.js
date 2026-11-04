@@ -47,7 +47,7 @@
 .peek-title { font-size:15px; font-weight:600; line-height:1.3; color:var(--nv-text); word-break:break-word; }
 .peek-type { margin-top:1px; font-size:12px; color:var(--nv-text-3); }
 .peek-fields { margin-top:14px; border-top:1px solid var(--nv-border); }
-.peek-field { padding:8px 0; border-bottom:1px solid var(--nv-border); }
+.peek-field { position:relative; padding:8px 28px 8px 0; border-bottom:1px solid var(--nv-border); }
 .peek-field:last-child { border-bottom:0; }
 .peek-label { display:block; margin-bottom:2px; font-size:11px; color:var(--nv-text-3); word-break:break-word; }
 .peek-val { font-size:13px; color:var(--nv-text); word-break:break-word; white-space:pre-wrap; }
@@ -55,12 +55,19 @@
 .peek-link { background:none; border:0; padding:0; font:inherit; font-size:13px; color:var(--nv-primary-text); cursor:pointer;
   text-align:left; word-break:break-word; }
 .peek-link:hover { text-decoration:underline; }
-.peek-actions { position:sticky; bottom:0; display:flex; align-items:center; gap:6px; margin-top:auto; padding:12px 0 14px;
+.peek-actions { position:sticky; bottom:0; display:flex; flex-direction:column; gap:6px; margin-top:auto; padding:12px 0 14px;
   background:var(--nv-surface); }
-.peek-open { flex:1; height:30px; border:0; border-radius:8px; background:var(--nv-primary); color:var(--nv-on-primary);
+.peek-row { display:flex; gap:6px; }
+.peek-btn { flex:1; min-width:0; height:30px; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:0 6px;
+  border:1px solid var(--nv-border); border-radius:8px; background:transparent; color:var(--nv-text);
   font:600 12px "Figtree","Segoe UI",system-ui,sans-serif; cursor:pointer; }
-.peek-icon { width:30px; height:30px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; padding:0;
-  border:1px solid var(--nv-border); border-radius:8px; background:transparent; color:var(--nv-text-2); cursor:pointer; }
+.peek-btn span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.peek-btn svg { flex-shrink:0; color:var(--nv-text-2); }
+.peek-btn:hover { background:var(--nv-surface-2); }
+.peek-icon { position:absolute; right:0; top:50%; transform:translateY(-50%); width:24px; height:24px; display:inline-flex;
+  align-items:center; justify-content:center; padding:0; border:0; border-radius:6px; background:transparent;
+  color:var(--nv-text-3); cursor:pointer; opacity:0; }
+.peek-field:hover .peek-icon, .peek-icon:focus-visible, .peek-icon.copied, .peek-icon.failed { opacity:1; }
 .peek-icon:hover { background:var(--nv-surface-2); color:var(--nv-text); }
 .peek-icon.copied { color:var(--nv-success); }
 .peek-icon.failed { color:var(--nv-danger); }
@@ -447,7 +454,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         [GROUPS.RECENT]: WRENCH,
         [GROUPS.BOOKMARK]: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
         [GROUPS.SETUP_TAB]: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/>',
-        [GROUPS.RECORD]: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+        [GROUPS.RECORD]: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M7 13h6"/><path d="M7 16h10"/>',
         [GROUPS.OBJECT]: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
         [GROUPS.SETUP]: WRENCH,
         [GROUPS.FLOW]: '<rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/>',

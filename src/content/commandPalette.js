@@ -82,6 +82,7 @@
     let paletteDark = false; // the palette's resolved theme, for icon shades
     let peekOpen = false; // the record preview beside the results is showing
     let peekTimer = null;
+    let peekEntry = null; // the result row the preview shows
     const peekCache = {}; // record Id -> peek record, "loading" or "failed"
     let hop = null; // the current record's lookups ("hop" action)
     let hopKey = null; // record Id hop was requested for
@@ -408,15 +409,6 @@
         return parts.join(" · ");
     }
 
-    function userActions(id) {
-        return [
-            { label: "Login as — new tab", hint: "Login", kind: "loginAs", userId: id, incognito: false },
-            { label: "Login as — Incognito", hint: "Login", kind: "loginAs", userId: id, incognito: true },
-            { label: "Copy User Id", hint: "Copy", kind: "copy", text: id },
-            { label: "Manage in Setup", hint: "Setup", kind: "nav", url: recordUrl("User", id) },
-        ];
-    }
-
     function mapRecord(r) {
         const type = r.attributes ? r.attributes.type : "Record";
         const name = r.Name || r.CaseNumber || r.ContractNumber || r.OrderNumber || r.Id;
@@ -432,7 +424,6 @@
             // Users are also found by Username and Alias; rank those matches too.
             item.keywords += ` ${r.Username || ""} ${r.Alias || ""}`;
             item.sub = userSub(r);
-            item.actions = userActions(r.Id);
             item.user = r; // raw fields for the "login" verb
         }
         return item;
@@ -962,10 +953,8 @@
     // ---- Peek ------------------------------------------------------------
     // → on a record shows its key fields beside the results, and the preview
     // follows the selection until ← or Esc.
-    // A user's preview opens with its ⋯ actions and stays while you move through them.
     function peekable(item) {
-        if (item && item.__action) item = item.parent;
-        return !!(item && item.recordId && (item.user || !(item.actions && item.actions.length)));
+        return !!(item && !item.__action && item.recordId && !(item.actions && item.actions.length));
     }
 
     function setPeek(on) {
@@ -974,6 +963,7 @@
         if (!peekEl) return;
         peekEl.hidden = !on;
         panelEl.classList.toggle("peek-mode", on);
+        peekEntry = null;
         if (on) renderPeek();
         else peekEl.textContent = ""; // don't leave record values in the page
     }
@@ -989,12 +979,11 @@
         if (!peekOpen || !peekEl) return;
         clearTimeout(peekTimer);
         peekEl.textContent = "";
-        let i = activeIndex;
-        let entry = flatResults[i];
-        if (entry && entry.__action) {
-            entry = entry.parent;
-            i = flatResults.indexOf(entry);
-        }
+        // Reaching the panel can cross rows that aren't records (the board's
+        // right column), so the preview stays on the last record.
+        if (peekable(flatResults[activeIndex])) peekEntry = flatResults[activeIndex];
+        const i = flatResults.indexOf(peekEntry);
+        const entry = flatResults[i];
         if (!peekable(entry)) return peekNote("Select a record to preview it.");
         if (!liveEnabled) return peekNote("Live org access is off (turn it on in Settings).");
         const id = entry.recordId;
@@ -1016,9 +1005,25 @@
         peekEl.appendChild(head);
 
         // Each field's name above its value.
+        // A copy button shows a check (or turns red) for a moment.
+        const copy = (b, text) => {
+            if (b.classList.contains("copied") || b.classList.contains("failed")) return;
+            const done = (cls) => {
+                b.classList.add(cls);
+                if (cls === "copied") b.innerHTML = UI_ICONS.check;
+                setTimeout(() => {
+                    b.classList.remove(cls);
+                    b.innerHTML = UI_ICONS.copy;
+                }, 1500);
+            };
+            writeClipboard(text).then(() => done("copied"), () => done("failed"));
+        };
+
         const list = document.createElement("div");
         list.className = "peek-fields";
-        rec.fields.forEach((f) => {
+        // The Id comes last (a user's is already there, as User Id).
+        const fields = rec.type === "User" ? rec.fields : rec.fields.concat({ label: "Record Id", value: rec.id, lookup: null });
+        fields.forEach((f) => {
             const row = document.createElement("div");
             row.className = "peek-field";
             const label = document.createElement("span");
@@ -1040,46 +1045,54 @@
             }
             val.textContent = f.value || "Empty";
             row.append(label, val);
+            if (f.value && !f.lookup) {
+                // Hovering a value shows a button that copies it.
+                const b = document.createElement("button");
+                b.type = "button";
+                b.className = "peek-icon";
+                b.title = "Copy " + f.label;
+                b.setAttribute("aria-label", b.title);
+                b.innerHTML = UI_ICONS.copy;
+                b.addEventListener("click", () => copy(b, f.value));
+                row.appendChild(b);
+            }
             list.appendChild(row);
         });
         peekEl.appendChild(list);
 
-        // Open, then icon buttons; stays at the bottom while the fields scroll.
+        // Labeled buttons, at the bottom while the fields scroll. Enter or a
+        // click on the row already opens the record, so there's no Open.
         const actions = document.createElement("div");
         actions.className = "peek-actions";
-        const open = document.createElement("button");
-        open.type = "button";
-        open.className = "peek-open";
-        open.textContent = "Open ↵";
-        open.addEventListener("click", () => choose(i, false));
-        actions.appendChild(open);
-        const iconBtn = (icon, label, onClick) => {
-            const b = document.createElement("button");
-            b.type = "button";
-            b.className = "peek-icon";
-            b.title = label;
-            b.setAttribute("aria-label", label);
-            b.innerHTML = UI_ICONS[icon];
-            b.dataset.icon = icon;
-            b.addEventListener("click", () => onClick(b));
-            actions.appendChild(b);
+        const addRow = (buttons) => {
+            const row = document.createElement("div");
+            row.className = "peek-row";
+            buttons.forEach(([icon, text, onClick]) => {
+                const b = document.createElement("button");
+                b.type = "button";
+                b.className = "peek-btn";
+                b.innerHTML = (icon ? UI_ICONS[icon] : "") + "<span></span>";
+                b.lastChild.textContent = text;
+                b.addEventListener("click", () => onClick(b));
+                row.appendChild(b);
+            });
+            actions.appendChild(row);
         };
-        // A copy button shows a check (or turns red) for a moment.
-        const copy = (b, text) => {
-            if (b.classList.contains("copied") || b.classList.contains("failed")) return;
-            const done = (cls) => {
-                b.classList.add(cls);
-                if (cls === "copied") b.innerHTML = UI_ICONS.check;
-                setTimeout(() => {
-                    b.classList.remove(cls);
-                    b.innerHTML = UI_ICONS[b.dataset.icon];
-                }, 1500);
-            };
-            writeClipboard(text).then(() => done("copied"), () => done("failed"));
-        };
-        iconBtn("newTab", "Open in a new tab", () => choose(i, true));
-        iconBtn("copy", "Copy Id", (b) => copy(b, rec.id));
-        iconBtn("link", "Copy link", (b) => copy(b, lightningOrigin() + entry.url));
+        if (rec.type === "User") {
+            addRow([
+                [null, "Login as", () => runAction({ kind: "loginAs", userId: rec.id, incognito: false })],
+                [null, "Login as · Incognito", () => runAction({ kind: "loginAs", userId: rec.id, incognito: true })],
+            ]);
+        }
+        const copyLink = (b) =>
+            writeClipboard(lightningOrigin() + entry.url).then(() => {
+                b.lastChild.textContent = "Copied";
+                setTimeout(() => (b.lastChild.textContent = "Copy link"), 1500);
+            }, () => flashFooter("Copy failed"));
+        addRow([
+            ["newTab", "New tab", () => choose(i, true)],
+            ["link", "Copy link", copyLink],
+        ]);
         peekEl.appendChild(actions);
     }
 
@@ -1093,7 +1106,7 @@
             if (expandedKey && item.url === expandedKey && item.actions) {
                 item.actions.forEach((action) => {
                     const si = flatResults.length;
-                    flatResults.push({ __action: action, parent: item });
+                    flatResults.push({ __action: action });
                     container.appendChild(makeRow(action, si, true));
                 });
             }
@@ -1791,7 +1804,6 @@
         render(currentQuery);
         const pIdx = flatResults.findIndex((e) => !e.__action && e.url === key);
         if (pIdx < 0) return;
-        if (flatResults[pIdx].user) setPeek(!!expandedKey);
         setActive(expandedKey ? pIdx + 1 : pIdx);
     }
 
