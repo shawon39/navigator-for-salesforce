@@ -19,6 +19,7 @@
 - A user in the palette no longer lists Login as, Copy User Id and Manage in Setup under its row; they're in the user's preview. Records have a record icon instead of a file icon.
 - Recent Setup also keeps the Setup pages you open by clicking through Setup, not only those opened with Navigator.
 - Faster palette search in orgs with many users: records no longer wait for the user lookup, and each shows as soon as it arrives. A search you've typed past is stopped instead of running on.
+- The popup's Navigate tab has one row of five shortcuts: Home, Setup, Object Manager, Dev Console and Users. Flows and the Inbound and Outbound change sets are still a search away. You can keep up to 25 bookmarks (was 10); the list scrolls under the shortcuts.
 
 ### Fixed
 - A new custom object could stay missing from search and the palette for hours, because Chrome reused an older copy of the org's object list. Navigator now checks with Salesforce first.

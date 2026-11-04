@@ -15,7 +15,7 @@
 
     const TAB_KEYS = Object.keys(S.DEFAULTS.popupTabs);
     const EXPORT_KEYS = ["bookmarks", "sfTabs", "quickOrgs", "pinnedObjects", "orgColors", "settings"];
-    const MAX_BOOKMARKS = 10; // same caps as the popup
+    const MAX_BOOKMARKS = 25; // same caps as the popup
     const MAX_ORGS = 50;
     const ENV_VARS = { production: "prod", sandbox: "sandbox", scratch: "scratch", developer: "dev", trailhead: "other" };
     const ICON_X =

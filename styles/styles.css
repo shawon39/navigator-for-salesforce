@@ -587,14 +587,24 @@ body.is-searching .nv-tabs {
 }
 
 /* ---- Navigate --------------------------------------------------------- */
+/* The tiles and the Bookmarks bar stay put; only the bookmark list scrolls. */
 .nv-navigate {
     padding: 12px 12px 8px;
+    overflow: hidden;
+}
+
+.nv-bookmark-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--nv-surface-3) transparent;
 }
 
 .nv-quick-grid {
     display: grid;
     flex-shrink: 0;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 6px;
 }
 
@@ -602,10 +612,10 @@ body.is-searching .nv-tabs {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start; /* icons line up when a label wraps */
     gap: 6px;
     height: 62px;
-    padding: 0 4px;
+    padding: 10px 4px 0;
     border-radius: 8px;
     background: var(--nv-surface-2);
     color: var(--nv-text);

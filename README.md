@@ -47,7 +47,7 @@ You can also paste a 15- or 18-character record Id. The closest match comes firs
 **The popup** (`Alt+N`, or `Option+N` on a Mac) has four tabs:
 
 - **Recent**: Setup pages you opened, and records you viewed
-- **Navigate**: Home, Setup, Object Manager, Dev Console, Flows, Users, change sets, and up to 10 bookmarks
+- **Navigate**: Home, Setup, Object Manager, Dev Console, Users, and up to 25 bookmarks
 - **Objects**: your org's objects, with list, new record and fields, and a menu for layouts, record types, validation rules and triggers. Objects from installed packages are hidden from the list until you turn them on (in Settings or under the list), but search always finds them
 - **Orgs**: your saved orgs, with a colored dot for production, sandbox, scratch and developer orgs. Rename them, pin your favorites, open any of them in one click, or open the page you're on in another org
 

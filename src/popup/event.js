@@ -9,9 +9,6 @@
         devConsole: "/_ui/common/apex/debug/ApexCSIPage",
         objManager: "/lightning/setup/ObjectManager/home",
         home: "/lightning/page/home",
-        flows: "/lightning/setup/Flows/home",
-        inChangeSets: "/lightning/setup/InboundChangeSet/home",
-        outChangeSets: "/lightning/setup/OutboundChangeSet/home",
         users: "/lightning/setup/ManageUsers/home",
     };
 
