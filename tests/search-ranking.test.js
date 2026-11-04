@@ -114,10 +114,29 @@ for (const [short, verb] of Object.entries(VERB_SHORT)) {
     assert(VERBS[verb], `${short} -> ${verb}`);
     assert(!VERBS[short], `${short} is already a verb`);
 }
-// The board's hint line lists every verb with a short form, once.
+// The board's hints list every verb with a short form, once, and only real verbs.
 const grouped = window.SFEN_CMDK_DATA.VERB_GROUPS.flatMap(([, verbs]) => verbs);
-assert.deepStrictEqual(grouped.slice().sort(), Object.values(VERB_SHORT).sort());
+assert.strictEqual(new Set(grouped).size, grouped.length);
+assert(grouped.every((v) => VERBS[v]), grouped.join());
+assert(Object.values(VERB_SHORT).every((v) => grouped.includes(v)));
 console.log("PASS short verb forms");
+
+// Org Limits: readable names, most used share first, unused last by name.
+const { limitLabel, sortLimits } = window.SFEN_CMDK_DATA;
+assert.strictEqual(limitLabel("DailyApiRequests"), "Daily API Requests");
+assert.strictEqual(limitLabel("DataStorageMB"), "Data Storage MB");
+const sorted = sortLimits([
+    { name: "SingleEmail", max: 5000, remaining: 5000 },
+    { name: "DailyApiRequests", max: 15000, remaining: 6000 },
+    { name: "MassEmail", max: 10, remaining: 10 },
+    { name: "DataStorageMB", max: 5, remaining: -1 },
+    { name: "HourlyODataCallout", max: 0, remaining: 0 },
+    { name: "DailyAsyncApexExecutions", max: 250000, remaining: 249000 },
+]);
+assert.deepStrictEqual(sorted.map((l) => l.name), ["DataStorageMB", "DailyApiRequests", "DailyAsyncApexExecutions", "HourlyODataCallout", "MassEmail", "SingleEmail"]);
+assert.deepStrictEqual([sorted[0].used, sorted[0].pct], [6, 1.2]);
+assert.deepStrictEqual([sorted[1].used, sorted[1].pct], [9000, 0.6]);
+console.log("PASS org limits sort");
 
 // An object's → actions include its Object Manager pages, shared with the popup.
 const { objectActions } = window.SFEN_CMDK_DATA;

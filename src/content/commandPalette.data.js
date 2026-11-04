@@ -13,7 +13,7 @@
   --nv-surface:#FFFFFF; --nv-surface-2:#F3F5F8; --nv-surface-3:#E7EBF0; --nv-border:#E4E8EE;
   --nv-text:#1F2937; --nv-text-2:#4B5563; --nv-text-3:#5F6B7A; --nv-primary:#0073A8;
   --nv-primary-text:#0073A8; --nv-sel:#E6F5FC; --nv-on-sel:#1F2937; --nv-on-sel-2:#5F6B7A;
-  --nv-sel-icon:#0073A8; --nv-mark:#CCEEFB; --nv-success:#15803D; --nv-danger:#B42318; --nv-on-primary:#FFFFFF;
+  --nv-sel-icon:#0073A8; --nv-mark:#CCEEFB; --nv-success:#15803D; --nv-warning:#B45309; --nv-danger:#B42318; --nv-on-primary:#FFFFFF;
   --nv-env-prod:#E5484D; --nv-env-sandbox:#F59E0B; --nv-env-scratch:#8B5CF6; --nv-env-dev:#14B8A6; --nv-env-other:#94A3B8;
   --nv-shadow-lg:0 20px 48px rgba(15,23,42,0.16), 0 2px 6px rgba(15,23,42,0.06);
   --nv-scrim:rgba(15,23,42,0.28); }
@@ -21,7 +21,7 @@
   --nv-surface:#1A1F28; --nv-surface-2:#222834; --nv-surface-3:#2B3240; --nv-border:#2A303B;
   --nv-text:#E5E9F0; --nv-text-2:#B6BFCC; --nv-text-3:#8C97A7; --nv-primary:#33B3E6;
   --nv-primary-text:#5CC4EE; --nv-sel:#1C3342; --nv-on-sel:#E5E9F0; --nv-on-sel-2:#B6BFCC;
-  --nv-sel-icon:#5CC4EE; --nv-mark:rgba(51,179,230,0.28); --nv-success:#4ADE80; --nv-danger:#F87171; --nv-on-primary:#0B1320;
+  --nv-sel-icon:#5CC4EE; --nv-mark:rgba(51,179,230,0.28); --nv-success:#4ADE80; --nv-warning:#FBBF24; --nv-danger:#F87171; --nv-on-primary:#0B1320;
   --nv-env-prod:#F87171; --nv-env-sandbox:#FBBF24; --nv-env-scratch:#A78BFA; --nv-env-dev:#2DD4BF; --nv-env-other:#8C97A7;
   --nv-shadow-lg:0 20px 48px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.3);
   --nv-scrim:rgba(0,0,0,0.45); }
@@ -133,13 +133,32 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
 .scope-chip .chip-x { display:inline-flex; width:12px; height:12px; opacity:0.8; }
 .scope-chip:hover .chip-x { opacity:1; }
 .search-wrap:has(.scope-chip) { gap:10px; }
-.cmd-bar { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 24px; padding:12px 10px; font-size:12px; color:var(--nv-text-3); }
-.cmd-group { display:inline-flex; align-items:baseline; gap:12px; white-space:nowrap; }
-.cmd-label { font-weight:600; }
-.cmd-verb { display:inline-flex; align-items:baseline; gap:4px; background:none; border:0; padding:0; cursor:pointer;
-  font:inherit; font-family:"JetBrains Mono",monospace; }
-.cmd-verb:hover { text-decoration:underline; }
-.cmd-key { color:var(--nv-text-3); font-size:11px; }
+.cmd-bar { padding:10px 10px 12px; font-size:12px; color:var(--nv-text-3); }
+.cmd-how { margin-bottom:10px; }
+.cmd-how code { font-family:"JetBrains Mono",monospace; color:var(--nv-primary-text); }
+.cmd-groups { display:flex; flex-wrap:wrap; align-items:center; gap:8px 20px; }
+.cmd-group { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+.cmd-label { margin-right:2px; font-size:11px; }
+.cmd-verb { display:inline-flex; align-items:center; gap:6px; height:24px; box-sizing:border-box; padding:0 6px 0 8px;
+  border:0; border-radius:6px; background:var(--nv-surface-2); cursor:pointer;
+  font:12px "JetBrains Mono",monospace; }
+.cmd-verb:not(:has(.cmd-key)) { padding-right:8px; }
+.cmd-verb:hover { background:var(--nv-sel); }
+.cmd-key { min-width:8px; padding:0 4px; border:1px solid var(--nv-border); border-bottom-width:2px; border-radius:4px;
+  background:var(--nv-surface); color:var(--nv-text-2); font-size:10.5px; line-height:15px; text-align:center; }
+.limit { display:grid; grid-template-columns:minmax(0,210px) minmax(0,1fr) 132px 40px; gap:12px; align-items:center;
+  height:30px; padding:0 10px; font-size:13px; color:var(--nv-text); }
+.limit-name { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.limit-bar { height:6px; border-radius:3px; background:var(--nv-surface-3); overflow:hidden; }
+.limit-bar span { display:block; height:100%; border-radius:3px; background:var(--nv-success); }
+.limit.mid .limit-bar span { background:var(--nv-warning); }
+.limit.high .limit-bar span { background:var(--nv-danger); }
+.limit-num, .limit-pct { text-align:right; font-size:12px; font-variant-numeric:tabular-nums; }
+.limit-num { color:var(--nv-text-3); }
+.limit-pct { font-weight:600; }
+.limit.mid .limit-pct { color:var(--nv-warning); }
+.limit.high .limit-pct { color:var(--nv-danger); }
+.limit.unused, .limit.unused .limit-pct { color:var(--nv-text-3); font-weight:400; }
 .inspector { padding:0; }
 .insp-head { display:flex; align-items:center; gap:12px; padding:6px 10px 10px; }
 .insp-title-wrap { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
@@ -315,6 +334,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         org: { kind: "org", label: "Org" }, // saved orgs (quickOrgs)
         orgs: { kind: "org", label: "Org" }, // alias of org
         login: { kind: "login", label: "Log in as" }, // users from the "users" lookup
+        limits: { kind: "limits", label: "Org Limits" }, // how much of each org limit is used
         record: { kind: "inspect", label: "Record" },
         json: { kind: "inspect", label: "Record" }, // alias of record
         api: { kind: "inspect", label: "Record" }, // alias of record
@@ -322,13 +342,30 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     // Short forms, typed like the words: "f acc" is "fields acc". "lo" and
     // "li" because login and list both start with l, "re" because r is record.
     const VERB_SHORT = { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record", c: "count", re: "recent" };
-    // The board's hint line, by what each command works on. Every verb with a
-    // short form belongs in one group (the tests check).
+    // The board's command hints, by what each command works on. Every verb with
+    // a short form belongs in one group (the tests check).
     const VERB_GROUPS = [
         ["Objects", ["new", "list", "fields", "count"]],
         ["Records", ["recent", "record"]],
-        ["Go to", ["app", "org", "login"]],
+        ["Go to", ["app", "org", "login", "limits"]],
     ];
+
+    // A limit's API name as words: "DailyApiRequests" -> "Daily API Requests",
+    // "DataStorageMB" -> "Data Storage MB".
+    function limitLabel(name) {
+        return String(name).replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\bApi\b/g, "API");
+    }
+
+    // Org limits with their used share, most used first; unused limits (and
+    // any without a max) last, by name.
+    function sortLimits(limits) {
+        return limits
+            .map((l) => {
+                const used = Math.max(0, l.max - l.remaining);
+                return { name: l.name, label: limitLabel(l.name), max: l.max, used, pct: l.max > 0 ? used / l.max : 0 };
+            })
+            .sort((a, b) => b.pct - a.pct || b.used - a.used || a.label.localeCompare(b.label));
+    }
 
     // How well `q` names object `o`. The plural label counts too, so
     // "contacts" finds Contact rather than Contact Request.
@@ -516,6 +553,8 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         VERBS,
         VERB_SHORT,
         VERB_GROUPS,
+        limitLabel,
+        sortLimits,
         isRelevantObject,
         objectEntries,
         objectActions,

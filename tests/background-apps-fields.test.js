@@ -222,14 +222,28 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     route = () => null;
     console.log("PASS count: total, record types with Master, plain count without them, name checked");
 
+    // ---- limits: each limit's Max and Remaining, nothing else ----
+    route = (url) => (url.includes("/limits/") ? json({
+        DailyApiRequests: { Max: 15000, Remaining: 14000, "Ant Migration Tool": { Max: 0, Remaining: 0 } },
+        DataStorageMB: { Max: 5, Remaining: 5 },
+        "<b>bad</b>": { Max: 1, Remaining: 0 },
+        Broken: { Max: "lots" },
+    }) : null);
+    fetchCalls = [];
+    r = await send({ action: "limits" });
+    assert.deepStrictEqual(r.limits, [{ name: "DailyApiRequests", max: 15000, remaining: 14000 }, { name: "DataStorageMB", max: 5, remaining: 5 }]);
+    assert(fetchCalls[0].includes("/limits/"), fetchCalls[0]);
+    route = () => null;
+    console.log("PASS limits: Max and Remaining per limit, bad names and values dropped");
+
     storage = { settings: { liveOrgAccess: false } };
-    for (const action of ["apps", "fields", "count"]) {
+    for (const action of ["apps", "fields", "count", "limits"]) {
         fetchCalls = [];
         r = await send({ action, object: "Account" });
         assert.deepStrictEqual([r.ok, r.error, fetchCalls.length], [false, "Live org access is off", 0]);
     }
     storage = {};
-    console.log("PASS apps/fields/count gated by liveOrgAccess");
+    console.log("PASS apps/fields/count/limits gated by liveOrgAccess");
 
     r = await new Promise((resolve) => listener({ type: "palette", action: "fields", object: "Account", host: "evil.example.com" }, T, resolve));
     assert.strictEqual(r.ok, false);

@@ -284,7 +284,7 @@ async function sfRecordUi(host, id, layoutType) {
 }
 
 // Actions that read org data; all are gated by the liveOrgAccess setting.
-const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "fields", "flowVersions", "peek", "hop", "listViews", "count"]);
+const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "fields", "flowVersions", "peek", "hop", "listViews", "count", "limits"]);
 
 // Why a palette message must be refused, or null when it's allowed.
 function paletteDenied(msg, sender) {
@@ -757,6 +757,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     recordTypes.push({ name: "Master", count: counts.master || 0, active: true });
                     sendResponse({ ok: true, total, recordTypes });
                 }
+            } else if (msg.action === "limits") {
+                // The org's limits for the palette's Org Limits view. Each
+                // connected app's share of a limit is left out.
+                const data = (await sfFetch(host, `/services/data/${SF_API_VERSION}/limits/`)) || {};
+                const limits = Object.keys(data)
+                    .filter((k) => /^[A-Za-z0-9_]+$/.test(k) && data[k] && Number.isFinite(data[k].Max) && Number.isFinite(data[k].Remaining))
+                    .map((k) => ({ name: k, max: data[k].Max, remaining: data[k].Remaining }));
+                sendResponse({ ok: true, limits });
             } else if (msg.action === "peek" && USER_ID_RE.test(msg.recordId || "")) {
                 sendResponse({ ok: true, record: await sfUserPeek(host, msg.recordId) });
             } else if (msg.action === "peek") {

@@ -18,6 +18,7 @@
         VERBS,
         VERB_SHORT,
         VERB_GROUPS,
+        sortLimits,
         SETUP_PAGES,
         FALLBACK_OBJECTS,
         isRelevantObject,
@@ -65,6 +66,8 @@
     let listRecentCache = {}; // object API name -> your last 5 viewed [{id,name}], loaded with its list views
     let countCache = {}; // object API name -> { total, recordTypes } or "failed", for the "count" verb
     let countKey = null; // object whose records are being counted
+    let limitsData = null; // [{name,max,remaining}] or "failed", for Org Limits; refetched per open
+    let limitsLoading = false;
     let recentCache = {}; // object API name -> your last 20 viewed records, for the "recent" verb
     let recentCount = SFEN_SETTINGS.DEFAULTS.recentCount; // settings.recentCount: recently viewed records shown
     let recentKey = null; // object whose last viewed records are being fetched
@@ -106,6 +109,15 @@
                     let keywords = `${label} ${category || ""} setup`;
                     if (label === "Users") keywords += " manage users list";
                     items.push({ label, hint: "Setup", group: GROUPS.SETUP, url, keywords });
+                });
+                // Opens the Org Limits view in the palette, not a page (see choose).
+                items.push({
+                    label: "Org Limits",
+                    hint: "Limits",
+                    group: GROUPS.SETUP,
+                    url: "/lightning/setup/SystemOverview/home",
+                    keywords: "org limits usage api requests storage email",
+                    openLimits: true,
                 });
                 (res.sfTabs || []).forEach((t) => {
                     if (t && t.name && SFEN_URL.isSafePath(t.link))
@@ -735,6 +747,14 @@
                 '<span class="footer-count"></span>'
             );
         }
+        if (activeVerb && VERBS[activeVerb].kind === "limits") {
+            return (
+                "<span>Type to filter</span>" +
+                '<span><kbd>⌫</kbd> back to search</span>' +
+                '<span><kbd>esc</kbd> close</span>' +
+                '<span class="footer-count"></span>'
+            );
+        }
         if (activeVerb && VERBS[activeVerb].kind === "login") {
             return (
                 '<span><kbd>↵</kbd> log in</span>' +
@@ -825,7 +845,8 @@
     function startsSetupName(verb, arg) {
         if (!arg.trim()) return false;
         const typed = (verb + " " + arg).toLowerCase().replace(/\s+/g, " ").trimEnd();
-        return SETUP_PAGES.some(([label]) => label.toLowerCase().startsWith(typed));
+        // "org limits" finds the Org Limits result rather than the org verb.
+        return SETUP_PAGES.some(([label]) => label.toLowerCase().startsWith(typed)) || "org limits".startsWith(typed);
     }
 
     function onInput() {
@@ -1167,6 +1188,8 @@
                 ? "Type an app name…"
                 : kind === "org"
                 ? "Type an org name…"
+                : kind === "limits"
+                ? "Filter limits…"
                 : "Type an object name…";
         renderChip();
         resetFooter();
@@ -1190,6 +1213,7 @@
         setLoading("count", false);
         recentKey = null;
         setLoading("recent", false);
+        setLoading("limits", false);
         inputEl.placeholder = DEFAULT_PLACEHOLDER;
         renderChip();
         resetFooter();
@@ -1247,6 +1271,10 @@
         }
         if (VERBS[activeVerb].kind === "recent") {
             renderRecentVerb(query);
+            return;
+        }
+        if (VERBS[activeVerb].kind === "limits") {
+            renderLimits(query);
             return;
         }
         if (activeVerb === "fields" || activeVerb === "list" || activeVerb === "count") {
@@ -1313,6 +1341,51 @@
         listEl.appendChild(groupHeader(obj ? `Recent ${obj.plural || obj.label || obj.api}` : "Recent records"));
         renderRows(listEl, records.slice(0, recentCount));
         setActive(0);
+    }
+
+    // Org Limits: a bar per limit, most used first, filtered by name. The
+    // rows only show numbers: Enter does nothing on them.
+    function renderLimits(query) {
+        panelEl.classList.remove("board-mode");
+        if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
+        if (limitsData === "failed") {
+            return showEmpty("Couldn't load limits", "Seeing org limits needs the View Setup and Configuration permission.");
+        }
+        if (!limitsData) {
+            loadLimits();
+            return showEmpty("Loading limits…");
+        }
+        const q = query.trim();
+        const rows = sortLimits(limitsData).filter((l) => !q || SFEN_URL.matchScore(q, l.label, l.name) >= 0);
+        setFooterCount(`${rows.length} of ${limitsData.length} limits`);
+        if (!rows.length) return showEmpty(q ? `No limits match “${q}”` : "No limits");
+        listEl.appendChild(groupHeader("Most used first"));
+        rows.forEach((l) => listEl.appendChild(limitRow(l)));
+    }
+
+    function limitRow(l) {
+        const li = document.createElement("li");
+        // Red from 80% used, amber from 50%.
+        li.className = "limit " + (l.pct >= 0.8 ? "high" : l.pct >= 0.5 ? "mid" : "low") + (l.used ? "" : " unused");
+        li.title = l.name;
+        li.innerHTML = '<span class="limit-name"></span><span class="limit-bar"><span></span></span><span class="limit-num"></span><span class="limit-pct"></span>';
+        li.querySelector(".limit-name").textContent = l.label;
+        li.querySelector(".limit-bar span").style.width = Math.min(100, l.pct * 100) + "%";
+        li.querySelector(".limit-num").textContent = `${l.used.toLocaleString()} / ${l.max.toLocaleString()}`;
+        li.querySelector(".limit-pct").textContent = l.used && l.pct < 0.01 ? "<1%" : Math.round(l.pct * 100) + "%";
+        return li;
+    }
+
+    function loadLimits() {
+        if (limitsLoading) return;
+        limitsLoading = true;
+        setLoading("limits", true);
+        ask("limits", {}, (resp) => {
+            limitsLoading = false;
+            setLoading("limits", false);
+            limitsData = resp ? resp.limits || [] : "failed";
+            if (opened && activeVerb === "limits") render(inputEl.value);
+        });
     }
 
     // "org" verb: saved orgs, pinned first. Enter opens the org in a new tab;
@@ -1776,12 +1849,18 @@
         setActive(0);
     }
 
-    // A hint line teaching the command verbs and their short forms, grouped by
-    // what they work on; each verb is clickable. A group never splits across
+    // Hints teaching the command verbs and their short forms, grouped by what
+    // they work on; each verb is clickable. A group never splits across
     // lines, so no verb is left alone on the next one.
     function buildCmdBar() {
         const bar = document.createElement("div");
         bar.className = "cmd-bar";
+        const how = document.createElement("div");
+        how.className = "cmd-how";
+        how.innerHTML = "Type a command and an object, as a whole word or its key: <code>fields acc</code> or <code>f acc</code>";
+        const groups = document.createElement("div");
+        groups.className = "cmd-groups";
+        bar.append(how, groups);
         VERB_GROUPS.forEach(([name, verbs]) => {
             const group = document.createElement("span");
             group.className = "cmd-group";
@@ -1795,13 +1874,16 @@
                 btn.className = "cmd-verb";
                 btn.textContent = verb;
                 btn.addEventListener("click", () => setVerb(verb, ""));
-                const key = document.createElement("span");
-                key.className = "cmd-key";
-                key.textContent = Object.keys(VERB_SHORT).find((k) => VERB_SHORT[k] === verb);
-                btn.appendChild(key);
+                const short = Object.keys(VERB_SHORT).find((k) => VERB_SHORT[k] === verb);
+                if (short) {
+                    const key = document.createElement("span");
+                    key.className = "cmd-key";
+                    key.textContent = short;
+                    btn.appendChild(key);
+                }
                 group.appendChild(btn);
             });
-            bar.appendChild(group);
+            groups.appendChild(group);
         });
         return bar;
     }
@@ -1970,6 +2052,10 @@
             runAction({ kind: "loginAs", userId: entry.loginUserId, incognito: !!newTab });
             return;
         }
+        if (entry.openLimits) {
+            setVerb("limits", "");
+            return;
+        }
         // "count account" + Enter counts Accounts: the object row goes to the
         // count step. The count rows themselves do nothing.
         if (activeVerb === "count") {
@@ -2091,6 +2177,7 @@
         listViewsCache = {};
         countCache = {};
         recentCache = {};
+        if (!limitsLoading) limitsData = null;
         if (picked.length >= 2 && picked.length <= 80) {
             inputEl.value = picked;
             onInput();
@@ -2227,6 +2314,7 @@
                         recentCache = {};
                         recentKey = null;
                         setLoading("recent", false);
+                        limitsData = null;
                         recentRecords = [];
                         catalogCache = null;
                         objectsRequested = false;
