@@ -4,7 +4,7 @@
 
 ### Added
 - Peek: `→` on a record in the palette shows its key fields (the record's compact layout) beside the results, without leaving the page. The preview follows as you move through the list; a lookup in it opens that record. `←` or `Esc` closes it. Hover a value to copy it; the record's Id is listed last. Buttons open it in a new tab or copy its link. Needs live org access.
-- User preview: `→` (or `⋯`) on a user in the palette shows the user's details beside the results: username, email, status, profile, role, user license, alias, time zone, last login, manager, title, department and User Id, with Login as and Login as · Incognito buttons. Needs live org access.
+- User preview: `→` (or the selected row's Preview button) on a user in the palette shows the user's details beside the results: username, email, status, profile, role, user license, alias, time zone, last login, manager, title, department and User Id, with Login as and Login as · Incognito buttons. Needs live org access.
 - List view search: `list` (or `li`), an object and a space, like `li account `, lists that object's list views; keep typing to filter them. A number from 1 to 5, like `li account 1`, puts the Account you viewed last (or 2nd to 5th last) first; `Enter` opens it. Needs live org access.
 - Record counts: `count` (or `c`) `account` and `Enter` shows how many Accounts there are, then each record type's count, Master included. Keep typing to filter record types. Counts only the records you can see. Needs live org access.
 - Recent records: `recent` (or `re`) lists the records you viewed last, across objects. Add an object, like `re account`, for the Accounts you viewed last. With none, the list stays empty. Needs live org access.
@@ -21,6 +21,7 @@
 - Record inspector: Copy JSON (no blanks) copies only the fields that have a value.
 
 ### Changed
+- A cleaner palette: one width while you type, one text size for every row and one blue. Each result has a colored tile by kind (Setup, object, record, bookmark, flow). The commands sit under their group's name (Objects, Records, Go to, Setup). The search bar names the org's type (Production, Sandbox and so on). Key hints show as keys, and the selected row shows its own: `Enter` to open, `→` for its actions or preview (the `⋯` button is gone).
 - A user in the palette no longer lists Login as, Copy User Id and Manage in Setup under its row; they're in the user's preview. Records have a record icon instead of a file icon.
 - Recent Setup also keeps the Setup pages you open by clicking through Setup, not only those opened with Navigator.
 - Faster palette search in orgs with many users: records no longer wait for the user lookup, and each shows as soon as it arrives. A search you've typed past is stopped instead of running on.

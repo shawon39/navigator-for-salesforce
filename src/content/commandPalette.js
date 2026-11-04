@@ -31,6 +31,7 @@
         pickBonus,
         addPick,
         iconSvg,
+        ICON_TONES,
         UI_ICONS,
         looksLikeRecordId,
         pastedLink,
@@ -42,8 +43,7 @@
     } = window.SFEN_CMDK_DATA;
     const SETUP_ALIASES = window.SFEN_SETUP_ALIASES || {};
 
-    const DEFAULT_PLACEHOLDER =
-        "Search Salesforce — objects, setup, records, bookmarks…";
+    const DEFAULT_PLACEHOLDER = "Search Setup, objects, records and bookmarks";
 
     // ---- State -----------------------------------------------------------
     let staticCatalog = [];
@@ -89,7 +89,7 @@
     const describeCache = {}; // "host/Type" -> { fieldApiName: label } for the inspector
     let liveRecordsTerm = ""; // search term liveRecords were returned for
     let orgName = ""; // current org's saved or default name, shown in the search bar
-    let orgKind = ""; // SFEN_ORGS.orgType of the current org (dot color)
+    let orgKind = ""; // SFEN_ORGS.orgType of the current org (its type tag)
     let savedOrgs = []; // saved orgs (quickOrgs), listed by the "org" verb
     let currentOrg = null; // the saved org this page belongs to, if any
     let tabColors = false; // settings.orgTabColors: org color icons instead of type dots
@@ -687,7 +687,7 @@
         inputEl = document.createElement("input");
         inputEl.className = "search";
         inputEl.type = "text";
-        inputEl.placeholder = "Search Salesforce — objects, setup, records, bookmarks…";
+        inputEl.placeholder = DEFAULT_PLACEHOLDER;
         inputEl.setAttribute("spellcheck", "false");
         inputEl.setAttribute("autocomplete", "off");
         inputEl.setAttribute("role", "searchbox");
@@ -700,7 +700,7 @@
 
         orgEl = document.createElement("span");
         orgEl.className = "org";
-        orgEl.innerHTML = '<span class="org-dot org-mark"></span><span class="org-name"></span>';
+        orgEl.innerHTML = '<span class="org-dot org-mark"></span><span class="org-name"></span><span class="org-tag"></span>';
 
         searchWrap.appendChild(inputEl);
         searchWrap.appendChild(loaderEl);
@@ -743,52 +743,58 @@
         });
     }
 
+    // A footer hint: its keys as keycaps, then what they do.
+    function keyHint(keys, text) {
+        return `<span class="fk">${keys.map((k) => `<kbd>${k}</kbd>`).join("")}${text}</span>`;
+    }
+
     // Footer key hints for the current mode; the right-aligned .footer-count
-    // is filled separately (setFooterCount).
+    // is filled separately (setFooterCount). Shift+Enter (background tab) is
+    // left out for room; the Shortcuts list names it.
     function footerHtml() {
+        const mod = MOD.replace("+", "");
         if (activeVerb && VERBS[activeVerb].kind === "org") {
             return (
-                '<span><kbd>↑↓</kbd> move</span>' +
-                '<span><kbd>↵</kbd> open in new tab</span>' +
-                '<span><kbd>→</kbd> this page there</span>' +
-                '<span><kbd>esc</kbd> close</span>' +
+                keyHint(["↑", "↓"], "Move") +
+                keyHint(["↵"], "Open in new tab") +
+                keyHint(["→"], "This page there") +
+                keyHint(["Esc"], "Close") +
                 '<span class="footer-count"></span>'
             );
         }
         if (activeVerb === "count") {
             return (
-                '<span><kbd>↑↓</kbd> move</span>' +
-                (fieldsTarget(inputEl.value) ? "" : "<span><kbd>↵</kbd> count records</span>") +
-                '<span><kbd>⌫</kbd> back to search</span>' +
+                keyHint(["↑", "↓"], "Move") +
+                (fieldsTarget(inputEl.value) ? "" : keyHint(["↵"], "Count records")) +
+                keyHint(["⌫"], "Back to search") +
                 '<span class="footer-count"></span>'
             );
         }
         if (activeVerb && VERBS[activeVerb].kind === "limits") {
             return (
                 "<span>Type to filter</span>" +
-                '<span><kbd>⌫</kbd> back to search</span>' +
-                '<span><kbd>esc</kbd> close</span>' +
+                keyHint(["⌫"], "Back to search") +
+                keyHint(["Esc"], "Close") +
                 '<span class="footer-count"></span>'
             );
         }
         if (activeVerb && VERBS[activeVerb].kind === "login") {
             return (
-                '<span><kbd>↵</kbd> log in</span>' +
-                `<span><kbd>${MOD}↵</kbd> incognito</span>` +
-                '<span><kbd>⌫</kbd> back to search</span>' +
+                keyHint(["↵"], "Log in") +
+                keyHint([mod, "↵"], "Incognito") +
+                keyHint(["⌫"], "Back to search") +
                 '<span class="footer-count"></span>'
             );
         }
         return (
-            '<span><kbd>↑↓</kbd> move</span>' +
-            '<span><kbd>↵</kbd> open</span>' +
-            `<span><kbd>${MOD}↵</kbd> new tab</span>` +
-            '<span><kbd>⇧↵</kbd> background</span>' +
-            '<span><kbd>→</kbd> <span class="right-key">actions</span></span>' +
+            keyHint(["↑", "↓"], "Move") +
+            keyHint(["↵"], "Open") +
+            keyHint([mod, "↵"], "New tab") +
+            keyHint(["→"], '<span class="right-key">Actions</span>') +
             // In the "fields" and "list" verbs' object step, Tab completes the object instead.
             ((activeVerb === "fields" || activeVerb === "list") && !fieldsTarget(inputEl.value)
-                ? `<span><kbd>tab</kbd> search ${activeVerb === "list" ? "list views" : "fields"}</span>`
-                : '<span><kbd>tab</kbd> lock verb</span>') +
+                ? keyHint(["Tab"], `Search ${activeVerb === "list" ? "list views" : "fields"}`)
+                : keyHint(["Tab"], "Lock command")) +
             '<span class="footer-count"></span>'
         );
     }
@@ -842,6 +848,9 @@
         marker.classList.add("org-mark");
         orgEl.querySelector(".org-mark").replaceWith(marker);
         orgEl.querySelector(".org-name").textContent = orgName;
+        const tag = orgEl.querySelector(".org-tag");
+        tag.className = "org-tag " + orgKind;
+        tag.textContent = SFEN_ORGS.TYPES[orgKind] || "";
         orgEl.hidden = !orgName || !!(activeVerb && VERBS[activeVerb].kind === "inspect");
     }
 
@@ -915,10 +924,16 @@
 
     const flatResults = []; // one entry per visible .result row, in DOM order
 
-    function groupHeader(text) {
+    function groupHeader(text, count) {
         const h = document.createElement("li");
         h.className = "group-header";
         h.textContent = text;
+        if (count) {
+            const n = document.createElement("span");
+            n.className = "group-count";
+            n.textContent = count;
+            h.appendChild(n);
+        }
         h.setAttribute("aria-hidden", "true");
         return h;
     }
@@ -935,7 +950,12 @@
         const icon = document.createElement("span");
         icon.className = "icon";
         if (!isSub && item.org) icon.appendChild(orgMarker(item.org, 16));
-        else icon.innerHTML = iconSvg(isSub ? GROUPS.ACTION : item.iconGroup || item.group);
+        else if (isSub) icon.innerHTML = iconSvg(GROUPS.ACTION);
+        else {
+            const g = item.iconGroup || item.group;
+            icon.innerHTML = iconSvg(g);
+            icon.classList.add("tone-" + (ICON_TONES[g] || "setup"));
+        }
 
         const wrap = document.createElement("span");
         wrap.className = "label-wrap";
@@ -944,12 +964,6 @@
         label.innerHTML = isSub
             ? escapeHtml(item.label)
             : highlight(item.label, item.highlightQuery != null ? item.highlightQuery : currentQuery);
-        if (!isSub && item.api) {
-            const api = document.createElement("span");
-            api.className = "api mono";
-            api.textContent = item.api;
-            label.appendChild(api);
-        }
         wrap.appendChild(label);
         if (!isSub && item.sub) {
             const sub = document.createElement("span");
@@ -960,6 +974,13 @@
 
         li.appendChild(icon);
         li.appendChild(wrap);
+        // The API name sits at the right edge, so the label reads first.
+        if (!isSub && item.api) {
+            const api = document.createElement("span");
+            api.className = "api mono";
+            api.textContent = item.api;
+            li.appendChild(api);
+        }
         // Group headers already name Setup/object/bookmark rows; only records
         // (their object type), actions (e.g. "ID"), apps (console or not) and
         // fields (their data type) carry a trailing hint, as do the current
@@ -976,7 +997,7 @@
             const more = document.createElement("button");
             more.className = "more";
             more.type = "button";
-            more.textContent = "⋯";
+            more.innerHTML = "<kbd>→</kbd>Actions";
             more.setAttribute("aria-label", "More actions");
             more.addEventListener("click", (e) => {
                 e.stopPropagation();
@@ -987,7 +1008,7 @@
             const more = document.createElement("button");
             more.className = "more";
             more.type = "button";
-            more.textContent = "⋯";
+            more.innerHTML = "<kbd>→</kbd>Preview";
             more.setAttribute("aria-label", "Preview");
             more.addEventListener("click", (e) => {
                 e.stopPropagation();
@@ -999,7 +1020,7 @@
 
         const enter = document.createElement("span");
         enter.className = "enter";
-        enter.innerHTML = UI_ICONS.enter;
+        enter.innerHTML = "<kbd>↵</kbd>";
         li.appendChild(enter);
 
         li.addEventListener("mousemove", () => activeIndex !== idx && setActive(idx));
@@ -1978,25 +1999,36 @@
         order.forEach((g) => {
             const items = byGroup[g];
             if (!items.length) return;
-            listEl.appendChild(groupHeader(g));
+            listEl.appendChild(groupHeader(g, items.length));
             renderRows(listEl, items);
         });
         setActive(0);
     }
 
-    // The board's commands (COMMANDS in the data file) as a grid of keywords,
-    // with Shortcuts last. A keyword starts its command.
+    // The board's commands (COMMANDS in the data file) as keywords under their
+    // group's name, with Shortcuts last. A keyword starts its command. Go to
+    // comes before Setup so the short groups share the first line and Setup's
+    // six commands get the second.
     function buildCmdBar() {
         const bar = document.createElement("div");
         bar.className = "cmd-bar";
-        COMMANDS.forEach((c) => {
-            const btn = document.createElement("button");
-            btn.type = "button";
-            btn.className = "cmd-verb";
-            btn.textContent = c.verb;
-            btn.title = c.text;
-            btn.addEventListener("click", () => setVerb(c.verb, ""));
-            bar.appendChild(btn);
+        ["Objects", "Records", "Go to", "Setup"].forEach((name) => {
+            const group = document.createElement("span");
+            group.className = "cmd-group";
+            const label = document.createElement("span");
+            label.className = "cmd-label";
+            label.textContent = name;
+            group.appendChild(label);
+            COMMANDS.filter((c) => c.group === name).forEach((c) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "cmd-verb";
+                btn.textContent = c.verb;
+                btn.title = c.text;
+                btn.addEventListener("click", () => setVerb(c.verb, ""));
+                group.appendChild(btn);
+            });
+            bar.appendChild(group);
         });
         const help = document.createElement("button");
         help.type = "button";
@@ -2029,7 +2061,10 @@
         back.type = "button";
         back.addEventListener("click", () => setShortcuts(false));
         head.append(el("span", "help-title", "Shortcuts"), back);
-        li.append(head, el("p", "help-intro", "Type a command, or its short form, then what you're looking for."));
+        li.append(
+            head,
+            el("p", "help-intro", "Type a command, or its short form, then what you're looking for. Shift+Enter opens a result in a background tab.")
+        );
         COMMANDS.forEach((c) => {
             const row = el("div", "help-row");
             const name = el("button", "help-name", c.verb);
@@ -2150,7 +2185,7 @@
         if (entry && entry.loginUserId)
             setFooterCount(`You'll land on this same page as ${entry.label.split(" ")[0]}`);
         const rightKey = footerEl && footerEl.querySelector(".right-key");
-        if (rightKey) rightKey.textContent = peekable(entry) ? "preview" : "actions";
+        if (rightKey) rightKey.textContent = peekable(entry) ? "Preview" : "Actions";
         renderPeek();
     }
 
