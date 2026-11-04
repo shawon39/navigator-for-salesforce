@@ -17,7 +17,7 @@
         GROUPS,
         VERBS,
         VERB_SHORT,
-        VERB_GROUPS,
+        COMMANDS,
         sortLimits,
         SETUP_PAGES,
         FALLBACK_OBJECTS,
@@ -75,6 +75,7 @@
     let currentQuery = ""; // last query passed to render()
     let expandedKey = null; // url of the row whose ⋯ actions are expanded
     let activeVerb = null; // active command verb key (VERBS), or null
+    let shortcutsOpen = false; // the Shortcuts list shows in place of the board
     let autoVerbWord = null; // verb word as typed when "word " switched it on; null when locked
     let inspectKey = null; // "Type/Id" currently fetched for the record inspector
     let inspectRecord = null; // fetched record fields for the record inspector
@@ -344,7 +345,7 @@
             }));
             adminItems = profiles.concat(permSets, flows, apex, metadataTypes);
             catalogCache = null;
-            if (opened && inputEl.value.trim()) render(inputEl.value);
+            if (opened && (inputEl.value.trim() || activeVerb)) render(inputEl.value);
         });
     }
 
@@ -546,11 +547,12 @@
             return;
         }
         setLoading("search", true);
-        // The "login" verb lists users only. Plain search asks for its 5 users
+        // The "login" and "users" verbs list users only. Plain search asks for its 5 users
         // and the other records apart and shows each as it arrives: in an org
         // with many users the user query can be much the slower one. A part
         // keeps the previous term's rows until its answer replaces them.
-        const parts = activeVerb && VERBS[activeVerb].kind === "login" ? { users: {} } : { users: { limit: 5 }, search: {} };
+        const usersOnly = activeVerb && (VERBS[activeVerb].kind === "login" || VERBS[activeVerb].kind === "users");
+        const parts = usersOnly ? { users: {} } : { users: { limit: 5 }, search: {} };
         let pending = Object.keys(parts).length;
         Object.keys(parts).forEach((action) => {
             ask(action, { term, ...parts[action] }, (resp) => {
@@ -851,6 +853,7 @@
 
     function onInput() {
         if (!opened) return;
+        shortcutsOpen = false; // typing leaves the Shortcuts list for the search
         expandedKey = null;
         clearTimeout(searchTimer);
         // Too short to search: drop the live results (and any search in flight) now.
@@ -877,8 +880,8 @@
         } else {
             render(inputEl.value);
         }
-        // Verb results are local, except "login", which searches users.
-        if (activeVerb && VERBS[activeVerb].kind !== "login") return;
+        // Verb results are local, except "login" and "users", which search users.
+        if (activeVerb && VERBS[activeVerb].kind !== "login" && VERBS[activeVerb].kind !== "users") return;
         const term = inputEl.value;
         if (term.trim().length >= 2 && !pastedLink(term, host)) searchTimer = setTimeout(() => runLiveSearch(term), 140);
     }
@@ -1159,7 +1162,8 @@
         flatResults.length = 0;
         setFooterCount("");
         paintOrg();
-        if (activeVerb) renderVerb(query);
+        if (shortcutsOpen) renderShortcuts();
+        else if (activeVerb) renderVerb(query);
         else if (query.trim()) renderList(query);
         else renderBoard();
     }
@@ -1190,11 +1194,15 @@
                 ? "Type an org name…"
                 : kind === "limits"
                 ? "Filter limits…"
+                : kind === "users"
+                ? "Type a user's name…"
+                : kind === "admin"
+                ? `Filter ${VERBS[key].label.toLowerCase()}…`
                 : "Type an object name…";
         renderChip();
         resetFooter();
         if (kind === "inspect") fetchInspect();
-        if (kind === "login") runLiveSearch(inputEl.value);
+        if (kind === "login" || kind === "users") runLiveSearch(inputEl.value);
         render(inputEl.value);
         focusInput();
     }
@@ -1275,6 +1283,14 @@
         }
         if (VERBS[activeVerb].kind === "limits") {
             renderLimits(query);
+            return;
+        }
+        if (VERBS[activeVerb].kind === "admin") {
+            renderAdminVerb(VERBS[activeVerb], query);
+            return;
+        }
+        if (VERBS[activeVerb].kind === "users") {
+            renderUsers(query);
             return;
         }
         if (activeVerb === "fields" || activeVerb === "list" || activeVerb === "count") {
@@ -1596,6 +1612,46 @@
         setActive(0);
     }
 
+    // "users" verb: like "login", but Enter opens the user's record and →
+    // previews them.
+    function renderUsers(query) {
+        panelEl.classList.remove("board-mode");
+        if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
+        if (query.trim().length < 2) return showEmpty("Type a name to find a user");
+        const users = liveRecords.filter((i) => i.user);
+        if (!users.length) {
+            return showEmpty(liveRecordsTerm === query ? `No users match “${query.trim()}”` : "Searching users…");
+        }
+        listEl.appendChild(groupHeader("Users"));
+        renderRows(listEl, users);
+        setActive(0);
+    }
+
+    // "flows", "profiles", "permsets" and "apex": every item of that kind from
+    // the "admin" lookup, or the ones matching what's typed. Enter opens one.
+    function renderAdminVerb(verb, query) {
+        panelEl.classList.remove("board-mode");
+        if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
+        if (!adminItems.length) {
+            loadAdmin();
+            return showEmpty("Loading…");
+        }
+        const all = adminItems.filter((i) => i.group === verb.group);
+        const q = query.trim();
+        const items = q
+            ? all
+                  .map((item) => ({ item, sc: SFEN_URL.matchScore(q, item.label, item.keywords) }))
+                  .filter((s) => s.sc >= 0)
+                  .sort((a, b) => b.sc - a.sc)
+                  .map((s) => s.item)
+            : all;
+        setFooterCount(`${items.length} of ${all.length}`);
+        if (!items.length) return showEmpty(q ? `No ${verb.label.toLowerCase()} match “${q}”` : `No ${verb.label.toLowerCase()}`);
+        listEl.appendChild(groupHeader(verb.label));
+        renderRows(listEl, items.slice(0, 50).map((item) => ({ ...item, highlightQuery: q })));
+        setActive(0);
+    }
+
     // Inactive users render dimmed and aren't selectable (not in flatResults).
     function makeLoginRow(item) {
         const u = item.user;
@@ -1849,43 +1905,64 @@
         setActive(0);
     }
 
-    // Hints teaching the command verbs and their short forms, grouped by what
-    // they work on; each verb is clickable. A group never splits across
-    // lines, so no verb is left alone on the next one.
+    // The board's commands (COMMANDS in the data file) as a grid of keywords,
+    // with Shortcuts last. A keyword starts its command.
     function buildCmdBar() {
         const bar = document.createElement("div");
         bar.className = "cmd-bar";
-        const how = document.createElement("div");
-        how.className = "cmd-how";
-        how.innerHTML = "Type a command and an object, as a whole word or its key: <code>fields acc</code> or <code>f acc</code>";
-        const groups = document.createElement("div");
-        groups.className = "cmd-groups";
-        bar.append(how, groups);
-        VERB_GROUPS.forEach(([name, verbs]) => {
-            const group = document.createElement("span");
-            group.className = "cmd-group";
-            const label = document.createElement("span");
-            label.className = "cmd-label";
-            label.textContent = name;
-            group.appendChild(label);
-            verbs.forEach((verb) => {
-                const btn = document.createElement("button");
-                btn.type = "button";
-                btn.className = "cmd-verb";
-                btn.textContent = verb;
-                btn.addEventListener("click", () => setVerb(verb, ""));
-                const short = Object.keys(VERB_SHORT).find((k) => VERB_SHORT[k] === verb);
-                if (short) {
-                    const key = document.createElement("span");
-                    key.className = "cmd-key";
-                    key.textContent = short;
-                    btn.appendChild(key);
-                }
-                group.appendChild(btn);
-            });
-            groups.appendChild(group);
+        COMMANDS.forEach((c) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "cmd-verb";
+            btn.textContent = c.verb;
+            btn.title = c.text;
+            btn.addEventListener("click", () => setVerb(c.verb, ""));
+            bar.appendChild(btn);
         });
+        const help = document.createElement("button");
+        help.type = "button";
+        help.className = "cmd-help";
+        help.textContent = "Shortcuts";
+        help.addEventListener("click", () => setShortcuts(true));
+        bar.appendChild(help);
         return bar;
+    }
+
+    function setShortcuts(on) {
+        shortcutsOpen = on;
+        render(inputEl.value);
+        focusInput();
+    }
+
+    // Shortcuts: every command with its short form, what it does and an
+    // example; a name starts the command. Typing, Back or Esc returns to the board.
+    function renderShortcuts() {
+        panelEl.classList.add("board-mode");
+        const el = (tag, cls, text) => {
+            const n = document.createElement(tag);
+            if (cls) n.className = cls;
+            if (text !== undefined) n.textContent = text;
+            return n;
+        };
+        const li = el("li", "help");
+        const head = el("div", "help-head");
+        const back = el("button", "help-back", "Back");
+        back.type = "button";
+        back.addEventListener("click", () => setShortcuts(false));
+        head.append(el("span", "help-title", "Shortcuts"), back);
+        li.append(head, el("p", "help-intro", "Type a command, or its short form, then what you're looking for."));
+        COMMANDS.forEach((c) => {
+            const row = el("div", "help-row");
+            const name = el("button", "help-name", c.verb);
+            name.type = "button";
+            name.addEventListener("click", () => {
+                shortcutsOpen = false;
+                setVerb(c.verb, "");
+            });
+            row.append(name, el("span", "help-short", c.short || ""), el("span", "help-text", c.text), el("code", "", c.example));
+            li.appendChild(row);
+        });
+        listEl.appendChild(li);
     }
 
     // No-search overview: two columns — left Recent+Records, right Bookmarks+Setup Tabs.
@@ -2158,6 +2235,7 @@
         runLiveSearch(""); // drop live results and any search in flight
         expandedKey = null;
         activeVerb = null;
+        shortcutsOpen = false;
         autoVerbWord = null;
         inspectKey = null;
         inspectRecord = null;
@@ -2397,7 +2475,8 @@
     }
 
     // Escape isn't a command, so it stays an in-page handler: collapse an open
-    // ⋯ menu first, then the preview, then a verb chip; only then close the palette.
+    // ⋯ menu first, then the preview, then the Shortcuts list, then a verb
+    // chip; only then close the palette.
     document.addEventListener(
         "keydown",
         (e) => {
@@ -2406,6 +2485,7 @@
                 e.stopPropagation();
                 if (expandedKey) toggleExpand(expandedKey);
                 else if (peekOpen) setPeek(false);
+                else if (shortcutsOpen) setShortcuts(false);
                 else if (activeVerb) clearVerb();
                 else close();
             }

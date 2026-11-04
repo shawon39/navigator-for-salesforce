@@ -602,6 +602,53 @@ input {
     color: var(--nv-text-3);
 }
 
+/* ---------- Palette commands ---------- */
+
+.st-cmd-row {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr) 190px;
+    gap: 16px;
+    align-items: center;
+    margin-top: -1px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--nv-border);
+    font-size: 13px;
+}
+
+.st-cmd-row code {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+}
+
+.st-cmd-name code:first-child {
+    color: var(--nv-primary-text);
+    font-weight: 500;
+}
+
+.st-cmd-short {
+    margin-left: 8px;
+    color: var(--nv-text-3);
+}
+
+.st-cmd-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.45;
+}
+
+.st-cmd-tip {
+    color: var(--nv-text-3);
+    font-size: 12px;
+}
+
+.st-cmd-ex {
+    justify-self: start;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--nv-surface-2);
+}
+
 .st-banner {
     display: flex;
     align-items: center;
@@ -753,6 +800,11 @@ input {
 
     .st-color-picker {
         padding-left: 20px;
+    }
+
+    .st-cmd-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 6px;
     }
 }
 

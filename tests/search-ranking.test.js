@@ -114,12 +114,25 @@ for (const [short, verb] of Object.entries(VERB_SHORT)) {
     assert(VERBS[verb], `${short} -> ${verb}`);
     assert(!VERBS[short], `${short} is already a verb`);
 }
-// The board's hints list every verb with a short form, once, and only real verbs.
-const grouped = window.SFEN_CMDK_DATA.VERB_GROUPS.flatMap(([, verbs]) => verbs);
-assert.strictEqual(new Set(grouped).size, grouped.length);
-assert(grouped.every((v) => VERBS[v]), grouped.join());
-assert(Object.values(VERB_SHORT).every((v) => grouped.includes(v)));
 console.log("PASS short verb forms");
+
+// The shared command list (palette boxes and help, Settings) names each real
+// verb once, with the palette's own short form, and its example uses it.
+const commands = window.SFEN_CMDK_DATA.COMMANDS;
+const listed = commands.map((c) => c.verb);
+assert.strictEqual(new Set(listed).size, listed.length);
+for (const c of commands) {
+    assert(VERBS[c.verb], c.verb);
+    assert.strictEqual(c.short, Object.keys(VERB_SHORT).find((k) => VERB_SHORT[k] === c.verb), c.verb);
+    assert(c.example.split(" ")[0] === c.verb && c.group && c.text, c.verb);
+    assert(!/—/.test(c.text + (c.tip || "")), `${c.verb}: no em dashes`);
+}
+assert(Object.values(VERB_SHORT).every((v) => listed.includes(v)));
+// Groups stay together, so each makes one box.
+assert.deepStrictEqual([...new Set(commands.map((c) => c.group))], ["Objects", "Records", "Setup", "Go to"]);
+assert.deepStrictEqual(commands.map((c) => c.group), commands.map((c) => c.group).slice().sort((a, b) =>
+    ["Objects", "Records", "Setup", "Go to"].indexOf(a) - ["Objects", "Records", "Setup", "Go to"].indexOf(b)));
+console.log("PASS command list");
 
 // Org Limits: readable names, most used share first, unused last by name.
 const { limitLabel, sortLimits } = window.SFEN_CMDK_DATA;

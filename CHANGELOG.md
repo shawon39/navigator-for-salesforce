@@ -9,7 +9,9 @@
 - Record counts: `count` (or `c`) `account` and `Enter` shows how many Accounts there are, then each record type's count, Master included. Keep typing to filter record types. Counts only the records you can see. Needs live org access.
 - Recent records: `recent` (or `re`) lists the records you viewed last, across objects. Add an object, like `re account`, for the Accounts you viewed last. With none, the list stays empty. Needs live org access.
 - Settings → Behavior → Recently viewed records: show 10 (the default), 15 or 20 recently viewed records in the popup's Recent tab and in the palette.
-- The palette's command hints show every command as a button with its short form as a key, grouped into Objects, Records and Go to, under an example of both ways to type one (`fields acc` or `f acc`).
+- The palette opens with its commands as a compact grid of keywords; click one to start it. Shortcuts, the last button, lists every command with its short form, what it does and an example.
+- New palette commands: `flows`, `profiles`, `permsets` and `apex` list every flow, profile, permission set or Apex class and trigger; type to narrow them and `Enter` to open one. `users` finds a user and opens their record. Needs live org access.
+- Settings → Palette commands lists every palette command with its short form, what it does and an example.
 - Org Limits: search `limits` (or `org limits`) in the palette and press `Enter` to see how much of each org limit is used, as bars, most used first. Bars turn amber at 50% and red at 80%; unused limits are listed last. Type to filter them. Needs live org access.
 - On a record, the palette lists the records it links to (its Account, Owner and other lookups on the page layout). Typing finds them too, so `acc` on an Opportunity offers its Account. Needs live org access.
 - Admin shorthand in the palette and popup search: `ps`, `psg`, `dl`, `cmdt`, `cs`, `lwc`, `sr`, `aj`, `sj`, `vf`, `om`, `ip`, `nc`, `rss`, `lh`, `sat`, `ds`, `ics`, `ocs` and `lab` open Permission Sets, Permission Set Groups, Debug Logs and the other Setup pages they stand for.

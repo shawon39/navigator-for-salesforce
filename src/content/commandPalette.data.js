@@ -133,19 +133,30 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
 .scope-chip .chip-x { display:inline-flex; width:12px; height:12px; opacity:0.8; }
 .scope-chip:hover .chip-x { opacity:1; }
 .search-wrap:has(.scope-chip) { gap:10px; }
-.cmd-bar { padding:10px 10px 12px; font-size:12px; color:var(--nv-text-3); }
-.cmd-how { margin-bottom:10px; }
-.cmd-how code { font-family:"JetBrains Mono",monospace; color:var(--nv-primary-text); }
-.cmd-groups { display:flex; flex-wrap:wrap; align-items:center; gap:8px 20px; }
-.cmd-group { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
-.cmd-label { margin-right:2px; font-size:11px; }
-.cmd-verb { display:inline-flex; align-items:center; gap:6px; height:24px; box-sizing:border-box; padding:0 6px 0 8px;
-  border:0; border-radius:6px; background:var(--nv-surface-2); cursor:pointer;
-  font:12px "JetBrains Mono",monospace; }
-.cmd-verb:not(:has(.cmd-key)) { padding-right:8px; }
-.cmd-verb:hover { background:var(--nv-sel); }
-.cmd-key { min-width:8px; padding:0 4px; border:1px solid var(--nv-border); border-bottom-width:2px; border-radius:4px;
-  background:var(--nv-surface); color:var(--nv-text-2); font-size:10.5px; line-height:15px; text-align:center; }
+.cmd-bar { display:flex; flex-wrap:wrap; align-items:center; gap:3px; padding:6px 10px 8px; }
+.cmd-verb, .cmd-help { height:20px; padding:0 5px; border:0; border-radius:4px; white-space:nowrap; cursor:pointer; outline:0;
+  transition:background-color 0.12s, color 0.12s; }
+.cmd-verb { background:var(--nv-surface-2); font:500 11px "Figtree","Segoe UI",system-ui,sans-serif; }
+.cmd-verb:hover, .cmd-verb:focus-visible { background:var(--nv-sel); }
+.cmd-help { margin-left:auto; padding:0 2px; background:none; color:var(--nv-text-3);
+  font:500 11.5px "Figtree","Segoe UI",system-ui,sans-serif; }
+.cmd-help:hover, .cmd-help:focus-visible { color:var(--nv-text); text-decoration:underline; }
+.help { padding:10px 10px 14px; color:var(--nv-text); font-size:13px; }
+.help-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.help-title { font:600 15px "Figtree","Segoe UI",system-ui,sans-serif; color:var(--nv-text); }
+.help-back { margin-left:auto; height:26px; padding:0 10px; border:1px solid var(--nv-border); border-radius:6px; background:none;
+  color:var(--nv-text-2); cursor:pointer; font:500 12px "Figtree","Segoe UI",system-ui,sans-serif; }
+.help-back:hover { background:var(--nv-surface-2); }
+.help code { font:12px "JetBrains Mono",monospace; padding:3px 8px; border-radius:5px; background:var(--nv-surface-2); color:var(--nv-text); }
+.help-intro { margin:-4px 0 10px; font-size:13px; color:var(--nv-text-2); }
+.help-row { display:grid; grid-template-columns:80px 36px minmax(0,1fr) 190px; gap:12px; align-items:center; min-height:32px;
+  border-top:1px solid var(--nv-border); }
+.help-text { font-size:13px; color:var(--nv-text-2); }
+.help-row code { justify-self:start; }
+.help-short { font:12px "JetBrains Mono",monospace; color:var(--nv-text-3); }
+.help-name { justify-self:start; padding:0; border:0; background:none; color:var(--nv-primary-text); cursor:pointer;
+  font:500 12.5px "JetBrains Mono",monospace; }
+.help-name:hover { text-decoration:underline; }
 .limit { display:grid; grid-template-columns:minmax(0,210px) minmax(0,1fr) 132px 40px; gap:12px; align-items:center;
   height:30px; padding:0 10px; font-size:13px; color:var(--nv-text); }
 .limit-name { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
@@ -335,6 +346,16 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         orgs: { kind: "org", label: "Org" }, // alias of org
         login: { kind: "login", label: "Log in as" }, // users from the "users" lookup
         limits: { kind: "limits", label: "Org Limits" }, // how much of each org limit is used
+        // Setup items from the "admin" lookup, all of one kind; Enter opens one.
+        flows: { kind: "admin", group: GROUPS.FLOW, label: "Flows" },
+        flow: { kind: "admin", group: GROUPS.FLOW, label: "Flows" }, // alias of flows
+        profiles: { kind: "admin", group: GROUPS.PROFILE, label: "Profiles" },
+        profile: { kind: "admin", group: GROUPS.PROFILE, label: "Profiles" }, // alias of profiles
+        permsets: { kind: "admin", group: GROUPS.PERMSET, label: "Permission Sets" },
+        permset: { kind: "admin", group: GROUPS.PERMSET, label: "Permission Sets" }, // alias of permsets
+        apex: { kind: "admin", group: GROUPS.APEX, label: "Apex" },
+        users: { kind: "users", label: "Users" }, // users from the "users" lookup; Enter opens one
+        user: { kind: "users", label: "Users" }, // alias of users
         record: { kind: "inspect", label: "Record" },
         json: { kind: "inspect", label: "Record" }, // alias of record
         api: { kind: "inspect", label: "Record" }, // alias of record
@@ -342,12 +363,93 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     // Short forms, typed like the words: "f acc" is "fields acc". "lo" and
     // "li" because login and list both start with l, "re" because r is record.
     const VERB_SHORT = { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record", c: "count", re: "recent" };
-    // The board's command hints, by what each command works on. Every verb with
-    // a short form belongs in one group (the tests check).
-    const VERB_GROUPS = [
-        ["Objects", ["new", "list", "fields", "count"]],
-        ["Records", ["recent", "record"]],
-        ["Go to", ["app", "org", "login", "limits"]],
+
+    // The palette's commands, in the order and groups its board shows them:
+    // what each does, an example, and its short form. Also listed on the
+    // Settings page (Palette commands), which loads this file too.
+    const COMMANDS = [
+        { verb: "new", short: "n", group: "Objects", text: "Create a record of any object.", example: "new contact" },
+        {
+            verb: "list",
+            short: "li",
+            group: "Objects",
+            text: "Open one of an object's list views.",
+            example: "list account all",
+            tip: "Add a number from 1 to 5, like list account 1, for an Account you viewed lately.",
+        },
+        {
+            verb: "fields",
+            short: "f",
+            group: "Objects",
+            text: "Find a field and open it in Object Manager.",
+            example: "fields account industry",
+            tip: "Press Tab to complete the object name.",
+        },
+        {
+            verb: "count",
+            short: "c",
+            group: "Objects",
+            text: "Count an object's records, by record type.",
+            example: "count lead",
+            tip: "Counts only the records you can see.",
+        },
+        {
+            verb: "recent",
+            short: "re",
+            group: "Records",
+            text: "The records you viewed last, of every object or one.",
+            example: "recent account",
+            tip: "Settings decide how many show: 10, 15 or 20.",
+        },
+        {
+            verb: "record",
+            short: "r",
+            group: "Records",
+            text: "Every field of the record you're on, with Copy JSON.",
+            example: "record",
+            tip: "Works on a record page. Type to filter the fields.",
+        },
+        {
+            verb: "flows",
+            group: "Setup",
+            text: "Find a flow and open it in Flow Builder.",
+            example: "flows lead",
+            tip: "Opens the flow's latest version.",
+        },
+        { verb: "profiles", group: "Setup", text: "Find a profile and open it.", example: "profiles admin" },
+        { verb: "permsets", group: "Setup", text: "Find a permission set and open it.", example: "permsets sales" },
+        {
+            verb: "users",
+            group: "Setup",
+            text: "Find a user and open their record.",
+            example: "users jane",
+            tip: "Press → to see their details, with Login as.",
+        },
+        { verb: "apex", group: "Setup", text: "Find an Apex class or trigger and open it.", example: "apex selector" },
+        {
+            verb: "limits",
+            group: "Setup",
+            text: "See how much of each org limit is used, most used first.",
+            example: "limits api",
+            tip: "Bars turn amber at 50% and red at 80%.",
+        },
+        { verb: "app", short: "a", group: "Go to", text: "Open one of your Lightning apps.", example: "app sales" },
+        {
+            verb: "org",
+            short: "o",
+            group: "Go to",
+            text: "Open one of your saved orgs in a new tab.",
+            example: "org uat",
+            tip: "Press → to open the page you're on in that org.",
+        },
+        {
+            verb: "login",
+            short: "lo",
+            group: "Go to",
+            text: "Log in as another user, if you're allowed to.",
+            example: "login jane",
+            tip: "Ctrl+Enter (⌘+Enter on a Mac) logs in from an Incognito window.",
+        },
     ];
 
     // A limit's API name as words: "DailyApiRequests" -> "Daily API Requests",
@@ -552,7 +654,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         UI_ICONS,
         VERBS,
         VERB_SHORT,
-        VERB_GROUPS,
+        COMMANDS,
         limitLabel,
         sortLimits,
         isRelevantObject,

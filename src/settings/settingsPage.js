@@ -451,6 +451,21 @@
         return shortcut.includes("+") ? shortcut : shortcut.split("").join(" ");
     }
 
+    // The palette's commands (COMMANDS in commandPalette.data.js): name and
+    // short form, what it does, and an example.
+    function renderCommands() {
+        window.SFEN_CMDK_DATA.COMMANDS.forEach((c) => {
+            const row = el("div", "st-cmd-row st-item");
+            const name = el("span", "st-cmd-name");
+            name.appendChild(el("code", "", c.verb));
+            if (c.short) name.appendChild(el("code", "st-cmd-short", c.short));
+            const text = el("span", "st-cmd-text", c.text);
+            if (c.tip) text.appendChild(el("span", "st-cmd-tip", c.tip));
+            row.append(name, text, el("code", "st-cmd-ex", c.example));
+            $("commandList").appendChild(row);
+        });
+    }
+
     function renderShortcuts() {
         chrome.commands.getAll((commands) => {
             const keys = {};
@@ -763,5 +778,6 @@
     // Don't lose a change made just before the page closes.
     window.addEventListener("pagehide", flushSettings);
     renderShortcuts();
+    renderCommands();
     renderAll(scrollToHash);
 })();
