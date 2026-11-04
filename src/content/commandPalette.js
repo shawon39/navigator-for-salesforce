@@ -64,6 +64,8 @@
     let listRecentCache = {}; // object API name -> your last 5 viewed [{id,name}], loaded with its list views
     let countCache = {}; // object API name -> { total, recordTypes } or "failed", for the "count" verb
     let countKey = null; // object whose records are being counted
+    let recentCache = {}; // object API name -> your last 10 viewed records, for the "recent" verb
+    let recentKey = null; // object whose last viewed records are being fetched
     let catalogCache = null; // fullCatalog() result; reset when its sources change
     let currentQuery = ""; // last query passed to render()
     let expandedKey = null; // url of the row whose ⋯ actions are expanded
@@ -396,6 +398,21 @@
             setLoading("count", false);
             countCache[api] = resp || "failed";
             if (opened && activeVerb === "count") render(inputEl.value);
+        });
+    }
+
+    // One object's last 10 viewed records for the "recent" verb, refetched per open.
+    function loadObjectRecent(api) {
+        if (recentCache[api] || recentKey === api) return;
+        recentKey = api;
+        setLoading("recent", true);
+        ask("recent", { object: api }, (resp) => {
+            if (recentKey !== api) return; // stale: another object, or the verb was cleared
+            recentKey = null;
+            setLoading("recent", false);
+            // Objects RecentlyViewed doesn't track fail; they show nothing, like no records.
+            recentCache[api] = ((resp && resp.records) || []).map(mapRecord);
+            if (opened && activeVerb === "recent") render(inputEl.value);
         });
     }
 
@@ -1169,6 +1186,8 @@
         setLoading("listViews", false);
         countKey = null;
         setLoading("count", false);
+        recentKey = null;
+        setLoading("recent", false);
         inputEl.placeholder = DEFAULT_PLACEHOLDER;
         renderChip();
         resetFooter();
@@ -1224,6 +1243,10 @@
             renderOrgs(query);
             return;
         }
+        if (VERBS[activeVerb].kind === "recent") {
+            renderRecentVerb(query);
+            return;
+        }
         if (activeVerb === "fields" || activeVerb === "list" || activeVerb === "count") {
             resetFooter(); // the Tab hint differs between the object and field steps
             const target = fieldsTarget(query);
@@ -1261,6 +1284,32 @@
         if (!items.length) return showEmpty(q ? `No apps match “${q}”` : "No apps");
         listEl.appendChild(groupHeader(GROUPS.APP));
         renderRows(listEl, items);
+        setActive(0);
+    }
+
+    // "recent" verb: your last 10 viewed records, or the best matching
+    // object's once one is typed. With none there's nothing to show.
+    function renderRecentVerb(query) {
+        panelEl.classList.remove("board-mode");
+        if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
+        const q = query.trim();
+        let obj = null;
+        let bestScore = -1;
+        if (q) {
+            objectSource().forEach((o) => {
+                const sc = objectScore(q.toLowerCase(), o);
+                if (sc > bestScore) {
+                    obj = o;
+                    bestScore = sc;
+                }
+            });
+            if (!obj) return;
+        }
+        const records = obj ? recentCache[obj.api] : recentRecords.slice(0, 10);
+        if (!records) return loadObjectRecent(obj.api);
+        if (!records.length) return;
+        listEl.appendChild(groupHeader(obj ? `Recent ${obj.plural || obj.label || obj.api}` : "Recent records"));
+        renderRows(listEl, records);
         setActive(0);
     }
 
@@ -2029,6 +2078,7 @@
         // Refetched per open: the last viewed records change as you browse.
         listViewsCache = {};
         countCache = {};
+        recentCache = {};
         if (picked.length >= 2 && picked.length <= 80) {
             inputEl.value = picked;
             onInput();
@@ -2160,6 +2210,9 @@
                         countCache = {};
                         countKey = null;
                         setLoading("count", false);
+                        recentCache = {};
+                        recentKey = null;
+                        setLoading("recent", false);
                         recentRecords = [];
                         catalogCache = null;
                         objectsRequested = false;

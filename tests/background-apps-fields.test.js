@@ -161,6 +161,24 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     route = () => null;
     console.log("PASS listViews: last 5 viewed records, ids checked, optional on failure");
 
+    // ---- recent: all objects (20), or one object's last 10 ----
+    route = (url) => (soql(url).includes("FROM RecentlyViewed") ? json({ records: [{ Id: "001000000000001AAA", Name: "Acme", Type: "Account" }] }) : null);
+    fetchCalls = [];
+    r = await send({ action: "recent" });
+    assert.deepStrictEqual(r.records, [{ Id: "001000000000001AAA", Name: "Acme", attributes: { type: "Account" } }]);
+    assert(soql(fetchCalls[0]).includes("Type != 'ListView'") && soql(fetchCalls[0]).includes("LIMIT 20"), soql(fetchCalls[0]));
+    fetchCalls = [];
+    r = await send({ action: "recent", object: "Account" });
+    assert.strictEqual(r.ok, true, JSON.stringify(r));
+    assert(soql(fetchCalls[0]).includes("WHERE Type = 'Account'") && soql(fetchCalls[0]).includes("LIMIT 10"), soql(fetchCalls[0]));
+    for (const bad of ["Account' OR", "", 42]) {
+        fetchCalls = [];
+        r = await send({ action: "recent", object: bad });
+        assert.deepStrictEqual([r.ok, r.error, fetchCalls.length], [false, "Invalid object name", 0], String(bad));
+    }
+    route = () => null;
+    console.log("PASS recent: all objects or one object's last 10, object validated");
+
     // ---- count: total, then each record type's (Master for the rest) ----
     route = (url) => {
         const q = soql(url);

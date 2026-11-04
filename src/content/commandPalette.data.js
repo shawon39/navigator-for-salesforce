@@ -305,6 +305,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         list: { kind: "object", action: "list", label: "List" },
         fields: { kind: "object", action: "fields", label: "Fields" },
         count: { kind: "object", action: "count", label: "Count" }, // records, by record type
+        recent: { kind: "recent", label: "Recent" }, // your last viewed records, of one object or all
         app: { kind: "app", label: "App" }, // the user's Lightning apps
         apps: { kind: "app", label: "App" }, // alias of app
         org: { kind: "org", label: "Org" }, // saved orgs (quickOrgs)
@@ -315,8 +316,8 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         api: { kind: "inspect", label: "Record" }, // alias of record
     };
     // Short forms, typed like the words: "f acc" is "fields acc". "lo" and
-    // "li" because login and list both start with l.
-    const VERB_SHORT = { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record", c: "count" };
+    // "li" because login and list both start with l, "re" because r is record.
+    const VERB_SHORT = { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record", c: "count", re: "recent" };
 
     // How well `q` names object `o`. The plural label counts too, so
     // "contacts" finds Contact rather than Contact Request.
