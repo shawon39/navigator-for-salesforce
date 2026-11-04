@@ -92,6 +92,8 @@
 .group-header { display:flex; align-items:center; height:28px; padding:0 10px; font-size:12px;
   font-weight:600; color:var(--nv-text-3); user-select:none; }
 .result + .group-header, .result + .board { margin-top:8px; }
+.pkg-toggle { display:inline-flex; align-items:center; gap:5px; margin-left:auto; font-weight:500; cursor:pointer; }
+.pkg-toggle input { margin:0; accent-color:var(--nv-primary); cursor:pointer; }
 .board { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding-bottom:2px; }
 .column { display:flex; flex-direction:column; min-width:0; }
 .result { display:flex; align-items:center; gap:10px; height:36px; box-sizing:border-box; padding:0 10px;
@@ -141,6 +143,8 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
 .cmd-help { margin-left:auto; padding:0 2px; background:none; color:var(--nv-text-3);
   font:500 11.5px "Figtree","Segoe UI",system-ui,sans-serif; }
 .cmd-help:hover, .cmd-help:focus-visible { color:var(--nv-text); text-decoration:underline; }
+.cmd-verb:focus-visible, .cmd-help:focus-visible, .help-back:focus-visible, .help-name:focus-visible {
+  outline:0; box-shadow:0 0 0 2px var(--nv-primary); }
 .help { padding:10px 10px 14px; color:var(--nv-text); font-size:13px; }
 .help-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
 .help-title { font:600 15px "Figtree","Segoe UI",system-ui,sans-serif; color:var(--nv-text); }
@@ -423,9 +427,15 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
             group: "Setup",
             text: "Find a user and open their record.",
             example: "users jane",
-            tip: "Press → to see their details, with Login as.",
+            tip: "With nothing typed, it lists the 20 active users who logged in last. Press → to see a user's details.",
         },
-        { verb: "apex", group: "Setup", text: "Find an Apex class or trigger and open it.", example: "apex selector" },
+        {
+            verb: "apex",
+            group: "Setup",
+            text: "Find an Apex class or trigger and open it.",
+            example: "apex selector",
+            tip: "Package code is hidden; tick Show package code to list it.",
+        },
         {
             verb: "limits",
             group: "Setup",

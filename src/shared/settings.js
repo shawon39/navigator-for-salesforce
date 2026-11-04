@@ -16,6 +16,7 @@
         setupTabs: true,
         headerPopupButton: true,
         showManaged: false,
+        showPackageApex: false, // the palette's apex list includes managed-package code
         orgTabColors: false, // tab icons colored per saved org (see orgColors.js)
         popupTabs: { recent: true, navigate: true, objects: true, orgs: true },
         recentCount: 10, // recently viewed records shown in the popup and the palette

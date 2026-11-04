@@ -54,8 +54,12 @@
     let liveEnabled = true;
     let paletteEnabled = true; // settings.commandPalette
     let objectsRequested = false;
-    let adminItems = []; // profiles, permission sets, flows (fetched once)
+    let adminItems = []; // profiles, permission sets, flows, Apex, metadata types, newest first
     let adminRequested = false;
+    let adminLoaded = false; // adminItems arrived at least once (they can be empty)
+    let adminFailed = false; // the last ask failed; the next open asks again
+    let adminAskedAt = 0; // when adminItems were last asked for; an open refetches them after ADMIN_MAX_AGE
+    const ADMIN_MAX_AGE = 10 * 60 * 1000;
     let appItems = null; // the user's Lightning apps, in App Launcher order, once fetched
     let appsRequested = false;
     let fieldsCache = {}; // object API name -> [{api,label,type,key}] for the "fields" verb
@@ -70,7 +74,10 @@
     let limitsLoading = false;
     let recentCache = {}; // object API name -> your last 20 viewed records, for the "recent" verb
     let recentCount = SFEN_SETTINGS.DEFAULTS.recentCount; // settings.recentCount: recently viewed records shown
+    let showPackageApex = false; // settings.showPackageApex: the apex list includes managed-package code
     let recentKey = null; // object whose last viewed records are being fetched
+    let activeUsers = null; // active users who logged in last, for "users" with nothing typed; refetched per open
+    let activeUsersLoading = false;
     let catalogCache = null; // fullCatalog() result; reset when its sources change
     let currentQuery = ""; // last query passed to render()
     let expandedKey = null; // url of the row whose ⋯ actions are expanded
@@ -280,12 +287,18 @@
     // Profiles, permission sets, flows, Apex classes and triggers, and custom
     // metadata types — fetched once, fuzzy-searched like objects. Each carries
     // a hint so the result type is obvious.
+    // The old list stays in use until the refetched one arrives.
     function loadAdmin() {
+        if (Date.now() - adminAskedAt > ADMIN_MAX_AGE) adminRequested = false;
         if (!liveEnabled || adminRequested) return;
         adminRequested = true;
+        adminFailed = false;
+        adminAskedAt = Date.now();
         ask("admin", {}, (resp) => {
             if (!resp || !liveEnabled) {
                 adminRequested = false;
+                adminFailed = !!liveEnabled;
+                if (opened && activeVerb && VERBS[activeVerb].kind === "admin") render(inputEl.value);
                 return;
             }
             const profiles = (resp.profiles || []).map((p) => ({
@@ -344,6 +357,7 @@
                     : null,
             }));
             adminItems = profiles.concat(permSets, flows, apex, metadataTypes);
+            adminLoaded = true;
             catalogCache = null;
             if (opened && (inputEl.value.trim() || activeVerb)) render(inputEl.value);
         });
@@ -1349,10 +1363,13 @@
                     bestScore = sc;
                 }
             });
-            if (!obj) return;
+            if (!obj) return showEmpty(`No objects match “${q}”`);
         }
         const records = obj ? recentCache[obj.api] : recentRecords;
-        if (!records) return loadObjectRecent(obj.api);
+        if (!records) {
+            loadObjectRecent(obj.api);
+            return showEmpty("Loading recent records…");
+        }
         if (!records.length) return;
         listEl.appendChild(groupHeader(obj ? `Recent ${obj.plural || obj.label || obj.api}` : "Recent records"));
         renderRows(listEl, records.slice(0, recentCount));
@@ -1617,7 +1634,20 @@
     function renderUsers(query) {
         panelEl.classList.remove("board-mode");
         if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
-        if (query.trim().length < 2) return showEmpty("Type a name to find a user");
+        const q = query.trim();
+        if (q.length < 2) {
+            // Too short to search: the active users who logged in last, filtered by a first letter.
+            if (!activeUsers) {
+                loadActiveUsers();
+                return showEmpty("Loading users…");
+            }
+            const shown = q ? activeUsers.filter((i) => SFEN_URL.matchScore(q, i.label, i.keywords) >= 0) : activeUsers;
+            if (!shown.length) return showEmpty("Type a name to find a user");
+            listEl.appendChild(groupHeader("Active users, last logged in first"));
+            renderRows(listEl, shown);
+            setActive(0);
+            return;
+        }
         const users = liveRecords.filter((i) => i.user);
         if (!users.length) {
             return showEmpty(liveRecordsTerm === query ? `No users match “${query.trim()}”` : "Searching users…");
@@ -1632,12 +1662,18 @@
     function renderAdminVerb(verb, query) {
         panelEl.classList.remove("board-mode");
         if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
-        if (!adminItems.length) {
+        if (!adminLoaded) {
+            // A failed ask waits for the next open, not every keystroke.
+            if (adminFailed) return showEmpty(`Couldn't load ${verb.label.toLowerCase()}`, "Close and reopen the palette to try again.");
             loadAdmin();
             return showEmpty("Loading…");
         }
-        const all = adminItems.filter((i) => i.group === verb.group);
+        // Managed-package code is hidden in Setup, so package Apex shows only
+        // with the header's "Show package code" ticked.
+        const apex = verb.group === GROUPS.APEX;
+        const all = adminItems.filter((i) => i.group === verb.group && (!apex || showPackageApex || !i.pkg));
         const q = query.trim();
+        // Matches by score; ties, and the list with nothing typed, stay newest first.
         const items = q
             ? all
                   .map((item) => ({ item, sc: SFEN_URL.matchScore(q, item.label, item.keywords) }))
@@ -1645,11 +1681,54 @@
                   .sort((a, b) => b.sc - a.sc)
                   .map((s) => s.item)
             : all;
-        setFooterCount(`${items.length} of ${all.length}`);
+        const shown = items.slice(0, q ? 50 : 20);
+        setFooterCount(`${shown.length} of ${all.length}`);
+        const title = q ? verb.label : `${verb.label}, last modified first`;
+        // The apex header always shows, so its checkbox can be ticked with no matches.
+        if (apex) listEl.appendChild(apexHeader(title));
         if (!items.length) return showEmpty(q ? `No ${verb.label.toLowerCase()} match “${q}”` : `No ${verb.label.toLowerCase()}`);
-        listEl.appendChild(groupHeader(verb.label));
-        renderRows(listEl, items.slice(0, 50).map((item) => ({ ...item, highlightQuery: q })));
+        if (!apex) listEl.appendChild(groupHeader(title));
+        renderRows(listEl, shown.map((item) => ({ ...item, highlightQuery: q })));
         setActive(0);
+    }
+
+    // The apex list's header with its "Show package code" checkbox, which
+    // saves settings.showPackageApex.
+    function apexHeader(title) {
+        const h = groupHeader(title);
+        h.removeAttribute("aria-hidden");
+        const label = document.createElement("label");
+        label.className = "pkg-toggle";
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = showPackageApex;
+        box.addEventListener("change", () => {
+            showPackageApex = box.checked;
+            render(inputEl.value);
+            focusInput();
+            if (!extAlive()) return;
+            chrome.storage.sync.get("settings", (res) => {
+                if (chrome.runtime.lastError) return;
+                const s = SFEN_SETTINGS.normalize(res && res.settings);
+                s.showPackageApex = showPackageApex;
+                chrome.storage.sync.set({ settings: s });
+            });
+        });
+        label.append(box, "Show package code");
+        h.appendChild(label);
+        return h;
+    }
+
+    function loadActiveUsers() {
+        if (activeUsersLoading) return;
+        activeUsersLoading = true;
+        setLoading("activeUsers", true);
+        ask("users", { term: "", active: true }, (resp) => {
+            activeUsersLoading = false;
+            setLoading("activeUsers", false);
+            activeUsers = ((resp && resp.records) || []).map(mapRecord);
+            if (opened && activeVerb && VERBS[activeVerb].kind === "users") render(inputEl.value);
+        });
     }
 
     // Inactive users render dimmed and aren't selectable (not in flatResults).
@@ -2240,8 +2319,8 @@
         inspectKey = null;
         inspectRecord = null;
         setPeek(false);
-        // Retry previews that failed.
-        Object.keys(peekCache).forEach((id) => peekCache[id] === "failed" && delete peekCache[id]);
+        // Previews are refetched per open, so a record edited since shows its new values.
+        Object.keys(peekCache).forEach((id) => delete peekCache[id]);
         renderChip();
         resetFooter();
         render("");
@@ -2256,6 +2335,7 @@
         countCache = {};
         recentCache = {};
         if (!limitsLoading) limitsData = null;
+        if (!activeUsersLoading) activeUsers = null;
         if (picked.length >= 2 && picked.length <= 80) {
             inputEl.value = picked;
             onInput();
@@ -2362,6 +2442,7 @@
                 paletteEnabled = res.settings.commandPalette;
             }
             recentCount = SFEN_SETTINGS.normalize(res.settings).recentCount;
+            showPackageApex = SFEN_SETTINGS.normalize(res.settings).showPackageApex;
         });
         chrome.storage.onChanged.addListener((changes, area) => {
             if (!extAlive()) return;
@@ -2373,6 +2454,7 @@
                     const s = changes.settings.newValue || {};
                     if (typeof s.liveOrgAccess === "boolean") liveEnabled = s.liveOrgAccess;
                     recentCount = SFEN_SETTINGS.normalize(s).recentCount;
+                    showPackageApex = SFEN_SETTINGS.normalize(s).showPackageApex;
                     if (!liveEnabled) {
                         // Drop everything fetched from the org right away; turning
                         // it back on fetches again.
@@ -2393,10 +2475,13 @@
                         recentKey = null;
                         setLoading("recent", false);
                         limitsData = null;
+                        activeUsers = null;
                         recentRecords = [];
                         catalogCache = null;
                         objectsRequested = false;
                         adminRequested = false;
+                        adminLoaded = false;
+                        adminFailed = false;
                         appsRequested = false;
                         hop = null;
                         hopKey = null;

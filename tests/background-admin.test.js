@@ -76,8 +76,10 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     let r = await send({ action: "admin" });
     assert.strictEqual(r.ok, true, JSON.stringify(r));
     const qs = fetchCalls.map(soql);
-    assert(qs.includes("SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY NamespacePrefix NULLS FIRST, Name LIMIT 2000"));
-    assert(qs.includes("SELECT Id, Name, NamespacePrefix, TableEnumOrId FROM ApexTrigger ORDER BY NamespacePrefix NULLS FIRST, Name LIMIT 2000"));
+    assert(qs.includes("SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000"));
+    assert(qs.includes("SELECT Id, Name, NamespacePrefix, TableEnumOrId FROM ApexTrigger ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000"));
+    assert(qs.some((s) => s.startsWith("SELECT Id, Name FROM Profile ORDER BY LastModifiedDate DESC")));
+    assert(qs.some((s) => s.includes("FROM FlowDefinitionView ORDER BY LastModifiedDate DESC NULLS LAST")));
     assert(qs.includes("SELECT DurableId, QualifiedApiName, Label, NamespacePrefix, KeyPrefix FROM EntityDefinition WHERE QualifiedApiName LIKE '%__mdt'"));
     assert(qs.includes(
         "SELECT DurableId, QualifiedApiName FROM EntityDefinition WHERE DurableId IN " +
@@ -114,6 +116,18 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     assert.strictEqual(r.ok, true);
     assert.deepStrictEqual([r.apexClasses, r.apexTriggers, r.metadataTypes, r.profiles], [[], [], [], []]);
     console.log("PASS a forbidden Apex query leaves the rest of the search working");
+
+    // Later batches are followed; one that fails keeps the batches before it.
+    route = (url) => {
+        if (soql(url).includes("FROM Profile")) return json({ records: [{ Id: "00e000000000001AAA", Name: "One" }], nextRecordsUrl: "/services/data/v60.0/query/01g-2000" });
+        if (url.endsWith("/query/01g-2000")) return json({ records: [{ Id: "00e000000000002AAA", Name: "Two" }], nextRecordsUrl: "/services/data/v60.0/query/01g-4000" });
+        if (url.endsWith("/query/01g-4000")) return { ok: false, status: 500, json: async () => [{ errorCode: "SERVER_ERROR" }] };
+        return null;
+    };
+    r = await send({ action: "admin" });
+    assert.deepStrictEqual(r.profiles.map((p) => p.Name), ["One", "Two"]);
+    route = () => null;
+    console.log("PASS admin lists follow later batches and keep them when one fails");
 
     storage = { settings: { liveOrgAccess: false } };
     fetchCalls = [];

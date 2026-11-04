@@ -110,7 +110,23 @@ async function sfSearchUsers(host, rawTerm, limit, signal) {
         1,
         signal
     );
-    return rows.map((u) => ({
+    return rows.map(userRow);
+}
+
+// The 20 active internal users who logged in last, for the "users" verb with
+// nothing typed. Guest, portal and community users are left out.
+async function sfActiveUsers(host) {
+    const rows = await sfQueryAll(
+        host,
+        "SELECT Id, Name, Username, IsActive, Profile.Name, Alias FROM User " +
+            "WHERE IsActive = true AND UserType = 'Standard' ORDER BY LastLoginDate DESC NULLS LAST, Name LIMIT 20",
+        1
+    );
+    return rows.map(userRow);
+}
+
+function userRow(u) {
+    return {
         Id: u.Id,
         attributes: { type: "User" },
         Name: u.Name,
@@ -118,7 +134,7 @@ async function sfSearchUsers(host, rawTerm, limit, signal) {
         IsActive: u.IsActive,
         Alias: u.Alias,
         ProfileName: u.Profile ? u.Profile.Name : null,
-    }));
+    };
 }
 
 // A user's preview: the fields admins check first, most of which the User
@@ -510,7 +526,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 // slow User query (an org with many users) doesn't hold up records.
                 const rawTerm = (msg.term || "").trim();
                 if (rawTerm.length < 2) {
-                    sendResponse({ ok: true, records: [] });
+                    // The "users" verb with nothing typed asks for active users.
+                    sendResponse({ ok: true, records: msg.active === true && !rawTerm ? await sfActiveUsers(host) : [] });
                     return;
                 }
                 const limit = msg.limit === 5 ? 5 : 20;
@@ -537,38 +554,49 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 });
             } else if (msg.action === "admin") {
                 // Searchable admin metadata: profiles, permission sets, flows,
-                // Apex classes and triggers, custom metadata types. Fetched once
-                // per palette session and fuzzy-filtered client-side.
-                const q = async (soql) => {
+                // Apex classes and triggers, custom metadata types. Fetched in
+                // the palette's background, newest first, and fuzzy-filtered
+                // client-side; the palette refetches it after 10 minutes.
+                // pages: batches of up to 2,000 to follow; a batch that fails
+                // keeps the ones before it.
+                const q = async (soql, pages = 1) => {
+                    let records = [];
                     try {
-                        const d = await sfFetch(
-                            host,
-                            `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`
-                        );
-                        return d.records || [];
+                        let d = await sfFetch(host, `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`);
+                        records = d.records || [];
+                        for (let p = 1; p < pages && SFEN_URL.isSafePath(d.nextRecordsUrl); p++) {
+                            d = await sfFetch(host, d.nextRecordsUrl);
+                            records = records.concat(d.records || []);
+                        }
                     } catch (e) {
-                        return []; // a feature may be unavailable; degrade gracefully
+                        /* a feature may be unavailable; keep what loaded */
                     }
+                    return records;
                 };
                 const [profiles, permissionSets, flows, classes, triggers, entities] = await Promise.all([
-                    q("SELECT Id, Name FROM Profile ORDER BY Name LIMIT 1000"),
+                    q("SELECT Id, Name FROM Profile ORDER BY LastModifiedDate DESC LIMIT 10000", 5),
                     q(
                         "SELECT Id, Name, Label, Type FROM PermissionSet " +
-                        "WHERE IsOwnedByProfile = false ORDER BY Label LIMIT 1000"
+                        "WHERE IsOwnedByProfile = false ORDER BY LastModifiedDate DESC LIMIT 10000",
+                        5
                     ),
                     q(
                         // ActiveVersionId / LatestVersionId are the 301 flow-version
                         // ids Flow Builder opens; DurableId is the 300 definition id
                         // (passing it to flowBuilder.app yields "We can't open this flow").
+                        // Packaged flows have no LastModifiedDate; NULLS LAST keeps
+                        // the org's own recent flows first.
                         "SELECT DurableId, ApiName, Label, ProcessType, IsActive, " +
                         "ActiveVersionId, LatestVersionId " +
-                        "FROM FlowDefinitionView ORDER BY Label LIMIT 2000"
+                        "FROM FlowDefinitionView ORDER BY LastModifiedDate DESC NULLS LAST LIMIT 10000",
+                        5
                     ),
                     // The org's own code first, then managed packages'.
-                    q("SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY NamespacePrefix NULLS FIRST, Name LIMIT 2000"),
+                    q("SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000", 5),
                     q(
                         "SELECT Id, Name, NamespacePrefix, TableEnumOrId FROM ApexTrigger " +
-                        "ORDER BY NamespacePrefix NULLS FIRST, Name LIMIT 2000"
+                        "ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000",
+                        5
                     ),
                     // EntityDefinition ignores LIMIT and can't page; custom
                     // metadata types fit in one batch. DurableId is the type's

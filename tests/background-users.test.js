@@ -78,6 +78,17 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     assert.deepStrictEqual([r.ok, r.records.length, fetchCalls.length], [true, 0, 0]);
     console.log("PASS users short term empty without fetch");
 
+    // Nothing typed with active: true lists active internal users, last login first.
+    fetchCalls = [];
+    r = await send({ action: "users", term: "", active: true });
+    const activeQ = soql(fetchCalls[0]);
+    assert.ok(activeQ.includes("WHERE IsActive = true AND UserType = 'Standard'") && activeQ.includes("ORDER BY LastLoginDate DESC NULLS LAST") && activeQ.includes("LIMIT 20"), activeQ);
+    assert.strictEqual(r.ok, true);
+    fetchCalls = [];
+    await send({ action: "users", term: "a", active: true });
+    assert.strictEqual(fetchCalls.length, 0);
+    console.log("PASS users active list when nothing is typed");
+
     // Plain search asks for its users with limit 5; any other limit is 20.
     fetchCalls = [];
     await send({ action: "users", term: "Nat", limit: 5 });
