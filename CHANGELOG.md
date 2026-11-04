@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 5.2.0
 
 ### Added
 - Peek: `→` on a record in the palette shows its key fields (the record's compact layout) beside the results, without leaving the page. The preview follows as you move through the list; a lookup in it opens that record. `←` or `Esc` closes it. Hover a value to copy it; the record's Id is listed last. Buttons open it in a new tab or copy its link. Needs live org access.
