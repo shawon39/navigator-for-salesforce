@@ -36,5 +36,6 @@ assert.deepStrictEqual(s.popupTabs, { recent: true, navigate: true, objects: tru
 assert.deepStrictEqual(Object.keys(s).sort(), Object.keys(DEFAULTS).sort());
 assert.strictEqual(normalize({ darkMode: true }).theme, "dark");
 assert.strictEqual(normalize({ theme: "system" }).theme, "system");
+assert.deepStrictEqual([normalize({}).recentCount, normalize({ recentCount: 15 }).recentCount, normalize({ recentCount: 99 }).recentCount], [10, 15, 10]);
 assert.deepStrictEqual(normalize(null), normalize({}));
 console.log("PASS normalize keeps only known settings with the right type");

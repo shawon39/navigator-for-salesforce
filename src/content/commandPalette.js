@@ -64,7 +64,8 @@
     let listRecentCache = {}; // object API name -> your last 5 viewed [{id,name}], loaded with its list views
     let countCache = {}; // object API name -> { total, recordTypes } or "failed", for the "count" verb
     let countKey = null; // object whose records are being counted
-    let recentCache = {}; // object API name -> your last 10 viewed records, for the "recent" verb
+    let recentCache = {}; // object API name -> your last 20 viewed records, for the "recent" verb
+    let recentCount = SFEN_SETTINGS.DEFAULTS.recentCount; // settings.recentCount: recently viewed records shown
     let recentKey = null; // object whose last viewed records are being fetched
     let catalogCache = null; // fullCatalog() result; reset when its sources change
     let currentQuery = ""; // last query passed to render()
@@ -401,7 +402,7 @@
         });
     }
 
-    // One object's last 10 viewed records for the "recent" verb, refetched per open.
+    // One object's last viewed records for the "recent" verb, refetched per open.
     function loadObjectRecent(api) {
         if (recentCache[api] || recentKey === api) return;
         recentKey = api;
@@ -1287,8 +1288,8 @@
         setActive(0);
     }
 
-    // "recent" verb: your last 10 viewed records, or the best matching
-    // object's once one is typed. With none there's nothing to show.
+    // "recent" verb: your last viewed records (settings.recentCount), or the
+    // best matching object's once one is typed. With none there's nothing to show.
     function renderRecentVerb(query) {
         panelEl.classList.remove("board-mode");
         if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
@@ -1305,11 +1306,11 @@
             });
             if (!obj) return;
         }
-        const records = obj ? recentCache[obj.api] : recentRecords.slice(0, 10);
+        const records = obj ? recentCache[obj.api] : recentRecords;
         if (!records) return loadObjectRecent(obj.api);
         if (!records.length) return;
         listEl.appendChild(groupHeader(obj ? `Recent ${obj.plural || obj.label || obj.api}` : "Recent records"));
-        renderRows(listEl, records);
+        renderRows(listEl, records.slice(0, recentCount));
         setActive(0);
     }
 
@@ -1819,7 +1820,7 @@
         // Stored entries name their org (a string); a row's `org` is a saved
         // org, drawn as its color dot, so leave it out.
         const recent = recents.slice(0, 7).map(({ org, ...r }) => ({ ...r, group: GROUPS.RECENT }));
-        const records = recentRecords.slice(0, 20);
+        const records = recentRecords.slice(0, recentCount);
         const bookmarks = staticCatalog.filter((i) => i.group === GROUPS.BOOKMARK).slice(0, 8);
         const setupTabs = staticCatalog.filter((i) => i.group === GROUPS.SETUP_TAB).slice(0, 8);
 
@@ -2184,6 +2185,7 @@
             if (res.settings && typeof res.settings.commandPalette === "boolean") {
                 paletteEnabled = res.settings.commandPalette;
             }
+            recentCount = SFEN_SETTINGS.normalize(res.settings).recentCount;
         });
         chrome.storage.onChanged.addListener((changes, area) => {
             if (!extAlive()) return;
@@ -2194,6 +2196,7 @@
                 if (changes.settings) {
                     const s = changes.settings.newValue || {};
                     if (typeof s.liveOrgAccess === "boolean") liveEnabled = s.liveOrgAccess;
+                    recentCount = SFEN_SETTINGS.normalize(s).recentCount;
                     if (!liveEnabled) {
                         // Drop everything fetched from the org right away; turning
                         // it back on fetches again.

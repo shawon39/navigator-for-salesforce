@@ -341,6 +341,22 @@ body.is-searching .nv-tabs {
     margin-top: 10px;
 }
 
+/* Recent tab: records and Setup pages side by side. A section with nothing
+   in it (its label hidden) gives the other the full width. */
+.nv-recent-cols {
+    display: flex;
+    gap: 8px;
+}
+
+.nv-recent-col {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.nv-recent-col:has(> .nv-group[hidden]) {
+    display: none;
+}
+
 .nv-group-count {
     margin-left: 4px;
     font-weight: 500;
@@ -612,10 +628,10 @@ body.is-searching .nv-tabs {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start; /* icons line up when a label wraps */
+    justify-content: center;
     gap: 6px;
     height: 62px;
-    padding: 10px 4px 0;
+    padding: 0 4px;
     border-radius: 8px;
     background: var(--nv-surface-2);
     color: var(--nv-text);

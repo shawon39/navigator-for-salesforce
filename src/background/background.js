@@ -378,7 +378,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 // resource, which can return empty in some orgs.
                 // Exclude ListView (and null types) so every row resolves to a
                 // real /lightning/r/{Type}/{Id}/view record link.
-                // With an object (the palette's "recent account"), its last 10.
+                // With an object (the palette's "recent account"), only its records.
                 const object = msg.object;
                 if (object !== undefined && (typeof object !== "string" || !/^[A-Za-z0-9_]+$/.test(object))) {
                     throw new Error("Invalid object name");
@@ -386,7 +386,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 const soql =
                     "SELECT Id, Name, Type FROM RecentlyViewed " +
                     (object ? `WHERE Type = '${object}' ` : "WHERE Type != null AND Type != 'ListView' ") +
-                    `ORDER BY LastViewedDate DESC NULLS LAST LIMIT ${object ? 10 : 20}`;
+                    "ORDER BY LastViewedDate DESC NULLS LAST LIMIT 20";
                 const data = await sfFetch(
                     host,
                     `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`

@@ -53,10 +53,16 @@
 
         <!-- Tab panels -->
         <main id="tab-recent" class="nv-main nv-list tab-panel" role="tabpanel" aria-labelledby="tabbtn-recent" hidden>
-            <div id="recentSetupLabel" class="nv-group" hidden>Setup</div>
-            <div id="recentSetup"></div>
-            <div id="recentRecordsLabel" class="nv-group nv-group-gap" hidden>Recently viewed</div>
-            <div id="recentList"></div>
+            <div class="nv-recent-cols">
+                <div class="nv-recent-col">
+                    <div id="recentRecordsLabel" class="nv-group" hidden>Records</div>
+                    <div id="recentList"></div>
+                </div>
+                <div class="nv-recent-col">
+                    <div id="recentSetupLabel" class="nv-group" hidden>Setup</div>
+                    <div id="recentSetup"></div>
+                </div>
+            </div>
             <div id="recentEmpty" class="nv-empty" hidden>
                 <div class="nv-empty-body">
                     <span data-icon="clock" data-size="28" data-stroke="1.6"></span>
@@ -72,8 +78,8 @@
             <div class="nv-quick-grid">
                 <a id="home" href="#"><span data-icon="home" data-size="18"></span>Home</a>
                 <a id="setup" href="#"><span data-icon="wrench" data-size="18"></span>Setup</a>
-                <a id="objManager" href="#"><span data-icon="box" data-size="18"></span>Object Manager</a>
-                <a id="devConsole" href="#"><span data-icon="terminal" data-size="18"></span>Dev Console</a>
+                <a id="objManager" href="#" data-label="Object Manager" title="Object Manager"><span data-icon="box" data-size="18"></span>Schema</a>
+                <a id="devConsole" href="#" title="Developer Console"><span data-icon="terminal" data-size="18"></span>Console</a>
                 <a id="users" href="#"><span data-icon="users" data-size="18"></span>Users</a>
             </div>
             <div class="nv-group-bar">

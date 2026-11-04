@@ -103,11 +103,14 @@
         const a = document.createElement("a");
         a.className = "nv-row" + (opts.tall ? " is-tall" : "");
         a.href = absUrl(opts.url);
+        if (opts.title) a.title = opts.title; // the full name, when a narrow row cuts it off
+        const label = `<span class="nv-row-label">${opts.html}</span>`;
         a.innerHTML =
             icon(opts.icon) +
-            `<span class="nv-row-label">${opts.html}</span>` +
+            (opts.sub ? `<span class="nv-row-text">${label}<span class="nv-row-sub"></span></span>` : label) +
             (opts.meta ? '<span class="nv-row-meta"></span>' : "") +
             `<span class="nv-row-enter" aria-hidden="true">${icon("enter", 14, 2)}</span>`;
+        if (opts.sub) a.querySelector(".nv-row-sub").textContent = opts.sub;
         if (opts.meta) a.querySelector(".nv-row-meta").textContent = opts.meta;
         a.addEventListener("click", (e) => {
             if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
@@ -722,7 +725,7 @@
         setupList.innerHTML = "";
         list.innerHTML = "";
 
-        const setupItems = recentSetup.filter((it) => SFEN_URL.isSafePath(it.url)).slice(0, 7);
+        const setupItems = recentSetup.filter((it) => SFEN_URL.isSafePath(it.url)).slice(0, 9);
         $("recentSetupLabel").hidden = !setupItems.length;
         setupItems.forEach((it) => {
             const label = it.label || it.url;
@@ -730,19 +733,20 @@
                 linkRow({
                     icon: label.includes(" — ") ? "box" : "wrench",
                     html: pathLabel(label),
+                    title: label,
                     url: it.url,
                     record: { label: it.label, hint: it.hint, flow: it.flow },
                 })
             );
         });
 
-        const recordItems = recentRecords.slice(0, 20);
+        const recordItems = recentRecords.slice(0, settings.recentCount);
         $("recentRecordsLabel").hidden = !recordItems.length;
-        $("recentRecordsLabel").classList.toggle("nv-group-gap", !!setupItems.length);
         recordItems.forEach((r) => {
             const type = r.attributes ? r.attributes.type : "Record";
+            const name = r.Name || r.Id;
             list.appendChild(
-                linkRow({ icon: "file", html: escapeHtml(r.Name || r.Id), meta: type, url: `/lightning/r/${type}/${r.Id}/view` })
+                linkRow({ icon: "file", html: escapeHtml(name), sub: type, title: name, tall: true, url: `/lightning/r/${type}/${r.Id}/view` })
             );
         });
 

@@ -151,6 +151,10 @@
             chrome.storage.sync.get("bookmarks", function (result) {
                 let bookmarks = result.bookmarks || [];
                 if (bookmarks.length >= MAX_BOOKMARKS) return;
+                if (bookmarks.some((b) => b.url === bookmarkUrl)) {
+                    SFEN_UI.toast("This page is already bookmarked");
+                    return;
+                }
                 saveBookmarks([...bookmarks, { title: bookmarkTitle, url: bookmarkUrl }]);
                 SFEN_UI.toast("Bookmark added");
             });

@@ -110,8 +110,10 @@
 
     function renderSettings() {
         applyTheme();
-        document.querySelectorAll("[data-theme-option]").forEach((btn) => {
-            const on = btn.dataset.themeOption === settings.theme;
+        document.querySelectorAll("[data-theme-option], [data-recent-option]").forEach((btn) => {
+            const on = btn.dataset.themeOption
+                ? btn.dataset.themeOption === settings.theme
+                : Number(btn.dataset.recentOption) === settings.recentCount;
             btn.setAttribute("aria-checked", on ? "true" : "false");
             btn.tabIndex = on ? 0 : -1;
         });
@@ -137,10 +139,10 @@
         saveTimer = setTimeout(flushSettings, 300);
     }
 
-    function bindSettings() {
-        const options = Array.from(document.querySelectorAll("[data-theme-option]"));
+    function bindRadioGroup(selector, set) {
+        const options = Array.from(document.querySelectorAll(selector));
         options.forEach((btn, i) => {
-            btn.addEventListener("click", () => updateSettings((s) => (s.theme = btn.dataset.themeOption)));
+            btn.addEventListener("click", () => updateSettings((s) => set(s, btn)));
             // Arrow keys move the selection within the radio group.
             btn.addEventListener("keydown", (e) => {
                 const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
@@ -151,6 +153,11 @@
                 next.click();
             });
         });
+    }
+
+    function bindSettings() {
+        bindRadioGroup("[data-theme-option]", (s, btn) => (s.theme = btn.dataset.themeOption));
+        bindRadioGroup("[data-recent-option]", (s, btn) => (s.recentCount = Number(btn.dataset.recentOption)));
 
         document.querySelectorAll("[data-setting]").forEach((sw) => {
             sw.addEventListener("click", () => {

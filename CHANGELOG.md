@@ -7,7 +7,8 @@
 - User preview: `→` (or `⋯`) on a user in the palette shows the user's details beside the results: username, email, status, profile, role, user license, alias, time zone, last login, manager, title, department and User Id, with Login as and Login as · Incognito buttons. Needs live org access.
 - List view search: `list` (or `li`), an object and a space, like `li account `, lists that object's list views; keep typing to filter them. A number from 1 to 5, like `li account 1`, puts the Account you viewed last (or 2nd to 5th last) first; `Enter` opens it. Needs live org access.
 - Record counts: `count` (or `c`) `account` and `Enter` shows how many Accounts there are, then each record type's count, Master included. Keep typing to filter record types. Counts only the records you can see. Needs live org access.
-- Recent records: `recent` (or `re`) lists the 10 records you viewed last, across objects. Add an object, like `re account`, for the 10 Accounts you viewed last. With none, the list stays empty. Needs live org access.
+- Recent records: `recent` (or `re`) lists the records you viewed last, across objects. Add an object, like `re account`, for the Accounts you viewed last. With none, the list stays empty. Needs live org access.
+- Settings → Behavior → Recently viewed records: show 10 (the default), 15 or 20 recently viewed records in the popup's Recent tab and in the palette.
 - On a record, the palette lists the records it links to (its Account, Owner and other lookups on the page layout). Typing finds them too, so `acc` on an Opportunity offers its Account. Needs live org access.
 - Admin shorthand in the palette and popup search: `ps`, `psg`, `dl`, `cmdt`, `cs`, `lwc`, `sr`, `aj`, `sj`, `vf`, `om`, `ip`, `nc`, `rss`, `lh`, `sat`, `ds`, `ics`, `ocs` and `lab` open Permission Sets, Permission Set Groups, Debug Logs and the other Setup pages they stand for.
 - Text you select on the page fills the palette's search when you open it. A selection left on the page fills it only once.
@@ -19,7 +20,8 @@
 - A user in the palette no longer lists Login as, Copy User Id and Manage in Setup under its row; they're in the user's preview. Records have a record icon instead of a file icon.
 - Recent Setup also keeps the Setup pages you open by clicking through Setup, not only those opened with Navigator.
 - Faster palette search in orgs with many users: records no longer wait for the user lookup, and each shows as soon as it arrives. A search you've typed past is stopped instead of running on.
-- The popup's Navigate tab has one row of five shortcuts: Home, Setup, Object Manager, Dev Console and Users. Flows and the Inbound and Outbound change sets are still a search away. You can keep up to 25 bookmarks (was 10); the list scrolls under the shortcuts.
+- The popup's Navigate tab has one row of five shortcuts: Home, Setup, Schema (Object Manager), Console (Developer Console) and Users. Flows and the Inbound and Outbound change sets are still a search away. You can keep up to 25 bookmarks (was 10); the list scrolls under the shortcuts. Adding a page that's already bookmarked says so instead of adding it twice.
+- The popup's Recent tab shows records and Setup pages side by side, up to 9 Setup pages (was 7). Each record shows its object under its name; hover a cut-off name to see it all. The palette and the popup show 10 recently viewed records by default (was 20).
 
 ### Fixed
 - A new custom object could stay missing from search and the palette for hours, because Chrome reused an older copy of the org's object list. Navigator now checks with Salesforce first.
