@@ -475,7 +475,10 @@
                 cell.textContent = key ? formatKey(key) : "Not set";
                 cell.classList.toggle("is-unset", !key);
             });
-            $("paletteKey").textContent = keys.open_command_palette || "";
+            // The palette's key as keycaps: "⌥K" on a Mac, "Alt+K" elsewhere.
+            const paletteKey = keys.open_command_palette || "";
+            const caps = paletteKey.includes("+") ? paletteKey.split("+") : paletteKey.split("");
+            $("paletteKey").replaceChildren(...caps.map((k) => el("kbd", "", k)));
             $("keysBanner").hidden = !(commands || []).some((c) => !c.shortcut);
         });
     }
