@@ -117,6 +117,28 @@ function recordUi(layoutType, items) {
     }
     console.log("PASS peek rejects bad record Ids before any request");
 
+    // A user's peek: its own SOQL query, not the compact layout.
+    const USR = "005000000000002AAA";
+    route = (url) => (url.includes("/query/") ? json({ records: [{
+        Id: USR, Name: "Sam Gillingham", Username: "sam@acme.com", Email: "sam@acme.com", IsActive: false, Alias: "sgill",
+        Title: null, Department: "Sales", LastLoginDate: null, TimeZoneSidKey: "(GMT-08:00) Pacific Standard Time (America/Los_Angeles)",
+        Profile: { Name: "System Administrator", UserLicense: { Name: "Salesforce" } }, UserRole: null,
+        ManagerId: "005000000000001AAA", Manager: { Name: "Jane Cooper" },
+    }] }) : null);
+    fetchCalls = [];
+    r = await send({ action: "peek", recordId: USR });
+    assert.strictEqual(r.ok, true, JSON.stringify(r));
+    assert.deepStrictEqual([fetchCalls.length, soql(fetchCalls[0]).endsWith(`FROM User WHERE Id = '${USR}'`)], [1, true]);
+    assert.deepStrictEqual([r.record.id, r.record.type, r.record.name], [USR, "User", "Sam Gillingham"]);
+    const got = Object.fromEntries(r.record.fields.map((f) => [f.label, f.value]));
+    assert.deepStrictEqual(got, {
+        Username: "sam@acme.com", Email: "sam@acme.com", Status: "Inactive", Profile: "System Administrator", Role: "",
+        "User License": "Salesforce", Alias: "sgill", "Time Zone": "(GMT-08:00) Pacific Standard Time (America/Los_Angeles)",
+        "Last Login": "Never", Manager: "Jane Cooper", Title: "", Department: "Sales", "User Id": USR,
+    });
+    assert.deepStrictEqual(r.record.fields.find((f) => f.label === "Manager").lookup, { id: "005000000000001AAA", type: "User", field: "ManagerId" });
+    console.log("PASS peek on a user: profile, role, license, time zone and the rest from one query; manager is a lookup");
+
     // ---- hop ----
     route = (url) => {
         if (url.includes("/ui-api/record-ui/"))

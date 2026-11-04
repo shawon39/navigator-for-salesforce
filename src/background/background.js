@@ -121,6 +121,37 @@ async function sfSearchUsers(host, rawTerm, limit, signal) {
     }));
 }
 
+// A user's preview: the fields admins check first, most of which the User
+// compact layout lacks. toLabel() gives the time zone's readable name.
+async function sfUserPeek(host, id) {
+    const [u] = await sfQueryAll(
+        host,
+        "SELECT Id, Name, Username, Email, IsActive, Alias, Title, Department, LastLoginDate, " +
+            "toLabel(TimeZoneSidKey), Profile.Name, Profile.UserLicense.Name, UserRole.Name, ManagerId, Manager.Name " +
+            `FROM User WHERE Id = '${id}'`,
+        1
+    );
+    if (!u) throw new Error("Record not found");
+    const name = (rel) => (rel && rel.Name) || "";
+    const manager = RECORD_ID_RE.test(u.ManagerId || "") ? { id: u.ManagerId, type: "User", field: "ManagerId" } : null;
+    const fields = [
+        ["Username", u.Username],
+        ["Email", u.Email],
+        ["Status", u.IsActive ? "Active" : "Inactive"],
+        ["Profile", name(u.Profile)],
+        ["Role", name(u.UserRole)],
+        ["User License", name(u.Profile && u.Profile.UserLicense)],
+        ["Alias", u.Alias],
+        ["Time Zone", u.TimeZoneSidKey],
+        ["Last Login", u.LastLoginDate ? new Date(u.LastLoginDate).toLocaleString() : "Never"],
+        ["Manager", name(u.Manager), manager],
+        ["Title", u.Title],
+        ["Department", u.Department],
+        ["User Id", u.Id],
+    ].map(([label, value, lookup]) => ({ label, value: value == null ? "" : String(value), lookup: lookup || null }));
+    return { id: u.Id, type: "User", typeLabel: "User", name: String(u.Name || u.Id), fields };
+}
+
 // The newest "search" or "users" request per tab. Each one aborts the one
 // before it, so fast typing doesn't stack up requests whose answers the
 // palette would ignore anyway.
@@ -721,6 +752,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     recordTypes.push({ name: "Master", count: counts.master || 0, active: true });
                     sendResponse({ ok: true, total, recordTypes });
                 }
+            } else if (msg.action === "peek" && USER_ID_RE.test(msg.recordId || "")) {
+                sendResponse({ ok: true, record: await sfUserPeek(host, msg.recordId) });
             } else if (msg.action === "peek") {
                 // The palette's preview of a record: its compact layout, the
                 // key fields Salesforce shows at the top of its page.

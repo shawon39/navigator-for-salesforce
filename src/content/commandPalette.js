@@ -962,8 +962,10 @@
     // ---- Peek ------------------------------------------------------------
     // → on a record shows its key fields beside the results, and the preview
     // follows the selection until ← or Esc.
+    // A user's preview opens with its ⋯ actions and stays while you move through them.
     function peekable(item) {
-        return !!(item && !item.__action && item.recordId && !(item.actions && item.actions.length));
+        if (item && item.__action) item = item.parent;
+        return !!(item && item.recordId && (item.user || !(item.actions && item.actions.length)));
     }
 
     function setPeek(on) {
@@ -987,7 +989,12 @@
         if (!peekOpen || !peekEl) return;
         clearTimeout(peekTimer);
         peekEl.textContent = "";
-        const entry = flatResults[activeIndex];
+        let i = activeIndex;
+        let entry = flatResults[i];
+        if (entry && entry.__action) {
+            entry = entry.parent;
+            i = flatResults.indexOf(entry);
+        }
         if (!peekable(entry)) return peekNote("Select a record to preview it.");
         if (!liveEnabled) return peekNote("Live org access is off (turn it on in Settings).");
         const id = entry.recordId;
@@ -1040,7 +1047,6 @@
         // Open, then icon buttons; stays at the bottom while the fields scroll.
         const actions = document.createElement("div");
         actions.className = "peek-actions";
-        const i = activeIndex;
         const open = document.createElement("button");
         open.type = "button";
         open.className = "peek-open";
@@ -1087,7 +1093,7 @@
             if (expandedKey && item.url === expandedKey && item.actions) {
                 item.actions.forEach((action) => {
                     const si = flatResults.length;
-                    flatResults.push({ __action: action });
+                    flatResults.push({ __action: action, parent: item });
                     container.appendChild(makeRow(action, si, true));
                 });
             }
@@ -1785,6 +1791,7 @@
         render(currentQuery);
         const pIdx = flatResults.findIndex((e) => !e.__action && e.url === key);
         if (pIdx < 0) return;
+        if (flatResults[pIdx].user) setPeek(!!expandedKey);
         setActive(expandedKey ? pIdx + 1 : pIdx);
     }
 
