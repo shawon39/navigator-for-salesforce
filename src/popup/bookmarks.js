@@ -1,10 +1,10 @@
 // bookmarks.js
 // Navigate tab bookmarks: list, add, rename, remove and drag to reorder
-// (chrome.storage.sync "bookmarks", up to 10 { title, url } with url a path).
+// (chrome.storage.sync "bookmarks", up to 25 { title, url } with url a path).
 (function () {
     "use strict";
 
-    const MAX_BOOKMARKS = 10;
+    const MAX_BOOKMARKS = 25;
     const DEFAULT_BOOKMARKS = [
         { title: "App Manager", url: "/lightning/setup/NavigationMenus/home" },
         { title: "Static Resources", url: "/lightning/setup/StaticResources/home" },
@@ -151,6 +151,10 @@
             chrome.storage.sync.get("bookmarks", function (result) {
                 let bookmarks = result.bookmarks || [];
                 if (bookmarks.length >= MAX_BOOKMARKS) return;
+                if (bookmarks.some((b) => b.url === bookmarkUrl)) {
+                    SFEN_UI.toast("This page is already bookmarked");
+                    return;
+                }
                 saveBookmarks([...bookmarks, { title: bookmarkTitle, url: bookmarkUrl }]);
                 SFEN_UI.toast("Bookmark added");
             });

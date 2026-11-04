@@ -15,6 +15,8 @@ body {
     background: var(--nv-bg);
     color: var(--nv-text);
     font-family: "Figtree", "Segoe UI", sans-serif;
+    font-size: 13px;
+    line-height: 20px;
 }
 
 button,
@@ -46,34 +48,44 @@ input {
 .st-header-inner {
     display: flex;
     align-items: center;
-    gap: 12px;
-    height: 60px;
+    gap: 10px;
+    height: 56px;
 }
 
 .st-logo {
     flex-shrink: 0;
 }
 
+.st-brand,
+.st-brand-sep,
+.st-brand-sub {
+    font-size: 15px;
+    line-height: 22px;
+}
+
 .st-brand {
-    font-size: 16px;
     font-weight: 600;
 }
 
+.st-brand-sep {
+    color: var(--nv-border-strong);
+}
+
 .st-brand-sub {
-    font-size: 14px;
-    color: var(--nv-text-3);
+    font-weight: 500;
+    color: var(--nv-text-2);
 }
 
 .st-search {
     display: flex;
     align-items: center;
     gap: 8px;
-    width: 320px;
+    width: 300px;
     min-width: 0;
     height: 36px;
     box-sizing: border-box;
     margin-left: auto;
-    padding: 0 12px;
+    padding: 0 8px 0 12px;
     border: 1px solid transparent;
     border-radius: 8px;
     background: var(--nv-surface-2);
@@ -97,7 +109,7 @@ input {
     border: 0;
     outline: 0;
     background: transparent;
-    font: 400 14px "Figtree", sans-serif;
+    font: 400 13px "Figtree", sans-serif;
     color: var(--nv-text);
 }
 
@@ -109,9 +121,9 @@ input {
 
 .st-layout {
     display: grid;
-    grid-template-columns: 200px minmax(0, 1fr);
-    gap: 48px;
-    padding-top: 40px;
+    grid-template-columns: 208px minmax(0, 1fr);
+    gap: 40px;
+    padding-top: 32px;
     padding-bottom: 48px;
 }
 
@@ -127,16 +139,23 @@ input {
 .st-nav a {
     display: flex;
     align-items: center;
-    height: 34px;
-    padding: 0 12px;
+    gap: 10px;
+    height: 32px;
+    padding: 0 10px;
     border-radius: 8px;
     color: var(--nv-text-2);
-    font-size: 14px;
+    font-weight: 500;
     text-decoration: none;
+}
+
+.st-nav svg {
+    flex-shrink: 0;
+    color: var(--nv-text-3);
 }
 
 .st-nav a:hover {
     background: var(--nv-surface-2);
+    color: var(--nv-text);
 }
 
 .st-nav a[aria-current="page"] {
@@ -145,22 +164,27 @@ input {
     font-weight: 600;
 }
 
+.st-nav a[aria-current="page"] svg {
+    color: var(--nv-sel-icon);
+}
+
 .st-main {
     display: flex;
     flex-direction: column;
-    gap: 36px;
+    gap: 32px;
     min-width: 0;
 }
 
 .st-intro {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
 
 .st-intro h1 {
     margin: 0;
-    font-size: 26px;
+    font-size: 22px;
+    line-height: 28px;
     font-weight: 600;
     letter-spacing: -0.01em;
 }
@@ -168,7 +192,6 @@ input {
 .st-intro p,
 .st-no-results {
     margin: 0;
-    font-size: 14px;
     color: var(--nv-text-3);
 }
 
@@ -184,19 +207,18 @@ input {
 .st-section-head {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
 }
 
 .st-section-head h2 {
     margin: 0;
-    font-size: 16px;
+    font-size: 15px;
+    line-height: 22px;
     font-weight: 600;
 }
 
 .st-section-desc,
 .st-row-desc {
-    font-size: 13px;
-    line-height: 1.45;
     color: var(--nv-text-3);
 }
 
@@ -221,14 +243,16 @@ input {
 .st-row {
     display: flex;
     align-items: center;
-    gap: 24px;
-    min-height: 64px;
+    gap: 16px;
+    min-height: 56px;
     box-sizing: border-box;
-    padding: 12px 20px;
+    padding: 12px 16px;
 }
 
-.st-row-lg {
-    padding: 16px 20px;
+.st-row-stack {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px;
 }
 
 .st-row-text {
@@ -236,35 +260,157 @@ input {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
 }
 
 .st-row-title {
-    font-size: 14px;
-    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
 }
 
 .st-row-key {
-    color: var(--nv-text-3);
-    font-weight: 400;
+    display: inline-flex;
+    gap: 4px;
 }
 
-/* ---------- Theme segmented control ---------- */
+kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    box-sizing: border-box;
+    padding: 0 5px;
+    border: 1px solid var(--nv-key-border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--nv-key);
+    color: var(--nv-text-2);
+    font: 500 11px "Figtree", sans-serif;
+}
+
+/* Icon tile at the start of a row (the popup tab's own icon). */
+.st-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--nv-surface-2);
+    color: var(--nv-text-2);
+}
+
+/* ---------- Theme picker ---------- */
+
+.st-themes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.st-theme {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--nv-text-2);
+    font: 500 13px/20px "Figtree", sans-serif;
+    text-align: left;
+    cursor: pointer;
+}
+
+.st-theme-pv {
+    position: relative;
+    width: 132px;
+    height: 80px;
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 1px solid var(--nv-key-border);
+    border-radius: 8px;
+}
+
+/* A tiny window drawn with the tokens of its own theme (nv-light / nv-dark). */
+.st-theme-ui {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    background: var(--nv-surface);
+}
+
+/* System: the dark window covers the right half of the light one. */
+.st-theme-ui + .st-theme-ui {
+    clip-path: inset(0 0 0 50%);
+}
+
+.st-theme-ui i {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--nv-surface-3);
+}
+
+.st-theme-ui i:nth-child(1) {
+    height: 10px;
+    background: var(--nv-surface-2);
+}
+
+.st-theme-ui i:nth-child(2) {
+    width: 70%;
+    background: var(--nv-sel);
+}
+
+.st-theme-ui i:nth-child(3) {
+    width: 55%;
+}
+
+.st-theme-ui i:nth-child(4) {
+    width: 62%;
+}
+
+.st-theme-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.st-theme:hover {
+    color: var(--nv-text);
+}
+
+.st-theme[aria-checked="true"] {
+    color: var(--nv-text);
+    font-weight: 600;
+}
+
+.st-theme[aria-checked="true"] .st-theme-pv {
+    border: 2px solid var(--nv-primary);
+    box-shadow: 0 0 0 3px var(--nv-focus-ring);
+}
+
+/* ---------- Segmented control ---------- */
 
 .st-segmented {
     display: inline-flex;
     flex-shrink: 0;
-    padding: 3px;
+    padding: 2px;
     gap: 2px;
-    border-radius: 9px;
+    border-radius: 8px;
     background: var(--nv-surface-2);
 }
 
 .st-segmented button {
-    height: 30px;
+    height: 28px;
     padding: 0 16px;
     border: 0;
-    border-radius: 7px;
+    border-radius: 6px;
     background: transparent;
     color: var(--nv-text-3);
     font: 500 13px "Figtree", sans-serif;
@@ -395,7 +541,7 @@ input {
     grid-template-columns: minmax(0, 1fr) 220px 110px 60px;
     align-items: center;
     gap: 16px;
-    padding: 0 20px;
+    padding: 0 16px;
 }
 
 .st-org-head {
@@ -411,13 +557,13 @@ input {
 
 .st-org-name {
     min-width: 0;
-    height: 34px;
+    height: 32px;
     box-sizing: border-box;
     padding: 0 10px;
     border: 1px solid var(--nv-border);
     border-radius: 8px;
     background: var(--nv-surface);
-    font: 400 14px "Figtree", sans-serif;
+    font: 400 13px "Figtree", sans-serif;
     color: var(--nv-text);
 }
 
@@ -507,7 +653,7 @@ input {
     flex-direction: column;
     gap: 10px;
     margin-top: -1px;
-    padding: 14px 20px 16px 64px;
+    padding: 14px 16px 16px 60px;
     border-top: 1px solid var(--nv-border);
     background: var(--nv-surface-2);
 }
@@ -535,7 +681,7 @@ input {
     display: inline-flex;
     padding: 0;
     border: 0;
-    border-radius: 7px;
+    border-radius: 8px;
     background: none;
     cursor: pointer;
 }
@@ -571,8 +717,7 @@ input {
 
 .st-empty {
     margin-bottom: 0;
-    padding: 18px 20px;
-    font-size: 13px;
+    padding: 18px 16px;
     color: var(--nv-text-3);
 }
 
@@ -583,8 +728,7 @@ input {
     align-items: center;
     gap: 16px;
     height: 48px;
-    padding: 0 20px;
-    font-size: 14px;
+    padding: 0 16px;
 }
 
 .st-key-row > span:first-child {
@@ -600,6 +744,52 @@ input {
 .st-key.is-unset {
     font-weight: 400;
     color: var(--nv-text-3);
+}
+
+/* ---------- Palette commands ---------- */
+
+.st-cmd-row {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr) 190px;
+    gap: 16px;
+    align-items: center;
+    margin-top: -1px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--nv-border);
+}
+
+.st-cmd-row code {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+}
+
+.st-cmd-name code:first-child {
+    color: var(--nv-primary-text);
+    font-weight: 500;
+}
+
+.st-cmd-short {
+    margin-left: 8px;
+    color: var(--nv-text-3);
+}
+
+.st-cmd-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.45;
+}
+
+.st-cmd-tip {
+    color: var(--nv-text-3);
+    font-size: 12px;
+}
+
+.st-cmd-ex {
+    justify-self: start;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--nv-surface-2);
 }
 
 .st-banner {
@@ -633,7 +823,7 @@ input {
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 18px 20px;
+    padding: 16px;
     border-radius: 12px;
     border: 1px solid var(--nv-border);
     background: var(--nv-surface);
@@ -649,7 +839,6 @@ input {
 }
 
 .st-about-title {
-    font-size: 14px;
     font-weight: 600;
 }
 
@@ -734,6 +923,7 @@ input {
         flex-wrap: wrap;
     }
 
+    .st-brand-sep,
     .st-brand-sub {
         display: none;
     }
@@ -752,7 +942,12 @@ input {
     }
 
     .st-color-picker {
-        padding-left: 20px;
+        padding-left: 16px;
+    }
+
+    .st-cmd-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 6px;
     }
 }
 

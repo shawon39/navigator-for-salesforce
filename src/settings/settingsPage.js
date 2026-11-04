@@ -15,7 +15,7 @@
 
     const TAB_KEYS = Object.keys(S.DEFAULTS.popupTabs);
     const EXPORT_KEYS = ["bookmarks", "sfTabs", "quickOrgs", "pinnedObjects", "orgColors", "settings"];
-    const MAX_BOOKMARKS = 10; // same caps as the popup
+    const MAX_BOOKMARKS = 25; // same caps as the popup
     const MAX_ORGS = 50;
     const ENV_VARS = { production: "prod", sandbox: "sandbox", scratch: "scratch", developer: "dev", trailhead: "other" };
     const ICON_X =
@@ -110,8 +110,10 @@
 
     function renderSettings() {
         applyTheme();
-        document.querySelectorAll("[data-theme-option]").forEach((btn) => {
-            const on = btn.dataset.themeOption === settings.theme;
+        document.querySelectorAll("[data-theme-option], [data-recent-option]").forEach((btn) => {
+            const on = btn.dataset.themeOption
+                ? btn.dataset.themeOption === settings.theme
+                : Number(btn.dataset.recentOption) === settings.recentCount;
             btn.setAttribute("aria-checked", on ? "true" : "false");
             btn.tabIndex = on ? 0 : -1;
         });
@@ -137,10 +139,10 @@
         saveTimer = setTimeout(flushSettings, 300);
     }
 
-    function bindSettings() {
-        const options = Array.from(document.querySelectorAll("[data-theme-option]"));
+    function bindRadioGroup(selector, set) {
+        const options = Array.from(document.querySelectorAll(selector));
         options.forEach((btn, i) => {
-            btn.addEventListener("click", () => updateSettings((s) => (s.theme = btn.dataset.themeOption)));
+            btn.addEventListener("click", () => updateSettings((s) => set(s, btn)));
             // Arrow keys move the selection within the radio group.
             btn.addEventListener("keydown", (e) => {
                 const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
@@ -151,6 +153,11 @@
                 next.click();
             });
         });
+    }
+
+    function bindSettings() {
+        bindRadioGroup("[data-theme-option]", (s, btn) => (s.theme = btn.dataset.themeOption));
+        bindRadioGroup("[data-recent-option]", (s, btn) => (s.recentCount = Number(btn.dataset.recentOption)));
 
         document.querySelectorAll("[data-setting]").forEach((sw) => {
             sw.addEventListener("click", () => {
@@ -444,6 +451,21 @@
         return shortcut.includes("+") ? shortcut : shortcut.split("").join(" ");
     }
 
+    // The palette's commands (COMMANDS in commandPalette.data.js): name and
+    // short form, what it does, and an example.
+    function renderCommands() {
+        window.SFEN_CMDK_DATA.COMMANDS.forEach((c) => {
+            const row = el("div", "st-cmd-row st-item");
+            const name = el("span", "st-cmd-name");
+            name.appendChild(el("code", "", c.verb));
+            if (c.short) name.appendChild(el("code", "st-cmd-short", c.short));
+            const text = el("span", "st-cmd-text", c.text);
+            if (c.tip) text.appendChild(el("span", "st-cmd-tip", c.tip));
+            row.append(name, text, el("code", "st-cmd-ex", c.example));
+            $("commandList").appendChild(row);
+        });
+    }
+
     function renderShortcuts() {
         chrome.commands.getAll((commands) => {
             const keys = {};
@@ -453,7 +475,10 @@
                 cell.textContent = key ? formatKey(key) : "Not set";
                 cell.classList.toggle("is-unset", !key);
             });
-            $("paletteKey").textContent = keys.open_command_palette || "";
+            // The palette's key as keycaps: "⌥K" on a Mac, "Alt+K" elsewhere.
+            const paletteKey = keys.open_command_palette || "";
+            const caps = paletteKey.includes("+") ? paletteKey.split("+") : paletteKey.split("");
+            $("paletteKey").replaceChildren(...caps.map((k) => el("kbd", "", k)));
             $("keysBanner").hidden = !(commands || []).some((c) => !c.shortcut);
         });
     }
@@ -756,5 +781,6 @@
     // Don't lose a change made just before the page closes.
     window.addEventListener("pagehide", flushSettings);
     renderShortcuts();
+    renderCommands();
     renderAll(scrollToHash);
 })();

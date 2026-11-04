@@ -32,20 +32,27 @@ Press `Alt+K` (`Option+K` on a Mac) on any Salesforce page and start typing:
 | `acme` | Find a record, user, object, profile, permission set, flow, app, Apex class or trigger, or custom metadata type named Acme |
 | `new case`, `list lead` | Open a new Case, or the Leads list view |
 | `fields account indus` | Jump to the Industry field on Account |
+| `count lead` | See how many Leads there are, and each record type's count |
+| `recent account` | List the Accounts you viewed last, or `recent` alone for every object |
+| `flows`, `profiles`, `permsets`, `apex` | List them, last modified first, and type to narrow. Package Apex shows once you tick Show package code |
+| `users` | List the active users who logged in last, or type a name to find anyone |
+| `limits` | See how much of each org limit is used, most used first |
 | `app service` | Open the Service Console app |
 | `record` and a space | See the current record's field values, with API names, ready to copy |
 | `org uat` | Open a saved org in a new tab, or press `→` to open the page you're on in that org |
 | `login jane` | Log in as Jane, if you're allowed to log in as other users |
 | A Salesforce link from another org | Open the same page in this org, for example a Setup page from a sandbox |
 
-Each command has a short form: `f` (fields), `li` (list), `n` (new), `a` (app), `o` (org), `lo` (login) and `r` (record), so `f account indus` works too. On a record or list, the palette starts with that object in Object Manager, and `fields`, `new` and `list` put it first. Results you pick often rank higher.
+The commands also sit in a row when the palette opens; click one to start it. Most have a short form: `f` (fields), `li` (list), `n` (new), `c` (count), `re` (recent), `a` (app), `o` (org), `lo` (login) and `r` (record), so `f account indus` works too. **Shortcuts** in the palette, and **Settings → Palette commands**, list them all with examples. On a record or list, the palette starts with that object in Object Manager, and `fields`, `new` and `list` put it first. Results you pick often rank higher.
 
-You can also paste a 15- or 18-character record Id. The closest match comes first. Press `Enter` to open it, `Ctrl/⌘+Enter` to open it in a new tab, or `→` for more actions, like **Login as** on a user.
+You can also paste a 15- or 18-character record Id. The closest match comes first. Press `Enter` to open it, `Ctrl/⌘+Enter` to open it in a new tab, `Shift+Enter` to open it in a background tab and keep the palette open, or `→` for more actions. On a record, `→` previews its key fields beside the results; on a user, it shows their details with **Login as**. Admin shorthand works too: `ps`, `psg`, `dl`, `cmdt` and others open the Setup page they stand for. Text you select on the page fills the search when you open the palette.
+
+`list`, an object and a space (`li account `) searches that object's list views. On a record, the palette lists the records it links to, like its Account and Owner.
 
 **The popup** (`Alt+N`, or `Option+N` on a Mac) has four tabs:
 
-- **Recent**: Setup pages you opened with Navigator, and records you viewed
-- **Navigate**: Home, Setup, Object Manager, Dev Console, Flows, Users, change sets, and up to 10 bookmarks
+- **Recent**: records you viewed and Setup pages you opened, side by side
+- **Navigate**: Home, Setup, Object Manager, Dev Console, Users, and up to 25 bookmarks
 - **Objects**: your org's objects, with list, new record and fields, and a menu for layouts, record types, validation rules and triggers. Objects from installed packages are hidden from the list until you turn them on (in Settings or under the list), but search always finds them
 - **Orgs**: your saved orgs, with a colored dot for production, sandbox, scratch and developer orgs. Rename them, pin your favorites, open any of them in one click, or open the page you're on in another org
 

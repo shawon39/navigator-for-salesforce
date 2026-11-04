@@ -103,11 +103,14 @@
         const a = document.createElement("a");
         a.className = "nv-row" + (opts.tall ? " is-tall" : "");
         a.href = absUrl(opts.url);
+        if (opts.title) a.title = opts.title; // the full name, when a narrow row cuts it off
+        const label = `<span class="nv-row-label">${opts.html}</span>`;
         a.innerHTML =
             icon(opts.icon) +
-            `<span class="nv-row-label">${opts.html}</span>` +
+            (opts.sub ? `<span class="nv-row-text">${label}<span class="nv-row-sub"></span></span>` : label) +
             (opts.meta ? '<span class="nv-row-meta"></span>' : "") +
-            `<span class="nv-row-enter" aria-hidden="true">${icon("enter", 14, 2)}</span>`;
+            '<span class="nv-row-enter" aria-hidden="true"><kbd>↵</kbd></span>';
+        if (opts.sub) a.querySelector(".nv-row-sub").textContent = opts.sub;
         if (opts.meta) a.querySelector(".nv-row-meta").textContent = opts.meta;
         a.addEventListener("click", (e) => {
             if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
@@ -284,8 +287,9 @@
         results.hidden = false;
 
         const byKind = {};
+        const alias = window.SFEN_SETUP_ALIASES[query];
         for (const item of searchCatalog()) {
-            const sc = SFEN_URL.matchScore(query, item.label, item.keywords);
+            const sc = item.kind === "setup" && item.label === alias ? 950 : SFEN_URL.matchScore(query, item.label, item.keywords);
             if (sc >= 0) (byKind[item.kind] = byKind[item.kind] || []).push({ item, sc });
         }
         results.innerHTML = "";
@@ -353,7 +357,6 @@
             t.tabIndex = t.dataset.tab === name ? 0 : -1; // roving tabindex
         });
         showPanel(name);
-        $("tabAddOrg").hidden = name !== "orgs";
         $("popupSearch").placeholder = PLACEHOLDERS[name];
         $("popupSearch").setAttribute("aria-label", PLACEHOLDERS[name]);
     }
@@ -403,10 +406,14 @@
         const org = saved || { host: currentHost };
         const type = SFEN_ORGS.orgType(org);
         const name = saved ? SFEN_ORGS.displayName(saved) : SFEN_ORGS.defaultName(currentHost);
-        const mark = SFEN_ORGS_TAB.marker(org, 14);
+        const mark = SFEN_ORGS_TAB.marker(org, 24);
         mark.classList.add("nv-org-mark");
         btn.querySelector(".nv-org-mark").replaceWith(mark);
         btn.querySelector(".nv-org-switch-name").textContent = name;
+        const tag = btn.querySelector(".nv-type-tag");
+        tag.className = "nv-type-tag " + type;
+        tag.textContent = SFEN_ORGS.TYPES[type];
+        btn.querySelector(".nv-org-switch-host").textContent = SFEN_ORGS.shortHost(currentHost);
         const action = settings.popupTabs.orgs ? ". Switch org" : saved ? "" : ". Add this org";
         btn.setAttribute("aria-label", `Current org: ${name}, ${SFEN_ORGS.TYPES[type].toLowerCase()}${action}`);
         btn.hidden = !currentHost;
@@ -721,27 +728,30 @@
         setupList.innerHTML = "";
         list.innerHTML = "";
 
-        const setupItems = recentSetup.filter((it) => SFEN_URL.isSafePath(it.url)).slice(0, 7);
+        const setupItems = recentSetup.filter((it) => SFEN_URL.isSafePath(it.url)).slice(0, 9);
         $("recentSetupLabel").hidden = !setupItems.length;
+        $("recentSetupCount").textContent = setupItems.length;
         setupItems.forEach((it) => {
             const label = it.label || it.url;
             setupList.appendChild(
                 linkRow({
                     icon: label.includes(" — ") ? "box" : "wrench",
                     html: pathLabel(label),
+                    title: label,
                     url: it.url,
                     record: { label: it.label, hint: it.hint, flow: it.flow },
                 })
             );
         });
 
-        const recordItems = recentRecords.slice(0, 20);
+        const recordItems = recentRecords.slice(0, settings.recentCount);
         $("recentRecordsLabel").hidden = !recordItems.length;
-        $("recentRecordsLabel").classList.toggle("nv-group-gap", !!setupItems.length);
+        $("recentRecordsCount").textContent = recordItems.length;
         recordItems.forEach((r) => {
             const type = r.attributes ? r.attributes.type : "Record";
+            const name = r.Name || r.Id;
             list.appendChild(
-                linkRow({ icon: "file", html: escapeHtml(r.Name || r.Id), meta: type, url: `/lightning/r/${type}/${r.Id}/view` })
+                linkRow({ icon: "file", html: escapeHtml(name), sub: type, title: name, tall: true, url: `/lightning/r/${type}/${r.Id}/view` })
             );
         });
 
@@ -764,7 +774,13 @@
             search.dispatchEvent(new Event("input"));
             search.focus();
         });
-        if (!IS_MAC) document.querySelectorAll(".nv-empty-tip b").forEach((b) => (b.textContent = "Alt+K"));
+        if (!IS_MAC) {
+            document.querySelectorAll(".nv-empty-tip b").forEach((b) => (b.textContent = "Alt+K"));
+            document.querySelectorAll(".nv-footer [data-mod]").forEach((k) => (k.textContent = "Ctrl"));
+            document.querySelectorAll(".nv-footer [data-alt]").forEach((k) => (k.textContent = "Alt"));
+        }
+        // The palette opens only on a Salesforce page, and only when it's on.
+        $("paletteHint").hidden = !ready.isSalesforce || !settings.commandPalette;
 
         if (!ready.isSalesforce) {
             // popup.js built the off-Salesforce screen; only the org list is live.
@@ -772,7 +788,6 @@
                 $("searchClear").hidden = !e.target.value;
                 filterOrgs(e.target.value);
             });
-            $("headerAddOrg").addEventListener("click", SFEN_ORGS_TAB.openAdd);
             document.addEventListener("keydown", onKeydown);
             search.focus();
             return;
@@ -809,7 +824,6 @@
             if (settings.popupTabs.orgs) switchTab("orgs");
             else if (!SFEN_ORGS_TAB.find(currentHost)) SFEN_ORGS_TAB.openAdd();
         });
-        $("tabAddOrg").addEventListener("click", SFEN_ORGS_TAB.openAdd);
 
         const openSetup = $("recentOpenSetup");
         openSetup.href = absUrl("/lightning/setup/SetupOneHome/home");

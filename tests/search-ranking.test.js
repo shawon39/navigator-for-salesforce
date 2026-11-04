@@ -30,6 +30,18 @@ for (const [query, expected] of [
     console.log(`PASS "${query}" -> ${expected}`);
 }
 
+// Admin shorthand ("psg") names a Setup page that exists, once, and isn't
+// what loose matching finds anyway.
+const ALIASES = window.SFEN_SETUP_ALIASES;
+for (const [alias, label] of Object.entries(ALIASES)) {
+    assert.strictEqual(PAGES.filter(([l]) => l === label).length, 1, `alias "${alias}" -> "${label}" should be one Setup page`);
+}
+for (const [alias, label] of [["psg", "Permission Set Groups"], ["dl", "Debug Logs"], ["ps", "Permission Sets"], ["cmdt", "Custom Metadata Types"]]) {
+    assert.notStrictEqual(top(alias), label, `"${alias}" already ranks ${label} first; the alias isn't needed`);
+    assert.strictEqual(ALIASES[alias], label);
+}
+console.log(`PASS ${Object.keys(ALIASES).length} admin shorthands name real Setup pages`);
+
 // Verbs match an object's plural label too: "list contacts" finds Contact
 // first, not Contact Request.
 require(path.resolve(__dirname, "../src/content/commandPalette.data.js"));
@@ -97,12 +109,47 @@ console.log("PASS package Apex needs its package name in the query");
 
 // Short verb forms name a verb and never shadow one.
 const { VERBS, VERB_SHORT } = window.SFEN_CMDK_DATA;
-assert.deepStrictEqual(VERB_SHORT, { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record" });
+assert.deepStrictEqual(VERB_SHORT, { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record", c: "count", re: "recent" });
 for (const [short, verb] of Object.entries(VERB_SHORT)) {
     assert(VERBS[verb], `${short} -> ${verb}`);
     assert(!VERBS[short], `${short} is already a verb`);
 }
 console.log("PASS short verb forms");
+
+// The shared command list (palette boxes and help, Settings) names each real
+// verb once, with the palette's own short form, and its example uses it.
+const commands = window.SFEN_CMDK_DATA.COMMANDS;
+const listed = commands.map((c) => c.verb);
+assert.strictEqual(new Set(listed).size, listed.length);
+for (const c of commands) {
+    assert(VERBS[c.verb], c.verb);
+    assert.strictEqual(c.short, Object.keys(VERB_SHORT).find((k) => VERB_SHORT[k] === c.verb), c.verb);
+    assert(c.example.split(" ")[0] === c.verb && c.group && c.text, c.verb);
+    assert(!/—/.test(c.text + (c.tip || "")), `${c.verb}: no em dashes`);
+}
+assert(Object.values(VERB_SHORT).every((v) => listed.includes(v)));
+// Groups stay together, so each makes one box.
+assert.deepStrictEqual([...new Set(commands.map((c) => c.group))], ["Objects", "Records", "Setup", "Go to"]);
+assert.deepStrictEqual(commands.map((c) => c.group), commands.map((c) => c.group).slice().sort((a, b) =>
+    ["Objects", "Records", "Setup", "Go to"].indexOf(a) - ["Objects", "Records", "Setup", "Go to"].indexOf(b)));
+console.log("PASS command list");
+
+// Org Limits: readable names, most used share first, unused last by name.
+const { limitLabel, sortLimits } = window.SFEN_CMDK_DATA;
+assert.strictEqual(limitLabel("DailyApiRequests"), "Daily API Requests");
+assert.strictEqual(limitLabel("DataStorageMB"), "Data Storage MB");
+const sorted = sortLimits([
+    { name: "SingleEmail", max: 5000, remaining: 5000 },
+    { name: "DailyApiRequests", max: 15000, remaining: 6000 },
+    { name: "MassEmail", max: 10, remaining: 10 },
+    { name: "DataStorageMB", max: 5, remaining: -1 },
+    { name: "HourlyODataCallout", max: 0, remaining: 0 },
+    { name: "DailyAsyncApexExecutions", max: 250000, remaining: 249000 },
+]);
+assert.deepStrictEqual(sorted.map((l) => l.name), ["DataStorageMB", "DailyApiRequests", "DailyAsyncApexExecutions", "HourlyODataCallout", "MassEmail", "SingleEmail"]);
+assert.deepStrictEqual([sorted[0].used, sorted[0].pct], [6, 1.2]);
+assert.deepStrictEqual([sorted[1].used, sorted[1].pct], [9000, 0.6]);
+console.log("PASS org limits sort");
 
 // An object's → actions include its Object Manager pages, shared with the popup.
 const { objectActions } = window.SFEN_CMDK_DATA;

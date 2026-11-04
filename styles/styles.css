@@ -66,7 +66,7 @@ button {
     height: 28px;
     padding: 0;
     border: 0;
-    border-radius: 6px;
+    border-radius: 8px;
     background: transparent;
     color: var(--nv-text-3);
 }
@@ -80,7 +80,7 @@ button {
     height: 28px;
     padding: 0 8px;
     border: 0;
-    border-radius: 6px;
+    border-radius: 8px;
     background: transparent;
     color: var(--nv-primary-text);
     font: 600 12px "Figtree", sans-serif;
@@ -150,7 +150,7 @@ button {
 .nv-row .nv-btn-danger {
     height: 28px;
     padding: 0 8px;
-    border-radius: 6px;
+    border-radius: 8px;
     font-size: 12px;
 }
 
@@ -162,15 +162,15 @@ button {
 .nv-header {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 12px 12px 10px;
+    gap: 8px;
+    padding: 12px 12px 8px;
 }
 
 .nv-titlebar {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 28px;
+    height: 40px;
 }
 
 .nv-logo {
@@ -179,37 +179,91 @@ button {
 
 .nv-brand {
     flex-grow: 1;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
 }
 
+/* On a Salesforce tab the current org is the header, in place of the brand. */
+.nv-titlebar:has(> .nv-org-switch:not([hidden])) > .nv-logo,
+.nv-titlebar:has(> .nv-org-switch:not([hidden])) > .nv-brand {
+    display: none;
+}
+
 .nv-org-switch {
-    display: inline-flex;
+    display: flex;
+    flex: 1 1 auto;
     align-items: center;
-    gap: 7px;
-    height: 28px;
-    max-width: 220px;
-    padding: 0 6px 0 8px;
+    gap: 10px;
+    min-width: 0;
+    height: 40px;
+    padding: 0 8px 0 6px;
     border: 0;
-    border-radius: 6px;
+    border-radius: 8px;
     background: transparent;
-    color: var(--nv-text-2);
-    font: 500 12px "Figtree", sans-serif;
+    color: var(--nv-text);
+    text-align: left;
 }
 
 .nv-org-switch:hover {
-    background: var(--nv-surface-3);
+    background: var(--nv-surface-2);
+}
+
+/* The type tag names the org's type, so the header needs no type dot. */
+.nv-org-switch > .nv-dot {
+    display: none;
+}
+
+.nv-org-switch-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.nv-org-switch-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
 }
 
 .nv-org-switch-name {
     overflow: hidden;
+    font: 600 13px/18px "Figtree", sans-serif;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.nv-org-switch-host {
+    overflow: hidden;
+    color: var(--nv-text-3);
+    line-height: 16px;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
 
 .nv-org-switch .nv-icon {
+    margin-left: auto;
     color: var(--nv-text-3);
 }
+
+.nv-type-tag {
+    flex-shrink: 0;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 4px;
+    background: var(--nv-tone-setup-bg);
+    color: var(--nv-tone-setup);
+    font: 600 11px/20px "Figtree", sans-serif;
+}
+
+.nv-type-tag:empty {
+    display: none;
+}
+
+.nv-type-tag.production { background: var(--nv-tag-prod-bg); color: var(--nv-tag-prod); }
+.nv-type-tag.sandbox { background: var(--nv-tag-sandbox-bg); color: var(--nv-tag-sandbox); }
+.nv-type-tag.developer { background: var(--nv-tone-rec-bg); color: var(--nv-tone-rec); }
+.nv-type-tag.scratch { background: var(--nv-tone-flow-bg); color: var(--nv-tone-flow); }
 
 .nv-dot {
     flex-shrink: 0;
@@ -229,7 +283,8 @@ button {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 38px;
+    height: 40px;
+    box-sizing: border-box;
     padding: 0 6px 0 12px;
     border: 1px solid transparent;
     border-radius: 8px;
@@ -251,7 +306,7 @@ button {
     outline: 0;
     background: transparent;
     color: var(--nv-text);
-    font: 400 14px "Figtree", sans-serif;
+    font: 400 13px "Figtree", sans-serif;
 }
 
 .nv-search input::placeholder {
@@ -263,33 +318,38 @@ button {
     height: 26px;
 }
 
-/* Header border shows while searching (tabs are hidden then). */
-body.is-searching .nv-header,
-body.is-off-sf .nv-header {
-    border-bottom: 1px solid var(--nv-border);
-}
-
 body.is-searching .nv-tabs {
     display: none;
 }
 
 /* ---- Tabs ------------------------------------------------------------- */
+/* A segmented control: one pill per tab, the selected one raised. */
 .nv-tabs {
     display: flex;
-    gap: 22px;
-    padding: 0 16px;
-    border-bottom: 1px solid var(--nv-border);
+    gap: 2px;
+    margin: 0 12px 8px;
+    padding: 3px;
+    border-radius: 8px;
+    background: var(--nv-surface-2);
 }
 
 .nv-tab {
-    height: 36px;
-    margin-bottom: -1px;
+    display: inline-flex;
+    flex: 1 1 0;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 30px;
     padding: 0;
     border: 0;
-    border-bottom: 2px solid transparent;
+    border-radius: 6px;
     background: transparent;
-    color: var(--nv-text-3);
+    color: var(--nv-text-2);
     font: 500 13px "Figtree", sans-serif;
+}
+
+.nv-tab .nv-icon {
+    color: var(--nv-text-3);
 }
 
 .nv-tab:hover {
@@ -297,20 +357,14 @@ body.is-searching .nv-tabs {
 }
 
 .nv-tab[aria-selected="true"] {
-    border-bottom-color: var(--nv-primary);
-    color: var(--nv-primary-text);
+    background: var(--nv-surface);
+    box-shadow: var(--nv-shadow-sm), 0 0 0 1px var(--nv-border);
+    color: var(--nv-text);
     font-weight: 600;
 }
 
-.nv-tabs-action {
-    height: 36px;
-    margin-left: auto;
-    padding: 0;
-}
-
-.nv-tabs-action:hover {
-    background: transparent;
-    text-decoration: underline;
+.nv-tab[aria-selected="true"] .nv-icon {
+    color: var(--nv-primary-text);
 }
 
 /* ---- Main area & lists ------------------------------------------------ */
@@ -322,6 +376,7 @@ body.is-searching .nv-tabs {
     min-height: 0;
     overflow-y: auto;
     padding: 8px;
+    border-top: 1px solid var(--nv-border);
     scrollbar-width: thin;
     scrollbar-color: var(--nv-surface-3) transparent;
 }
@@ -331,7 +386,7 @@ body.is-searching .nv-tabs {
     flex-shrink: 0;
     align-items: center;
     height: 28px;
-    padding: 0 10px;
+    padding: 0 8px;
     color: var(--nv-text-3);
     font-size: 12px;
     font-weight: 600;
@@ -339,6 +394,22 @@ body.is-searching .nv-tabs {
 
 .nv-group-gap {
     margin-top: 10px;
+}
+
+/* Recent tab: records and Setup pages side by side. A section with nothing
+   in it (its label hidden) gives the other the full width. */
+.nv-recent-cols {
+    display: flex;
+    gap: 8px;
+}
+
+.nv-recent-col {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.nv-recent-col:has(> .nv-group[hidden]) {
+    display: none;
 }
 
 .nv-group-count {
@@ -363,13 +434,19 @@ body.is-searching .nv-tabs {
     padding-right: 0;
 }
 
+/* The Orgs list's first group line, which carries the Add org button. */
+.nv-group-bar.is-top {
+    height: 28px;
+    margin-top: 0;
+}
+
 .nv-row {
     display: flex;
     flex-shrink: 0;
     align-items: center;
     gap: 10px;
     height: 36px;
-    padding: 0 10px;
+    padding: 0 8px;
     border-radius: 8px;
     color: var(--nv-text);
     text-decoration: none;
@@ -397,6 +474,24 @@ body.is-searching .nv-tabs {
 .nv-row.is-sel .nv-icon {
     color: var(--nv-sel-icon);
 }
+
+/* A row's leading icon sits on a tile colored by the kind of row, kept when
+   the row is selected. */
+.nv-main .nv-row > .nv-icon,
+.nv-main .nv-row-link > .nv-icon {
+    box-sizing: content-box;
+    width: 14px;
+    height: 14px;
+    padding: 5px;
+    border-radius: 6px;
+    background: var(--nv-tone-bg, var(--nv-tone-setup-bg));
+    color: var(--nv-tone, var(--nv-tone-setup));
+}
+
+.nv-i-file { --nv-tone: var(--nv-tone-rec); --nv-tone-bg: var(--nv-tone-rec-bg); }
+.nv-i-box,
+.nv-i-panel { --nv-tone: var(--nv-tone-obj); --nv-tone-bg: var(--nv-tone-obj-bg); }
+.nv-i-bookmark { --nv-tone: var(--nv-tone-book); --nv-tone-bg: var(--nv-tone-book-bg); }
 
 .nv-row.is-sel .nv-row-sub,
 .nv-row.is-sel .nv-row-meta {
@@ -449,7 +544,7 @@ body.is-searching .nv-tabs {
 }
 
 .nv-row.is-sel .nv-row-enter {
-    display: block;
+    display: inline-flex;
 }
 
 /* Two-line rows (search objects, orgs). */
@@ -458,9 +553,12 @@ body.is-searching .nv-tabs {
 }
 
 .nv-row.is-org {
-    gap: 12px;
-    height: 46px;
-    padding: 0 10px 0 12px;
+    height: 44px;
+}
+
+/* Each org's type tag names its type, so its row needs no type dot. */
+.nv-row.is-org > .nv-dot {
+    display: none;
 }
 
 .nv-row.is-org.has-actions {
@@ -544,7 +642,7 @@ body.is-searching .nv-tabs {
     height: 30px;
     padding: 0 8px;
     border: 1px solid var(--nv-focus);
-    border-radius: 6px;
+    border-radius: 8px;
     outline: 0;
     background: var(--nv-surface);
     box-shadow: 0 0 0 3px var(--nv-focus-ring);
@@ -568,7 +666,7 @@ body.is-searching .nv-tabs {
 
 .nv-footnote {
     margin-top: auto;
-    padding: 8px 10px 2px;
+    padding: 8px 8px 2px;
     color: var(--nv-text-3);
     font-size: 12px;
     line-height: 1.5;
@@ -580,21 +678,31 @@ body.is-searching .nv-tabs {
 }
 
 .nv-note {
-    padding: 8px 10px;
+    padding: 8px;
     color: var(--nv-text-3);
     font-size: 12px;
     line-height: 1.5;
 }
 
 /* ---- Navigate --------------------------------------------------------- */
+/* The tiles and the Bookmarks bar stay put; only the bookmark list scrolls. */
 .nv-navigate {
     padding: 12px 12px 8px;
+    overflow: hidden;
+}
+
+.nv-bookmark-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--nv-surface-3) transparent;
 }
 
 .nv-quick-grid {
     display: grid;
     flex-shrink: 0;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 6px;
 }
 
@@ -642,7 +750,7 @@ body.is-searching .nv-tabs {
     width: 220px;
     padding: 6px;
     border: 1px solid var(--nv-border);
-    border-radius: 10px;
+    border-radius: 12px;
     background: var(--nv-surface);
     box-shadow: var(--nv-shadow-md);
 }
@@ -690,7 +798,7 @@ body.is-searching .nv-tabs {
 
 mark {
     padding: 0 1px;
-    border-radius: 3px;
+    border-radius: 4px;
     background: var(--nv-mark);
     color: inherit;
 }
@@ -806,7 +914,7 @@ mark {
     align-items: center;
     gap: 10px;
     height: 36px;
-    padding: 0 10px;
+    padding: 0 8px;
 }
 
 .nv-skeleton span {
@@ -816,9 +924,9 @@ mark {
 }
 
 .nv-skeleton span:first-child {
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
 }
 
 /* ---- Add an org ------------------------------------------------------- */
@@ -837,7 +945,7 @@ mark {
 
 .nv-subheader-title {
     flex-grow: 1;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
 }
 
@@ -917,7 +1025,7 @@ mark {
     position: fixed;
     z-index: 30;
     left: 50%;
-    bottom: 14px;
+    bottom: 44px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -925,7 +1033,7 @@ mark {
     padding: 0 6px 0 14px;
     transform: translateX(-50%);
     border: 1px solid var(--nv-border);
-    border-radius: 10px;
+    border-radius: 12px;
     background: var(--nv-surface);
     box-shadow: var(--nv-shadow-md);
     color: var(--nv-text);
@@ -969,13 +1077,60 @@ mark {
 }
 
 .nv-row:hover .nv-pinned-mark,
-.nv-row:focus-within .nv-pinned-mark {
+.nv-row:focus-within .nv-pinned-mark,
+.nv-row.is-org:hover .nv-type-tag,
+.nv-row.is-org:focus-within .nv-type-tag {
     display: none;
+}
+
+/* ---- Footer: key hints ----------------------------------------------- */
+.nv-footer {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 14px;
+    height: 32px;
+    padding: 0 12px;
+    border-top: 1px solid var(--nv-border);
+    color: var(--nv-text-3);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.nv-fk {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.nv-fk kbd:last-of-type {
+    margin-right: 2px;
+}
+
+.nv-footer-end {
+    margin-left: auto;
+}
+
+kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    box-sizing: border-box;
+    padding: 0 5px;
+    border: 1px solid var(--nv-key-border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--nv-key);
+    color: var(--nv-text-2);
+    font: 500 11px "Figtree", sans-serif;
 }
 
 body.is-adding .nv-header,
 body.is-adding .nv-tabs,
-body.is-adding > main {
+body.is-adding > main,
+body.is-adding .nv-footer {
     display: none !important;
 }
 

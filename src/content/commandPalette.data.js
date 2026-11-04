@@ -11,18 +11,28 @@
     const PALETTE_CSS = `
 :host { all: initial;
   --nv-surface:#FFFFFF; --nv-surface-2:#F3F5F8; --nv-surface-3:#E7EBF0; --nv-border:#E4E8EE;
-  --nv-text:#1F2937; --nv-text-2:#4B5563; --nv-text-3:#5F6B7A; --nv-primary:#0073A8;
-  --nv-primary-text:#0073A8; --nv-sel:#E6F5FC; --nv-on-sel:#1F2937; --nv-on-sel-2:#5F6B7A;
-  --nv-sel-icon:#0073A8; --nv-mark:#CCEEFB; --nv-success:#15803D; --nv-danger:#B42318; --nv-on-primary:#FFFFFF;
+  --nv-text:#111827; --nv-text-2:#4B5563; --nv-text-3:#5F6B7A; --nv-primary:#0B63CE;
+  --nv-primary-text:#0B63CE; --nv-sel:#EAF2FD; --nv-on-sel:#111827; --nv-on-sel-2:#5F6B7A;
+  --nv-sel-icon:#0B63CE; --nv-mark:#D3E4FB; --nv-success:#15803D; --nv-warning:#B45309; --nv-danger:#B42318; --nv-on-primary:#FFFFFF;
   --nv-env-prod:#E5484D; --nv-env-sandbox:#F59E0B; --nv-env-scratch:#8B5CF6; --nv-env-dev:#14B8A6; --nv-env-other:#94A3B8;
+  --nv-key:#FFFFFF; --nv-key-border:#DCE0E6;
+  --nv-tone-setup:#4B5563; --nv-tone-setup-bg:#F0F2F5; --nv-tone-obj:#0B63CE; --nv-tone-obj-bg:#E6F0FC;
+  --nv-tone-rec:#0B7068; --nv-tone-rec-bg:#E3F4F1; --nv-tone-book:#A15C07; --nv-tone-book-bg:#FDF1DE;
+  --nv-tone-flow:#6E3FD1; --nv-tone-flow-bg:#EFEAFC;
+  --nv-tag-prod:#B42318; --nv-tag-prod-bg:#FDECEA; --nv-tag-sandbox:#B54708; --nv-tag-sandbox-bg:#FEF3E2;
   --nv-shadow-lg:0 20px 48px rgba(15,23,42,0.16), 0 2px 6px rgba(15,23,42,0.06);
   --nv-scrim:rgba(15,23,42,0.28); }
 :host([data-theme="dark"]) {
   --nv-surface:#1A1F28; --nv-surface-2:#222834; --nv-surface-3:#2B3240; --nv-border:#2A303B;
-  --nv-text:#E5E9F0; --nv-text-2:#B6BFCC; --nv-text-3:#8C97A7; --nv-primary:#33B3E6;
-  --nv-primary-text:#5CC4EE; --nv-sel:#1C3342; --nv-on-sel:#E5E9F0; --nv-on-sel-2:#B6BFCC;
-  --nv-sel-icon:#5CC4EE; --nv-mark:rgba(51,179,230,0.28); --nv-success:#4ADE80; --nv-danger:#F87171; --nv-on-primary:#0B1320;
+  --nv-text:#E5E9F0; --nv-text-2:#B6BFCC; --nv-text-3:#8C97A7; --nv-primary:#6AA5F2;
+  --nv-primary-text:#6AA5F2; --nv-sel:#1B2C45; --nv-on-sel:#E5E9F0; --nv-on-sel-2:#B6BFCC;
+  --nv-sel-icon:#6AA5F2; --nv-mark:rgba(106,165,242,0.3); --nv-success:#4ADE80; --nv-warning:#FBBF24; --nv-danger:#F87171; --nv-on-primary:#0B1320;
   --nv-env-prod:#F87171; --nv-env-sandbox:#FBBF24; --nv-env-scratch:#A78BFA; --nv-env-dev:#2DD4BF; --nv-env-other:#8C97A7;
+  --nv-key:#222834; --nv-key-border:#3A4150;
+  --nv-tone-setup:#B6BFCC; --nv-tone-setup-bg:#2B3240; --nv-tone-obj:#6AA5F2; --nv-tone-obj-bg:#1B2C45;
+  --nv-tone-rec:#2DD4BF; --nv-tone-rec-bg:#14302C; --nv-tone-book:#FBBF24; --nv-tone-book-bg:#3A2A12;
+  --nv-tone-flow:#A78BFA; --nv-tone-flow-bg:#2A2245;
+  --nv-tag-prod:#F87171; --nv-tag-prod-bg:#3A1D20; --nv-tag-sandbox:#FBBF24; --nv-tag-sandbox-bg:#3A2A12;
   --nv-shadow-lg:0 20px 48px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.3);
   --nv-scrim:rgba(0,0,0,0.45); }
 .backdrop { display:none; position:fixed; inset:0; z-index:2147483647; background:var(--nv-scrim);
@@ -30,75 +40,163 @@
   font-family:"Figtree","Segoe UI",system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
 :host(.open) .backdrop { display:flex; }
 :host([data-theme="dark"]) .backdrop { color-scheme:dark; }
-.panel { margin-top:12vh; width:640px; max-width:92vw; max-height:64vh; box-sizing:border-box;
+.panel { margin-top:12vh; width:720px; max-width:92vw; max-height:64vh; box-sizing:border-box;
   display:flex; flex-direction:column; background:var(--nv-surface); border:1px solid var(--nv-border);
   border-radius:12px; box-shadow:var(--nv-shadow-lg); overflow:hidden;
   animation:sfen-pop 0.14s cubic-bezier(0.2,0.8,0.2,1); }
-.panel.board-mode { width:720px; }
+.panel.peek-mode { width:960px; }
+.body { display:flex; flex:1 1 auto; min-height:0; }
+.peek { width:300px; flex-shrink:0; display:flex; flex-direction:column; box-sizing:border-box; padding:16px 16px 0;
+  border-left:1px solid var(--nv-border); overflow-y:auto; scrollbar-width:thin; }
+.peek[hidden] { display:none; }
+.peek-head { display:flex; align-items:center; gap:10px; }
+.peek-tile { width:34px; height:34px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:8px; background:var(--nv-sel); color:var(--nv-sel-icon); }
+.peek-head-text { min-width:0; }
+.peek-title { font-size:15px; font-weight:600; line-height:1.3; color:var(--nv-text); word-break:break-word; }
+.peek-type { margin-top:1px; font-size:12px; color:var(--nv-text-3); }
+.peek-fields { margin-top:14px; border-top:1px solid var(--nv-border); }
+.peek-field { position:relative; padding:8px 28px 8px 0; border-bottom:1px solid var(--nv-border); }
+.peek-field:last-child { border-bottom:0; }
+.peek-label { display:block; margin-bottom:2px; font-size:11px; color:var(--nv-text-3); word-break:break-word; }
+.peek-val { font-size:13px; color:var(--nv-text); word-break:break-word; white-space:pre-wrap; }
+.peek-val.dim { color:var(--nv-text-3); }
+.peek-link { background:none; border:0; padding:0; font:inherit; font-size:13px; color:var(--nv-primary-text); cursor:pointer;
+  text-align:left; word-break:break-word; }
+.peek-link:hover { text-decoration:underline; }
+.peek-actions { position:sticky; bottom:0; display:flex; flex-direction:column; gap:6px; margin-top:auto; padding:12px 0 14px;
+  background:var(--nv-surface); }
+.peek-row { display:flex; gap:6px; }
+.peek-btn { flex:1; min-width:0; height:30px; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:0 6px;
+  border:1px solid var(--nv-border); border-radius:8px; background:transparent; color:var(--nv-text);
+  font:600 12px "Figtree","Segoe UI",system-ui,sans-serif; cursor:pointer; }
+.peek-btn span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.peek-btn svg { flex-shrink:0; color:var(--nv-text-2); }
+.peek-btn:hover { background:var(--nv-surface-2); }
+.peek-icon { position:absolute; right:0; top:50%; transform:translateY(-50%); width:24px; height:24px; display:inline-flex;
+  align-items:center; justify-content:center; padding:0; border:0; border-radius:6px; background:transparent;
+  color:var(--nv-text-3); cursor:pointer; opacity:0; }
+.peek-field:hover .peek-icon, .peek-icon:focus-visible, .peek-icon.copied, .peek-icon.failed { opacity:1; }
+.peek-icon:hover { background:var(--nv-surface-2); color:var(--nv-text); }
+.peek-icon.copied { color:var(--nv-success); }
+.peek-icon.failed { color:var(--nv-danger); }
+.peek-note { padding:28px 4px; font-size:13px; line-height:1.5; color:var(--nv-text-3); text-align:center; }
 @keyframes sfen-pop { from { opacity:0; transform:translateY(-8px) scale(0.985); }
   to { opacity:1; transform:translateY(0) scale(1); } }
 .mono { font-family:"JetBrains Mono",monospace; }
-.search-wrap { display:flex; align-items:center; gap:12px; height:56px; flex-shrink:0; box-sizing:border-box;
+.search-wrap { display:flex; align-items:center; gap:12px; height:52px; flex-shrink:0; box-sizing:border-box;
   padding:0 16px; border-bottom:1px solid var(--nv-border); }
 .search-wrap > svg { color:var(--nv-text-3); flex-shrink:0; }
-.search { border:none; outline:none; flex:1; min-width:0; padding:0; font:400 16px "Figtree","Segoe UI",system-ui,sans-serif;
+.search { border:none; outline:none; flex:1; min-width:0; padding:0; font:400 15px "Figtree","Segoe UI",system-ui,sans-serif;
   color:var(--nv-text); background:transparent; }
 .search::placeholder { color:var(--nv-text-3); }
 .loader { width:16px; height:16px; flex-shrink:0; box-sizing:border-box; border:2px solid var(--nv-border);
   border-top-color:var(--nv-primary); border-radius:50%; opacity:0; transition:opacity 0.15s; }
 .loader.on { opacity:1; animation:sfen-spin 0.7s linear infinite; }
 @keyframes sfen-spin { to { transform:rotate(360deg); } }
-.results { list-style:none; margin:0; padding:8px; overflow-y:auto; scrollbar-width:thin; }
+.results { flex:1; min-width:0; list-style:none; margin:0; padding:8px; overflow-y:auto; scrollbar-width:thin; }
 .panel.board-mode .results { padding-top:0; }
 .results::-webkit-scrollbar { width:8px; }
 .results::-webkit-scrollbar-thumb { background:var(--nv-surface-3); border-radius:8px; }
-.group-header { display:flex; align-items:center; height:28px; padding:0 10px; font-size:12px;
+.group-header { display:flex; align-items:center; gap:6px; height:28px; padding:0 8px; font-size:12px;
   font-weight:600; color:var(--nv-text-3); user-select:none; }
-.result + .group-header { margin-top:8px; }
+.group-count { font-weight:400; }
+.result + .group-header, .result + .board { margin-top:8px; }
+.pkg-toggle { display:inline-flex; align-items:center; gap:5px; margin-left:auto; font-weight:500; cursor:pointer; }
+.pkg-toggle input { margin:0; accent-color:var(--nv-primary); cursor:pointer; }
 .board { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding-bottom:2px; }
 .column { display:flex; flex-direction:column; min-width:0; }
-.result { display:flex; align-items:center; gap:10px; height:36px; box-sizing:border-box; padding:0 10px;
+.result { display:flex; align-items:center; gap:10px; height:36px; box-sizing:border-box; padding:0 8px;
   border-radius:8px; color:var(--nv-text); cursor:pointer; }
 .result:has(.sub) { height:44px; }
 .result:hover { background:var(--nv-surface-2); }
 .result.active { background:var(--nv-sel); color:var(--nv-on-sel); }
-.result .icon { width:16px; height:16px; color:var(--nv-text-3); flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
-.result .icon svg { width:16px; height:16px; }
-.result.active .icon, .result.active .enter { color:var(--nv-sel-icon); }
+.result .icon { width:24px; height:24px; border-radius:6px; color:var(--nv-text-3); flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
+.result .icon svg { width:14px; height:14px; }
+.result.active .icon { color:var(--nv-sel-icon); }
+/* Each kind of result has its own tile color, kept when the row is selected. */
+.result .icon.tone-setup { background:var(--nv-tone-setup-bg); color:var(--nv-tone-setup); }
+.result .icon.tone-obj { background:var(--nv-tone-obj-bg); color:var(--nv-tone-obj); }
+.result .icon.tone-rec { background:var(--nv-tone-rec-bg); color:var(--nv-tone-rec); }
+.result .icon.tone-book { background:var(--nv-tone-book-bg); color:var(--nv-tone-book); }
+.result .icon.tone-flow { background:var(--nv-tone-flow-bg); color:var(--nv-tone-flow); }
 .label-wrap { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.label { font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.label .api { margin-left:4px; font-size:11px; font-weight:400; color:var(--nv-text-3); }
-mark { background:var(--nv-mark); color:inherit; border-radius:3px; padding:0 1px; }
+.label { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.api { flex:0 1 auto; min-width:0; max-width:40%; font-size:11px; color:var(--nv-text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+mark { background:var(--nv-mark); color:inherit; border-radius:4px; padding:0 1px; }
 .sub { font-size:12px; color:var(--nv-text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hint { font-size:12px; color:var(--nv-text-3); flex-shrink:0; white-space:nowrap; }
-.result.active .hint, .result.active .sub, .result.active .label .api { color:var(--nv-on-sel-2); }
-.enter { display:none; width:14px; height:14px; flex-shrink:0; }
+.result.active .hint, .result.active .sub, .result.active .api { color:var(--nv-on-sel-2); }
+.enter { display:none; flex-shrink:0; }
 .result.active .enter { display:inline-flex; }
-.more { flex-shrink:0; background:transparent; border:none; color:var(--nv-text-3); cursor:pointer;
-  padding:2px 6px; border-radius:6px; font-size:15px; line-height:1; font-family:inherit; }
+.more { display:none; align-items:center; gap:4px; flex-shrink:0; height:24px; padding:0 4px; border:0; border-radius:6px;
+  background:transparent; color:var(--nv-text-2); font:500 12px "Figtree","Segoe UI",system-ui,sans-serif; cursor:pointer; }
+.result.active .more { display:inline-flex; }
 .more:hover { background:var(--nv-surface-3); color:var(--nv-text); }
-.result.subaction { padding-left:36px; }
+.result.subaction { padding-left:42px; }
 .result.subaction .label { font-size:13px; }
 .empty { list-style:none; display:flex; flex-direction:column; align-items:center; gap:6px;
   padding:36px 32px 28px; text-align:center; }
 .empty svg { width:26px; height:26px; color:var(--nv-text-3); }
 .empty-title { margin-top:8px; font-size:15px; font-weight:600; color:var(--nv-text); }
 .empty-body { max-width:420px; font-size:13px; line-height:1.55; color:var(--nv-text-3); }
-.empty-body .mono, .cmd-bar .cmd-verb { color:var(--nv-primary-text); }
-.footer { display:flex; align-items:center; gap:18px; height:36px; flex-shrink:0; box-sizing:border-box;
-  padding:0 18px; border-top:1px solid var(--nv-border); font-size:12px; color:var(--nv-text-3);
+.empty-body .mono { color:var(--nv-primary-text); }
+.footer { display:flex; align-items:center; gap:16px; height:40px; flex-shrink:0; box-sizing:border-box;
+  padding:0 16px; border-top:1px solid var(--nv-border); font-size:12px; color:var(--nv-text-3);
   white-space:nowrap; overflow:hidden; }
-kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
-.footer-count { margin-left:auto; }
+.fk { display:inline-flex; align-items:center; gap:4px; }
+.fk kbd:last-of-type { margin-right:2px; }
+kbd { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; box-sizing:border-box;
+  padding:0 5px; border:1px solid var(--nv-key-border); border-bottom-width:2px; border-radius:4px; background:var(--nv-key);
+  font:500 11px "Figtree","Segoe UI",system-ui,sans-serif; color:var(--nv-text-2); }
+.footer-count { margin-left:auto; font-variant-numeric:tabular-nums; }
 .scope-chip { display:inline-flex; align-items:center; gap:6px; flex-shrink:0; height:26px; box-sizing:border-box;
   padding:0 6px 0 10px; border:0; border-radius:6px; background:var(--nv-sel); color:var(--nv-primary-text);
   font:600 13px "Figtree","Segoe UI",system-ui,sans-serif; cursor:pointer; }
 .scope-chip .chip-x { display:inline-flex; width:12px; height:12px; opacity:0.8; }
 .scope-chip:hover .chip-x { opacity:1; }
 .search-wrap:has(.scope-chip) { gap:10px; }
-.cmd-bar { min-height:40px; line-height:40px; padding:0 10px; font-size:12px; color:var(--nv-text-3); }
-.cmd-verb { background:none; border:0; padding:0; cursor:pointer; font:inherit; font-family:"JetBrains Mono",monospace; }
-.cmd-verb:hover { text-decoration:underline; }
+.cmd-bar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; padding:4px 8px 8px; }
+.cmd-group { display:inline-flex; align-items:center; gap:4px; }
+.cmd-label { margin-right:4px; font-size:12px; font-weight:500; color:var(--nv-text-3); }
+.cmd-verb, .cmd-help { height:22px; padding:0 6px; border:0; border-radius:4px; white-space:nowrap; cursor:pointer; outline:0;
+  transition:background-color 0.12s, color 0.12s; }
+.cmd-verb { background:var(--nv-surface-2); color:var(--nv-text); font:500 12px "JetBrains Mono",monospace; }
+.cmd-verb:hover, .cmd-verb:focus-visible { background:var(--nv-sel); color:var(--nv-primary-text); }
+.cmd-help { margin-left:auto; padding:0 2px; background:none; color:var(--nv-primary-text);
+  font:500 12px "Figtree","Segoe UI",system-ui,sans-serif; }
+.cmd-help:hover, .cmd-help:focus-visible { text-decoration:underline; }
+.cmd-verb:focus-visible, .cmd-help:focus-visible, .help-back:focus-visible, .help-name:focus-visible {
+  outline:0; box-shadow:0 0 0 2px var(--nv-primary); }
+.help { padding:10px 10px 14px; color:var(--nv-text); font-size:13px; }
+.help-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.help-title { font:600 15px "Figtree","Segoe UI",system-ui,sans-serif; color:var(--nv-text); }
+.help-back { margin-left:auto; height:26px; padding:0 10px; border:1px solid var(--nv-border); border-radius:6px; background:none;
+  color:var(--nv-text-2); cursor:pointer; font:500 12px "Figtree","Segoe UI",system-ui,sans-serif; }
+.help-back:hover { background:var(--nv-surface-2); }
+.help code { font:12px "JetBrains Mono",monospace; padding:3px 8px; border-radius:4px; background:var(--nv-surface-2); color:var(--nv-text); }
+.help-intro { margin:-4px 0 10px; font-size:13px; color:var(--nv-text-2); }
+.help-row { display:grid; grid-template-columns:80px 36px minmax(0,1fr) 190px; gap:12px; align-items:center; min-height:32px;
+  border-top:1px solid var(--nv-border); }
+.help-text { font-size:13px; color:var(--nv-text-2); }
+.help-row code { justify-self:start; }
+.help-short { font:12px "JetBrains Mono",monospace; color:var(--nv-text-3); }
+.help-name { justify-self:start; padding:0; border:0; background:none; color:var(--nv-primary-text); cursor:pointer;
+  font:500 12px "JetBrains Mono",monospace; }
+.help-name:hover { text-decoration:underline; }
+.limit { display:grid; grid-template-columns:minmax(0,210px) minmax(0,1fr) 132px 40px; gap:12px; align-items:center;
+  height:30px; padding:0 10px; font-size:13px; color:var(--nv-text); }
+.limit-name { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.limit-bar { height:6px; border-radius:3px; background:var(--nv-surface-3); overflow:hidden; }
+.limit-bar span { display:block; height:100%; border-radius:3px; background:var(--nv-success); }
+.limit.mid .limit-bar span { background:var(--nv-warning); }
+.limit.high .limit-bar span { background:var(--nv-danger); }
+.limit-num, .limit-pct { text-align:right; font-size:12px; font-variant-numeric:tabular-nums; }
+.limit-num { color:var(--nv-text-3); }
+.limit-pct { font-weight:600; }
+.limit.mid .limit-pct { color:var(--nv-warning); }
+.limit.high .limit-pct { color:var(--nv-danger); }
+.limit.unused, .limit.unused .limit-pct { color:var(--nv-text-3); font-weight:400; }
 .inspector { padding:0; }
 .insp-head { display:flex; align-items:center; gap:12px; padding:6px 10px 10px; }
 .insp-title-wrap { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
@@ -129,15 +227,24 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
 .notice-btn { flex-shrink:0; height:26px; padding:0 10px; border:0; border-radius:6px; background:transparent;
   color:var(--nv-primary-text); font:600 12px "Figtree","Segoe UI",system-ui,sans-serif; cursor:pointer; }
 .notice-btn.primary { background:var(--nv-primary); color:var(--nv-on-primary); }
-.org { display:inline-flex; align-items:center; gap:7px; flex-shrink:0; font-size:12px; font-weight:500;
-  color:var(--nv-text-3); white-space:nowrap; }
+.org { display:inline-flex; align-items:center; gap:8px; flex-shrink:0; font-size:12px; font-weight:500;
+  color:var(--nv-text-2); white-space:nowrap; }
 .org[hidden] { display:none; }
+/* The type tag names the org's type, so the search bar needs no type dot. */
+.org > .org-dot { display:none; }
+.org-tag { height:20px; padding:0 6px; border-radius:4px; font-size:11px; font-weight:600; line-height:20px;
+  background:var(--nv-tone-setup-bg); color:var(--nv-tone-setup); }
+.org-tag:empty { display:none; }
+.org-tag.production { background:var(--nv-tag-prod-bg); color:var(--nv-tag-prod); }
+.org-tag.sandbox { background:var(--nv-tag-sandbox-bg); color:var(--nv-tag-sandbox); }
+.org-tag.developer { background:var(--nv-tone-rec-bg); color:var(--nv-tone-rec); }
+.org-tag.scratch { background:var(--nv-tone-flow-bg); color:var(--nv-tone-flow); }
 .org-dot { width:8px; height:8px; border-radius:50%; background:var(--nv-env-other); }
 .org-dot.production { background:var(--nv-env-prod); }
 .org-dot.sandbox { background:var(--nv-env-sandbox); }
 .org-dot.scratch { background:var(--nv-env-scratch); }
 .org-dot.developer { background:var(--nv-env-dev); }
-.result.login-row { height:48px; }
+.result.login-row { height:44px; }
 .result.login-row.active { padding-right:8px; }
 .result.login-row.disabled { color:var(--nv-text-3); cursor:default; }
 .result.login-row.disabled:hover { background:transparent; }
@@ -166,11 +273,15 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
     }
 
     // Lightning URL for a record. Users open on their Setup detail page (the
-    // /lightning/r/User/... route renders poorly); everything else uses the
-    // standard record view.
-    function recordUrl(type, id) {
+    // /lightning/r/User/... route renders poorly), and record types, which have
+    // no record page, on theirs in Object Manager (`of`: the record's object
+    // the record type belongs to). Everything else uses the standard record view.
+    function recordUrl(type, id, of) {
         if (type === "User") {
             return `/lightning/setup/ManageUsers/page?address=%2F${id}%3Fnoredirect%3D1`;
+        }
+        if (type === "RecordType" && of) {
+            return `/lightning/setup/ObjectManager/${of}/RecordTypes/${id}/view`;
         }
         return `/lightning/r/${type}/${id}/view`;
     }
@@ -192,6 +303,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         FIELD: "Fields",
         ORG: "Orgs",
         ACTION: "Actions",
+        RELATED: "This record",
     };
 
     // Master Setup list is shared with the popup; see src/shared/setupPages.js
@@ -255,24 +367,149 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         new: (api) => `/lightning/o/${api}/new?useRecordTypeCheck=1`,
         list: (api) => `/lightning/o/${api}/home`,
         fields: (api) => `/lightning/setup/ObjectManager/${api}/FieldsAndRelationships/view`,
+        count: (api) => `/lightning/o/${api}/home`, // Enter counts instead (handled in the palette)
     };
-    const VERB_HINT = { new: "New", list: "List", fields: "Fields" };
+    const VERB_HINT = { new: "New", list: "List", fields: "Fields", count: "Count" };
     const VERBS = {
         new: { kind: "object", action: "new", label: "New" },
         list: { kind: "object", action: "list", label: "List" },
         fields: { kind: "object", action: "fields", label: "Fields" },
+        count: { kind: "object", action: "count", label: "Count" }, // records, by record type
+        recent: { kind: "recent", label: "Recent" }, // your last viewed records, of one object or all
         app: { kind: "app", label: "App" }, // the user's Lightning apps
         apps: { kind: "app", label: "App" }, // alias of app
         org: { kind: "org", label: "Org" }, // saved orgs (quickOrgs)
         orgs: { kind: "org", label: "Org" }, // alias of org
         login: { kind: "login", label: "Log in as" }, // users from the "users" lookup
+        limits: { kind: "limits", label: "Org Limits" }, // how much of each org limit is used
+        // Setup items from the "admin" lookup, all of one kind; Enter opens one.
+        flows: { kind: "admin", group: GROUPS.FLOW, label: "Flows" },
+        flow: { kind: "admin", group: GROUPS.FLOW, label: "Flows" }, // alias of flows
+        profiles: { kind: "admin", group: GROUPS.PROFILE, label: "Profiles" },
+        profile: { kind: "admin", group: GROUPS.PROFILE, label: "Profiles" }, // alias of profiles
+        permsets: { kind: "admin", group: GROUPS.PERMSET, label: "Permission Sets" },
+        permset: { kind: "admin", group: GROUPS.PERMSET, label: "Permission Sets" }, // alias of permsets
+        apex: { kind: "admin", group: GROUPS.APEX, label: "Apex" },
+        users: { kind: "users", label: "Users" }, // users from the "users" lookup; Enter opens one
+        user: { kind: "users", label: "Users" }, // alias of users
         record: { kind: "inspect", label: "Record" },
         json: { kind: "inspect", label: "Record" }, // alias of record
         api: { kind: "inspect", label: "Record" }, // alias of record
     };
     // Short forms, typed like the words: "f acc" is "fields acc". "lo" and
-    // "li" because login and list both start with l.
-    const VERB_SHORT = { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record" };
+    // "li" because login and list both start with l, "re" because r is record.
+    const VERB_SHORT = { f: "fields", lo: "login", li: "list", n: "new", a: "app", o: "org", r: "record", c: "count", re: "recent" };
+
+    // The palette's commands, in the order and groups its board shows them:
+    // what each does, an example, and its short form. Also listed on the
+    // Settings page (Palette commands), which loads this file too.
+    const COMMANDS = [
+        { verb: "new", short: "n", group: "Objects", text: "Create a record of any object.", example: "new contact" },
+        {
+            verb: "list",
+            short: "li",
+            group: "Objects",
+            text: "Open one of an object's list views.",
+            example: "list account all",
+            tip: "Add a number from 1 to 5, like list account 1, for an Account you viewed lately.",
+        },
+        {
+            verb: "fields",
+            short: "f",
+            group: "Objects",
+            text: "Find a field and open it in Object Manager.",
+            example: "fields account industry",
+            tip: "Press Tab to complete the object name.",
+        },
+        {
+            verb: "count",
+            short: "c",
+            group: "Objects",
+            text: "Count an object's records, by record type.",
+            example: "count lead",
+            tip: "Counts only the records you can see.",
+        },
+        {
+            verb: "recent",
+            short: "re",
+            group: "Records",
+            text: "The records you viewed last, of every object or one.",
+            example: "recent account",
+            tip: "Settings decide how many show: 10, 15 or 20.",
+        },
+        {
+            verb: "record",
+            short: "r",
+            group: "Records",
+            text: "Every field of the record you're on, with Copy JSON.",
+            example: "record",
+            tip: "Works on a record page. Type to filter the fields.",
+        },
+        {
+            verb: "flows",
+            group: "Setup",
+            text: "Find a flow and open it in Flow Builder.",
+            example: "flows lead",
+            tip: "Opens the flow's latest version.",
+        },
+        { verb: "profiles", group: "Setup", text: "Find a profile and open it.", example: "profiles admin" },
+        { verb: "permsets", group: "Setup", text: "Find a permission set and open it.", example: "permsets sales" },
+        {
+            verb: "users",
+            group: "Setup",
+            text: "Find a user and open their record.",
+            example: "users jane",
+            tip: "With nothing typed, it lists the 20 active users who logged in last. Press → to see a user's details.",
+        },
+        {
+            verb: "apex",
+            group: "Setup",
+            text: "Find an Apex class or trigger and open it.",
+            example: "apex selector",
+            tip: "Package code is hidden; tick Show package code to list it.",
+        },
+        {
+            verb: "limits",
+            group: "Setup",
+            text: "See how much of each org limit is used, most used first.",
+            example: "limits api",
+            tip: "Bars turn amber at 50% and red at 80%.",
+        },
+        { verb: "app", short: "a", group: "Go to", text: "Open one of your Lightning apps.", example: "app sales" },
+        {
+            verb: "org",
+            short: "o",
+            group: "Go to",
+            text: "Open one of your saved orgs in a new tab.",
+            example: "org uat",
+            tip: "Press → to open the page you're on in that org.",
+        },
+        {
+            verb: "login",
+            short: "lo",
+            group: "Go to",
+            text: "Log in as another user, if you're allowed to.",
+            example: "login jane",
+            tip: "Ctrl+Enter (⌘+Enter on a Mac) logs in from an Incognito window.",
+        },
+    ];
+
+    // A limit's API name as words: "DailyApiRequests" -> "Daily API Requests",
+    // "DataStorageMB" -> "Data Storage MB".
+    function limitLabel(name) {
+        return String(name).replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\bApi\b/g, "API");
+    }
+
+    // Org limits with their used share, most used first; unused limits (and
+    // any without a max) last, by name.
+    function sortLimits(limits) {
+        return limits
+            .map((l) => {
+                const used = Math.max(0, l.max - l.remaining);
+                return { name: l.name, label: limitLabel(l.name), max: l.max, used, pct: l.max > 0 ? used / l.max : 0 };
+            })
+            .sort((a, b) => b.pct - a.pct || b.used - a.used || a.label.localeCompare(b.label));
+    }
 
     // How well `q` names object `o`. The plural label counts too, so
     // "contacts" finds Contact rather than Contact Request.
@@ -410,7 +647,7 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         [GROUPS.RECENT]: WRENCH,
         [GROUPS.BOOKMARK]: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
         [GROUPS.SETUP_TAB]: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/>',
-        [GROUPS.RECORD]: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+        [GROUPS.RECORD]: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M7 13h6"/><path d="M7 16h10"/>',
         [GROUPS.OBJECT]: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
         [GROUPS.SETUP]: WRENCH,
         [GROUPS.FLOW]: '<rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect width="8" height="8" x="13" y="13" rx="2"/>',
@@ -423,18 +660,32 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         [GROUPS.FIELD]: '<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>',
         [GROUPS.ACTION]: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
     };
+    // A result's tile color by its icon group (.icon.tone-* above); the rest are gray.
+    const ICON_TONES = {
+        [GROUPS.RECORD]: "rec",
+        [GROUPS.RELATED]: "rec",
+        [GROUPS.OBJECT]: "obj",
+        [GROUPS.FIELD]: "obj",
+        [GROUPS.SETUP_TAB]: "obj",
+        [GROUPS.BOOKMARK]: "book",
+        [GROUPS.FLOW]: "flow",
+    };
     function svg(size, strokeWidth, body) {
         return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
     }
     function iconSvg(group) {
-        return svg(16, 1.8, ICONS[group] || ICONS[GROUPS.SETUP]);
+        return svg(14, 2, ICONS[group] || ICONS[GROUPS.SETUP]);
     }
     const SEARCH_PATH = '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>';
     const UI_ICONS = {
         search: svg(18, 2, SEARCH_PATH),
         searchLarge: svg(26, 1.6, SEARCH_PATH),
-        enter: svg(14, 2, '<path d="M20 4v7a4 4 0 0 1-4 4H4"/><path d="m9 10-5 5 5 5"/>'),
         close: svg(12, 2.4, '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+        record: svg(18, 1.8, ICONS[GROUPS.RECORD]),
+        newTab: svg(15, 2, '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>'),
+        copy: svg(15, 2, '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>'),
+        link: svg(15, 2, '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+        check: svg(15, 2.4, '<path d="M20 6 9 17l-5-5"/>'),
     };
 
     function escapeHtml(s) {
@@ -451,9 +702,13 @@ kbd { font:inherit; color:var(--nv-text-2); margin-right:2px; }
         FALLBACK_OBJECTS,
         OBJECT_NOISE,
         ICONS,
+        ICON_TONES,
         UI_ICONS,
         VERBS,
         VERB_SHORT,
+        COMMANDS,
+        limitLabel,
+        sortLimits,
         isRelevantObject,
         objectEntries,
         objectActions,

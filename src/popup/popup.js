@@ -26,10 +26,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!isSalesforce) {
         // Off Salesforce, the saved orgs are still the point — you log in
         // *before* you're on a Salesforce page. Show just that list.
-        document.body.classList.add("is-off-sf");
         document.body.classList.remove("sfen-booting");
         document.querySelector(".nv-tabs").hidden = true;
-        document.getElementById("headerAddOrg").hidden = false;
         document.getElementById("popupSearch").placeholder = "Search your orgs";
         document.getElementById("popupSearch").setAttribute("aria-label", "Search orgs");
         document.getElementById("tab-orgs").hidden = false;

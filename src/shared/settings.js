@@ -16,11 +16,14 @@
         setupTabs: true,
         headerPopupButton: true,
         showManaged: false,
+        showPackageApex: false, // the palette's apex list includes managed-package code
         orgTabColors: false, // tab icons colored per saved org (see orgColors.js)
         popupTabs: { recent: true, navigate: true, objects: true, orgs: true },
+        recentCount: 10, // recently viewed records shown in the popup and the palette
     };
 
     const THEMES = ["light", "dark", "system"];
+    const RECENT_COUNTS = [10, 15, 20]; // the org lookup returns 20 at most
 
     // Only known keys with the right type are kept (settings can come from an
     // imported file), so unknown keys and wrong types fall back to defaults.
@@ -36,6 +39,7 @@
             s.popupTabs[k] = typeof tabs[k] === "boolean" ? tabs[k] : DEFAULTS.popupTabs[k];
         });
         if (!THEMES.includes(raw.theme)) s.theme = raw.darkMode === true ? "dark" : "light";
+        if (!RECENT_COUNTS.includes(s.recentCount)) s.recentCount = DEFAULTS.recentCount;
         return s;
     }
 

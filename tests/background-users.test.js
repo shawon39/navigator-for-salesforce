@@ -1,7 +1,8 @@
 // Background worker: user lookup for the palette ("users" action for the
-// "login" verb, and users merged into plain "search").
+// "login" verb and the 5 users plain search lists; "search" leaves them out).
 // Queries User directly (not the global search), escapes the term for LIKE,
 // maps rows to the record shape the palette expects, and honors live access.
+// A newer search or user lookup from a tab aborts the one before it.
 const fs = require("fs");
 const vm = require("vm");
 const assert = require("assert");
@@ -11,10 +12,10 @@ let fetchCalls = [], storage = {}, route = () => null;
 let listener;
 const json = (d) => ({ ok: true, status: 200, json: async () => d });
 const ctx = {
-    console, URL, Set, Promise, Date, encodeURIComponent,
-    fetch: async (url) => {
+    console, URL, Set, Promise, Date, encodeURIComponent, AbortController,
+    fetch: async (url, opts) => {
         fetchCalls.push(url);
-        const r = route(url);
+        const r = route(url, opts);
         return r || json({ records: [] });
     },
     importScripts: (p) => vm.runInContext(fs.readFileSync(ROOT + p, "utf8"), ctx),
@@ -77,45 +78,60 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     assert.deepStrictEqual([r.ok, r.records.length, fetchCalls.length], [true, 0, 0]);
     console.log("PASS users short term empty without fetch");
 
-    // Plain search: users come from the User query (first, at most 5), and
-    // User hits from the global search are dropped so they don't repeat.
-    const userRows = Array.from({ length: 7 }, (_, i) => ({
-        Id: `00500000000000${i}AAA`, Name: `Nat ${i}`, Username: `n${i}@acme.com`, IsActive: true, Alias: `n${i}`, Profile: null,
-    }));
-    let usersFail = false;
+    // Nothing typed with active: true lists active internal users, last login first.
+    fetchCalls = [];
+    r = await send({ action: "users", term: "", active: true });
+    const activeQ = soql(fetchCalls[0]);
+    assert.ok(activeQ.includes("WHERE IsActive = true AND UserType = 'Standard'") && activeQ.includes("ORDER BY LastLoginDate DESC NULLS LAST") && activeQ.includes("LIMIT 20"), activeQ);
+    assert.strictEqual(r.ok, true);
+    fetchCalls = [];
+    await send({ action: "users", term: "a", active: true });
+    assert.strictEqual(fetchCalls.length, 0);
+    console.log("PASS users active list when nothing is typed");
+
+    // Plain search asks for its users with limit 5; any other limit is 20.
+    fetchCalls = [];
+    await send({ action: "users", term: "Nat", limit: 5 });
+    await send({ action: "users", term: "Nat", limit: "5) OR (Id != null" });
+    assert.deepStrictEqual(fetchCalls.map((u) => soql(u).split(" LIMIT ")[1]), ["5", "20"]);
+    console.log("PASS users limit 5 for plain search, 20 otherwise");
+
+    // Plain search leaves users out: no User query, and User hits from the
+    // global search are dropped (the palette lists them from "users").
     route = (url) => {
         if (url.includes("/search/"))
             return json({ searchRecords: [
                 { Id: "001000000000001AAA", attributes: { type: "Account" } },
                 { Id: "005000000000009AAA", attributes: { type: "User" } },
             ] });
-        const q = soql(url);
-        if (q.includes("FROM User WHERE Name LIKE")) return usersFail ? { ok: false, status: 500, json: async () => [] } : json({ records: userRows });
-        if (q.includes("FROM Account")) return json({ records: [{ Id: "001000000000001AAA", Name: "Nathan Corp" }] });
+        if (soql(url).includes("FROM Account")) return json({ records: [{ Id: "001000000000001AAA", Name: "Nathan Corp" }] });
         return null;
     };
     fetchCalls = [];
     r = await send({ action: "search", term: "Nat" });
-    assert.strictEqual(r.ok, true);
-    assert.deepStrictEqual(
-        r.records.map((x) => [x.attributes.type, x.Name]),
-        [["User", "Nat 0"], ["User", "Nat 1"], ["User", "Nat 2"], ["User", "Nat 3"], ["User", "Nat 4"], ["Account", "Nathan Corp"]]
-    );
-    assert.ok(!fetchCalls.some((u) => soql(u).includes("WHERE Id IN") && soql(u).includes("FROM User")), "SOSL User hits not resolved");
-    console.log("PASS search lists up to 5 users first, SOSL User hits dropped");
+    assert.deepStrictEqual([r.ok, r.records.map((x) => [x.attributes.type, x.Name])], [true, [["Account", "Nathan Corp"]]]);
+    assert.ok(!fetchCalls.some((u) => soql(u).includes("FROM User")), "no User query");
+    console.log("PASS search leaves users out");
 
-    // A failed user query keeps the rest of the search.
-    usersFail = true;
-    r = await send({ action: "search", term: "Nat" });
-    assert.deepStrictEqual([r.ok, r.records.map((x) => x.Name)], [true, ["Nathan Corp"]]);
-    console.log("PASS search survives a failed user query");
-
-    // No global hits still returns the users.
-    usersFail = false;
-    route = (url) => (url.includes("/search/") ? json({ searchRecords: [] }) : json({ records: userRows.slice(0, 1) }));
-    r = await send({ action: "search", term: "Nat" });
-    assert.deepStrictEqual(r.records.map((x) => x.Name), ["Nat 0"]);
-    console.log("PASS search returns users when the global search finds nothing");
+    // A newer search from the same tab aborts the one still running; a user
+    // lookup (sent alongside) doesn't.
+    let oldSignal = null;
+    route = (url, opts) => {
+        if (!url.includes("Old")) return url.includes("/search/") ? json({ searchRecords: [] }) : null;
+        oldSignal = opts.signal;
+        return new Promise((_, reject) => {
+            const stop = () => reject(new Error("aborted"));
+            if (opts.signal.aborted) stop();
+            opts.signal.addEventListener("abort", stop);
+        });
+    };
+    const oldSearch = send({ action: "search", term: "Old" });
+    while (!oldSignal) await new Promise((res) => setTimeout(res, 5));
+    r = await send({ action: "users", term: "Nat", limit: 5 });
+    assert.deepStrictEqual([r.ok, oldSignal.aborted], [true, false]);
+    r = await send({ action: "search", term: "New" });
+    assert.deepStrictEqual([r.ok, oldSignal.aborted, await oldSearch], [true, true, { ok: false, error: "aborted" }]);
+    console.log("PASS newer search aborts the older one");
 
     // Gated by live org access like other data actions.
     storage = { settings: { liveOrgAccess: false } }; fetchCalls = [];

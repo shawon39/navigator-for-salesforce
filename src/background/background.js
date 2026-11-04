@@ -53,10 +53,15 @@ async function sfGetSession(host) {
     return null;
 }
 
-async function sfFetch(host, path) {
+async function sfFetch(host, path, signal) {
     const session = await sfGetSession(host);
     if (!session) throw new Error("No Salesforce session found");
     const res = await fetch("https://" + session.apiHost + path, {
+        signal,
+        // Salesforce sends some responses (the object list) with a date but
+        // no expiry, which Chrome would reuse for hours: a new object stayed
+        // missing. Always check with Salesforce first.
+        cache: "no-cache",
         headers: {
             Authorization: "Bearer " + session.token,
             Accept: "application/json",
@@ -72,11 +77,11 @@ async function sfFetch(host, path) {
 }
 
 // SOQL query records, following nextRecordsUrl for up to maxPages pages.
-async function sfQueryAll(host, soql, maxPages) {
-    let d = await sfFetch(host, `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`);
+async function sfQueryAll(host, soql, maxPages, signal) {
+    let d = await sfFetch(host, `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`, signal);
     let records = d.records || [];
     for (let page = 1; page < maxPages && SFEN_URL.isSafePath(d.nextRecordsUrl); page++) {
-        d = await sfFetch(host, d.nextRecordsUrl);
+        d = await sfFetch(host, d.nextRecordsUrl, signal);
         records = records.concat(d.records || []);
     }
     return records;
@@ -95,16 +100,33 @@ function soqlLikeEscape(term) {
 // palette's record shape. Queried directly rather than via the global SOSL
 // search, which keeps only its top 30 hits: a common name's Accounts,
 // Contacts and Leads can push every User out. SOQL also has no index lag.
-async function sfSearchUsers(host, rawTerm) {
+async function sfSearchUsers(host, rawTerm, limit, signal) {
     const like = `'%${soqlLikeEscape(rawTerm)}%'`;
     const rows = await sfQueryAll(
         host,
         "SELECT Id, Name, Username, IsActive, Profile.Name, Alias FROM User " +
             `WHERE Name LIKE ${like} OR Username LIKE ${like} OR Alias LIKE ${like} ` +
-            "ORDER BY IsActive DESC, Name LIMIT 20",
+            `ORDER BY IsActive DESC, Name LIMIT ${limit}`,
+        1,
+        signal
+    );
+    return rows.map(userRow);
+}
+
+// The 20 active internal users who logged in last, for the "users" verb with
+// nothing typed. Guest, portal and community users are left out.
+async function sfActiveUsers(host) {
+    const rows = await sfQueryAll(
+        host,
+        "SELECT Id, Name, Username, IsActive, Profile.Name, Alias FROM User " +
+            "WHERE IsActive = true AND UserType = 'Standard' ORDER BY LastLoginDate DESC NULLS LAST, Name LIMIT 20",
         1
     );
-    return rows.map((u) => ({
+    return rows.map(userRow);
+}
+
+function userRow(u) {
+    return {
         Id: u.Id,
         attributes: { type: "User" },
         Name: u.Name,
@@ -112,7 +134,49 @@ async function sfSearchUsers(host, rawTerm) {
         IsActive: u.IsActive,
         Alias: u.Alias,
         ProfileName: u.Profile ? u.Profile.Name : null,
-    }));
+    };
+}
+
+// A user's preview: the fields admins check first, most of which the User
+// compact layout lacks. toLabel() gives the time zone's readable name.
+async function sfUserPeek(host, id) {
+    const [u] = await sfQueryAll(
+        host,
+        "SELECT Id, Name, Username, Email, IsActive, Alias, Title, Department, LastLoginDate, " +
+            "toLabel(TimeZoneSidKey), Profile.Name, Profile.UserLicense.Name, UserRole.Name, ManagerId, Manager.Name " +
+            `FROM User WHERE Id = '${id}'`,
+        1
+    );
+    if (!u) throw new Error("Record not found");
+    const name = (rel) => (rel && rel.Name) || "";
+    const manager = RECORD_ID_RE.test(u.ManagerId || "") ? { id: u.ManagerId, type: "User", field: "ManagerId" } : null;
+    const fields = [
+        ["Username", u.Username],
+        ["Email", u.Email],
+        ["Status", u.IsActive ? "Active" : "Inactive"],
+        ["Profile", name(u.Profile)],
+        ["Role", name(u.UserRole)],
+        ["User License", name(u.Profile && u.Profile.UserLicense)],
+        ["Alias", u.Alias],
+        ["Time Zone", u.TimeZoneSidKey],
+        ["Last Login", u.LastLoginDate ? new Date(u.LastLoginDate).toLocaleString() : "Never"],
+        ["Manager", name(u.Manager), manager],
+        ["Title", u.Title],
+        ["Department", u.Department],
+        ["User Id", u.Id],
+    ].map(([label, value, lookup]) => ({ label, value: value == null ? "" : String(value), lookup: lookup || null }));
+    return { id: u.Id, type: "User", typeLabel: "User", name: String(u.Name || u.Id), fields };
+}
+
+// The newest "search" or "users" request per tab. Each one aborts the one
+// before it, so fast typing doesn't stack up requests whose answers the
+// palette would ignore anyway.
+const searchAborts = {};
+function newestSearch(sender, action) {
+    const key = (sender.tab ? sender.tab.id : "") + " " + action;
+    if (searchAborts[key]) searchAborts[key].abort();
+    searchAborts[key] = new AbortController();
+    return searchAborts[key].signal;
 }
 
 // userinfo (org id + current user id, needed for "Login as"), cached per API
@@ -168,8 +232,75 @@ async function appHomePath(host) {
         return HOME_PATH;
     }
 }
+// One record as the user sees it on its record page, from the UI API's
+// record-ui resource (record data, object metadata and the user's layout),
+// reduced to plain strings: { id, type, typeLabel, name, items } with one item per layout field, in layout order. An item is
+// { label, value, lookup }: value is what Salesforce displays (a lookup
+// shows the related record's name) and lookup is { id, type } for a lookup
+// that has a value. layoutType is "Compact" (the record's key fields) or
+// "Full" (its page layout).
+// UI API labels and display values are HTML-escaped; the palette shows text.
+const HTML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", "#x27": "'" };
+function unescapeHtml(s) {
+    return s.replace(/&(amp|lt|gt|quot|#39|#x27);/g, (m, e) => HTML_ENTITIES[e]);
+}
+
+async function sfRecordUi(host, id, layoutType) {
+    const d = await sfFetch(host, `/services/data/${SF_API_VERSION}/ui-api/record-ui/${id}?layoutTypes=${layoutType}&modes=View`);
+    const rec = Object.values((d && d.records) || {})[0];
+    if (!rec || !API_NAME_RE.test(rec.apiName || "") || !RECORD_ID_RE.test(rec.id || "")) throw new Error("Record not found");
+    const info = (d.objectInfos || {})[rec.apiName] || {};
+    const fieldInfo = info.fields || {};
+    const fields = rec.fields || {};
+    // A nested record (a relationship's value) has no text of its own.
+    // Values and display values come HTML-escaped ("Grand Hotels &amp; Resorts").
+    const text = (f) => {
+        if (!f) return "";
+        const v = f.displayValue != null ? f.displayValue : f.value;
+        return v === null || v === undefined || typeof v === "object" ? "" : unescapeHtml(String(v)).slice(0, 300);
+    };
+    // layouts: object -> record type -> layout type -> mode -> layout.
+    const layout = Object.values((d.layouts || {})[rec.apiName] || {})
+        .map((byType) => byType && byType[layoutType] && byType[layoutType].View)
+        .find(Boolean);
+    const items = [];
+    const seen = new Set();
+    ((layout && layout.sections) || []).forEach((section) =>
+        (section.layoutRows || []).forEach((row) =>
+            (row.layoutItems || []).forEach((item) => {
+                // An address is one item made of several fields.
+                const comps = (item.layoutComponents || []).filter((c) => c && c.componentType === "Field" && typeof c.apiName === "string");
+                if (!comps.length || seen.has(comps[0].apiName)) return;
+                seen.add(comps[0].apiName);
+                let value = comps.map((c) => text(fields[c.apiName])).filter(Boolean).join(", ");
+                let lookup = null;
+                // A custom lookup's item names "Id" here; the field itself holds the Id.
+                const own = fieldInfo[comps[0].apiName];
+                const idField = own && own.reference ? comps[0].apiName : item.lookupIdApiName;
+                const idValue = idField && fields[idField] && fields[idField].value;
+                if (typeof idValue === "string" && RECORD_ID_RE.test(idValue)) {
+                    const fi = fieldInfo[idField] || {};
+                    const rel = fields[fi.relationshipName];
+                    const target = (rel && rel.value && rel.value.apiName) || (fi.referenceToInfos && fi.referenceToInfos[0] && fi.referenceToInfos[0].apiName);
+                    value = text(rel) || value;
+                    if (API_NAME_RE.test(target || "")) lookup = { id: idValue, type: target, field: idField };
+                }
+                items.push({ label: unescapeHtml(String(item.label || comps[0].apiName)), value, lookup });
+            })
+        )
+    );
+    const nameField = (info.nameFields || [])[0] || "Name";
+    return {
+        id: rec.id,
+        type: rec.apiName,
+        typeLabel: typeof info.label === "string" ? info.label : rec.apiName,
+        name: text(fields[nameField]) || text(fields.Name) || rec.id,
+        items,
+    };
+}
+
 // Actions that read org data; all are gated by the liveOrgAccess setting.
-const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "fields", "flowVersions"]);
+const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "fields", "flowVersions", "peek", "hop", "listViews", "count", "limits"]);
 
 // Why a palette message must be refused, or null when it's allowed.
 function paletteDenied(msg, sender) {
@@ -214,6 +345,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
 });
 
+// Shift+Enter in the palette opens a result in a background tab, next to
+// the page, and the palette stays open for the next one.
+chrome.runtime.onMessage.addListener((msg, sender) => {
+    if (!msg || msg.type !== "openTab") return;
+    if (!sender || sender.id !== chrome.runtime.id || !sender.tab) return;
+    if (typeof msg.url !== "string" || !SFEN_URL.isSalesforceUrl(msg.url)) return;
+    chrome.tabs.create({ url: msg.url, active: false, windowId: sender.tab.windowId, index: sender.tab.index + 1 });
+});
+
 // The "N" button in the Salesforce header (headerButton.js) opens the popup.
 // chrome.action.openPopup needs Chrome 127+.
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -254,9 +394,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 // resource, which can return empty in some orgs.
                 // Exclude ListView (and null types) so every row resolves to a
                 // real /lightning/r/{Type}/{Id}/view record link.
+                // With an object (the palette's "recent account"), only its records.
+                const object = msg.object;
+                if (object !== undefined && (typeof object !== "string" || !/^[A-Za-z0-9_]+$/.test(object))) {
+                    throw new Error("Invalid object name");
+                }
                 const soql =
                     "SELECT Id, Name, Type FROM RecentlyViewed " +
-                    "WHERE Type != null AND Type != 'ListView' " +
+                    (object ? `WHERE Type = '${object}' ` : "WHERE Type != null AND Type != 'ListView' ") +
                     "ORDER BY LastViewedDate DESC NULLS LAST LIMIT 20";
                 const data = await sfFetch(
                     host,
@@ -302,13 +447,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     return;
                 }
                 const term = soslEscape(rawTerm);
-                // Users come from their own query (see sfSearchUsers), run
-                // alongside; at most 5, listed first. A failed user query only
-                // drops the users, not the whole search.
-                const usersPromise = sfSearchUsers(host, rawTerm).then(
-                    (users) => users.slice(0, 5),
-                    () => []
-                );
+                const signal = newestSearch(sender, "search");
                 // Phase 1 — a global SOSL with no RETURNING finds matching Ids +
                 // types across ALL searchable objects (custom included). It comes
                 // back with only Id + object type, so names are resolved below.
@@ -316,10 +455,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     host,
                     `/services/data/${SF_API_VERSION}/search/?q=${encodeURIComponent(
                         `FIND {${term}*} IN NAME FIELDS`
-                    )}`
+                    )}`,
+                    signal
                 );
-                // Drop system/non-navigable objects and Users (queried above),
-                // and cap, keeping relevance order.
+                // Drop system/non-navigable objects and Users (the palette gets
+                // those from the "users" action), and cap, keeping relevance order.
                 const hits = (found.searchRecords || [])
                     .filter(
                         (r) =>
@@ -331,7 +471,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     )
                     .slice(0, 30);
                 if (!hits.length) {
-                    sendResponse({ ok: true, records: await usersPromise });
+                    sendResponse({ ok: true, records: [] });
                     return;
                 }
                 // Phase 2 — resolve a display name per matched type, in parallel.
@@ -348,7 +488,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     try {
                         const d = await sfFetch(
                             host,
-                            `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`
+                            `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`,
+                            signal
                         );
                         return d.records || [];
                     } catch (e) {
@@ -378,15 +519,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     attributes: { type: r.attributes.type },
                     ...(byId[r.Id] || {}),
                 }));
-                sendResponse({ ok: true, records: (await usersPromise).concat(records) });
+                sendResponse({ ok: true, records });
             } else if (msg.action === "users") {
-                // Users for the "login" verb.
+                // Users for the "login" verb, or the 5 that plain search lists
+                // first. Plain search asks for them apart from "search", so a
+                // slow User query (an org with many users) doesn't hold up records.
                 const rawTerm = (msg.term || "").trim();
                 if (rawTerm.length < 2) {
-                    sendResponse({ ok: true, records: [] });
+                    // The "users" verb with nothing typed asks for active users.
+                    sendResponse({ ok: true, records: msg.active === true && !rawTerm ? await sfActiveUsers(host) : [] });
                     return;
                 }
-                sendResponse({ ok: true, records: await sfSearchUsers(host, rawTerm) });
+                const limit = msg.limit === 5 ? 5 : 20;
+                sendResponse({ ok: true, records: await sfSearchUsers(host, rawTerm, limit, newestSearch(sender, "users")) });
             } else if (msg.action === "appHome") {
                 sendResponse({ ok: true, path: await appHomePath(host) });
             } else if (msg.action === "context") {
@@ -409,38 +554,49 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 });
             } else if (msg.action === "admin") {
                 // Searchable admin metadata: profiles, permission sets, flows,
-                // Apex classes and triggers, custom metadata types. Fetched once
-                // per palette session and fuzzy-filtered client-side.
-                const q = async (soql) => {
+                // Apex classes and triggers, custom metadata types. Fetched in
+                // the palette's background, newest first, and fuzzy-filtered
+                // client-side; the palette refetches it after 10 minutes.
+                // pages: batches of up to 2,000 to follow; a batch that fails
+                // keeps the ones before it.
+                const q = async (soql, pages = 1) => {
+                    let records = [];
                     try {
-                        const d = await sfFetch(
-                            host,
-                            `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`
-                        );
-                        return d.records || [];
+                        let d = await sfFetch(host, `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(soql)}`);
+                        records = d.records || [];
+                        for (let p = 1; p < pages && SFEN_URL.isSafePath(d.nextRecordsUrl); p++) {
+                            d = await sfFetch(host, d.nextRecordsUrl);
+                            records = records.concat(d.records || []);
+                        }
                     } catch (e) {
-                        return []; // a feature may be unavailable; degrade gracefully
+                        /* a feature may be unavailable; keep what loaded */
                     }
+                    return records;
                 };
                 const [profiles, permissionSets, flows, classes, triggers, entities] = await Promise.all([
-                    q("SELECT Id, Name FROM Profile ORDER BY Name LIMIT 1000"),
+                    q("SELECT Id, Name FROM Profile ORDER BY LastModifiedDate DESC LIMIT 10000", 5),
                     q(
                         "SELECT Id, Name, Label, Type FROM PermissionSet " +
-                        "WHERE IsOwnedByProfile = false ORDER BY Label LIMIT 1000"
+                        "WHERE IsOwnedByProfile = false ORDER BY LastModifiedDate DESC LIMIT 10000",
+                        5
                     ),
                     q(
                         // ActiveVersionId / LatestVersionId are the 301 flow-version
                         // ids Flow Builder opens; DurableId is the 300 definition id
                         // (passing it to flowBuilder.app yields "We can't open this flow").
+                        // Packaged flows have no LastModifiedDate; NULLS LAST keeps
+                        // the org's own recent flows first.
                         "SELECT DurableId, ApiName, Label, ProcessType, IsActive, " +
                         "ActiveVersionId, LatestVersionId " +
-                        "FROM FlowDefinitionView ORDER BY Label LIMIT 2000"
+                        "FROM FlowDefinitionView ORDER BY LastModifiedDate DESC NULLS LAST LIMIT 10000",
+                        5
                     ),
                     // The org's own code first, then managed packages'.
-                    q("SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY NamespacePrefix NULLS FIRST, Name LIMIT 2000"),
+                    q("SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000", 5),
                     q(
                         "SELECT Id, Name, NamespacePrefix, TableEnumOrId FROM ApexTrigger " +
-                        "ORDER BY NamespacePrefix NULLS FIRST, Name LIMIT 2000"
+                        "ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000",
+                        5
                     ),
                     // EntityDefinition ignores LIMIT and can't page; custom
                     // metadata types fit in one batch. DurableId is the type's
@@ -578,6 +734,91 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     return { api: f.QualifiedApiName, label: f.Label, type: f.DataType, key: id.slice(id.indexOf(".") + 1) };
                 });
                 sendResponse({ ok: true, fields });
+            } else if (msg.action === "listViews") {
+                // One object's list views for the palette's "list" verb, and the
+                // user's last 5 viewed records of it ("list account 2").
+                const object = msg.object;
+                if (typeof object !== "string" || !/^[A-Za-z0-9_]+$/.test(object)) {
+                    throw new Error("Invalid object name");
+                }
+                const recentSoql =
+                    `SELECT Id, Name FROM RecentlyViewed WHERE Type = '${object}' ` +
+                    "ORDER BY LastViewedDate DESC NULLS LAST LIMIT 5";
+                const [rows, recent] = await Promise.all([
+                    sfQueryAll(host, `SELECT Id, Name, DeveloperName FROM ListView WHERE SobjectType = '${object}'`, 5),
+                    // Some objects aren't tracked in RecentlyViewed; list views still load.
+                    sfFetch(host, `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(recentSoql)}`).catch(() => ({})),
+                ]);
+                const listViews = rows
+                    .filter((v) => RECORD_ID_RE.test(v.Id || "") && typeof v.Name === "string")
+                    .map((v) => ({ id: v.Id, label: v.Name, api: v.DeveloperName }));
+                const records = (recent.records || [])
+                    .filter((r) => RECORD_ID_RE.test(r.Id || ""))
+                    .map((r) => ({ id: r.Id, name: r.Name || r.Id }));
+                sendResponse({ ok: true, listViews, records });
+            } else if (msg.action === "count") {
+                // One object's record count for the palette's "count" verb, and
+                // each record type's. RecordTypeId only exists once the object
+                // has a record type; records without one are Master.
+                const object = msg.object;
+                if (typeof object !== "string" || !/^[A-Za-z0-9_]+$/.test(object)) {
+                    throw new Error("Invalid object name");
+                }
+                const types = await sfQueryAll(host, `SELECT Id, Name, IsActive FROM RecordType WHERE SobjectType = '${object}'`, 1);
+                if (!types.length) {
+                    const res = await sfFetch(host, `/services/data/${SF_API_VERSION}/query/?q=${encodeURIComponent(`SELECT COUNT() FROM ${object}`)}`);
+                    sendResponse({ ok: true, total: res.totalSize || 0, recordTypes: [] });
+                } else {
+                    const groups = await sfQueryAll(host, `SELECT RecordTypeId, COUNT(Id) n FROM ${object} GROUP BY RecordTypeId`, 1);
+                    const counts = {};
+                    let total = 0;
+                    groups.forEach((g) => {
+                        const n = Number(g.n) || 0;
+                        const id = types.some((t) => t.Id === g.RecordTypeId) ? g.RecordTypeId : "master";
+                        counts[id] = (counts[id] || 0) + n;
+                        total += n;
+                    });
+                    // Inactive record types only while records still use them.
+                    const recordTypes = types
+                        .filter((t) => t.IsActive || counts[t.Id])
+                        .map((t) => ({ name: String(t.Name || t.Id), count: counts[t.Id] || 0, active: !!t.IsActive }));
+                    recordTypes.push({ name: "Master", count: counts.master || 0, active: true });
+                    sendResponse({ ok: true, total, recordTypes });
+                }
+            } else if (msg.action === "limits") {
+                // The org's limits for the palette's Org Limits view. Each
+                // connected app's share of a limit is left out.
+                const data = (await sfFetch(host, `/services/data/${SF_API_VERSION}/limits/`)) || {};
+                const limits = Object.keys(data)
+                    .filter((k) => /^[A-Za-z0-9_]+$/.test(k) && data[k] && Number.isFinite(data[k].Max) && Number.isFinite(data[k].Remaining))
+                    .map((k) => ({ name: k, max: data[k].Max, remaining: data[k].Remaining }));
+                sendResponse({ ok: true, limits });
+            } else if (msg.action === "peek" && USER_ID_RE.test(msg.recordId || "")) {
+                sendResponse({ ok: true, record: await sfUserPeek(host, msg.recordId) });
+            } else if (msg.action === "peek") {
+                // The palette's preview of a record: its compact layout, the
+                // key fields Salesforce shows at the top of its page.
+                const id = msg.recordId;
+                if (!RECORD_ID_RE.test(id || "")) throw new Error("Invalid record Id");
+                const rec = await sfRecordUi(host, id, "Compact");
+                const nameLabel = (it) => it.value === rec.name && !it.lookup;
+                sendResponse({
+                    ok: true,
+                    record: { id: rec.id, type: rec.type, typeLabel: rec.typeLabel, name: rec.name, fields: rec.items.filter((it) => !nameLabel(it)).slice(0, 10) },
+                });
+            } else if (msg.action === "hop") {
+                // Where the palette can go from the record you're on: the
+                // records its page layout links to (lookups).
+                const id = msg.recordId;
+                if (!RECORD_ID_RE.test(id || "")) throw new Error("Invalid record Id");
+                const rec = await sfRecordUi(host, id, "Full");
+                // Created By and Last Modified By are on every layout: noise here.
+                const seen = new Set();
+                const lookups = rec.items
+                    .filter((it) => it.lookup && !["CreatedById", "LastModifiedById"].includes(it.lookup.field))
+                    .filter((it) => !seen.has(it.label + it.lookup.id) && seen.add(it.label + it.lookup.id))
+                    .map((it) => ({ label: it.label, name: it.value || it.lookup.id, id: it.lookup.id, type: it.lookup.type }));
+                sendResponse({ ok: true, id: rec.id, type: rec.type, typeLabel: rec.typeLabel, name: rec.name, lookups });
             } else if (msg.action === "loginAs") {
                 const userId = msg.userId;
                 if (typeof userId !== "string" || !USER_ID_RE.test(userId)) {

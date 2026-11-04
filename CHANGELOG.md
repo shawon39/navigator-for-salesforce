@@ -1,5 +1,38 @@
 # Changelog
 
+## 5.2.0
+
+### Added
+- Peek: `→` on a record in the palette shows its key fields (the record's compact layout) beside the results, without leaving the page. The preview follows as you move through the list; a lookup in it opens that record. `←` or `Esc` closes it. Hover a value to copy it; the record's Id is listed last. Buttons open it in a new tab or copy its link. Needs live org access.
+- User preview: `→` (or the selected row's Preview button) on a user in the palette shows the user's details beside the results: username, email, status, profile, role, user license, alias, time zone, last login, manager, title, department and User Id, with Login as and Login as · Incognito buttons. Needs live org access.
+- List view search: `list` (or `li`), an object and a space, like `li account `, lists that object's list views; keep typing to filter them. A number from 1 to 5, like `li account 1`, puts the Account you viewed last (or 2nd to 5th last) first; `Enter` opens it. Needs live org access.
+- Record counts: `count` (or `c`) `account` and `Enter` shows how many Accounts there are, then each record type's count, Master included. Keep typing to filter record types. Counts only the records you can see. Needs live org access.
+- Recent records: `recent` (or `re`) lists the records you viewed last, across objects. Add an object, like `re account`, for the Accounts you viewed last. With none, the list stays empty. Needs live org access.
+- Settings → Behavior → Recently viewed records: show 10 (the default), 15 or 20 recently viewed records in the popup's Recent tab and in the palette.
+- The palette opens with its commands as a compact grid of keywords; click one to start it. Shortcuts, the last button, lists every command with its short form, what it does and an example.
+- New palette commands: `flows`, `profiles`, `permsets` and `apex` list every flow, profile, permission set or Apex class and trigger, the 20 last modified first; type to narrow them and `Enter` to open one. The lists load in the background (up to 10,000 of each) and refresh after 10 minutes. `users` finds a user and opens their record; with nothing typed it lists the 20 active internal users who logged in last. `apex` leaves out managed-package code, whose source is hidden in Setup, until you tick Show package code in its list (also in Settings → Behavior). Needs live org access.
+- Settings → Palette commands lists every palette command with its short form, what it does and an example.
+- Org Limits: search `limits` (or `org limits`) in the palette and press `Enter` to see how much of each org limit is used, as bars, most used first. Bars turn amber at 50% and red at 80%; unused limits are listed last. Type to filter them. Needs live org access.
+- On a record, the palette lists the records it links to (its Account, Owner and other lookups on the page layout). Typing finds them too, so `acc` on an Opportunity offers its Account. Needs live org access.
+- Admin shorthand in the palette and popup search: `ps`, `psg`, `dl`, `cmdt`, `cs`, `lwc`, `sr`, `aj`, `sj`, `vf`, `om`, `ip`, `nc`, `rss`, `lh`, `sat`, `ds`, `ics`, `ocs` and `lab` open Permission Sets, Permission Set Groups, Debug Logs and the other Setup pages they stand for.
+- Text you select on the page fills the palette's search when you open it. A selection left on the page fills it only once.
+- `Shift+Enter` (or `Shift`+click) opens a palette result in a background tab and keeps the palette open, to open several pages in a row.
+- A pasted record Id shows the record's name and object before you open it.
+- Record inspector: Copy JSON (no blanks) copies only the fields that have a value.
+
+### Changed
+- A cleaner palette: one width while you type, one text size for every row and one blue. Each result has a colored tile by kind (Setup, object, record, bookmark, flow). The commands sit under their group's name (Objects, Records, Go to, Setup). The search bar names the org's type (Production, Sandbox and so on). Key hints show as keys, and the selected row shows its own: `Enter` to open, `→` for its actions or preview (the `⋯` button is gone).
+- A cleaner popup: the org you're on is the header, with its type and My Domain. The tabs have icons, rows have the palette's colored tiles, and each saved org shows its type as a tag. One Add org button sits at the top of the Orgs list. A footer shows the keys: move, open, new tab and `Alt+K` (`Option+K` on a Mac) for the palette. The popup and Settings use the palette's blue.
+- A cleaner Settings page: the side menu has icons, Theme is picked from small light, dark and System previews, the popup tab switches show each tab's icon, and the command palette's shortcut shows as keys. Text and spacing match the palette and popup.
+- A user in the palette no longer lists Login as, Copy User Id and Manage in Setup under its row; they're in the user's preview. Records have a record icon instead of a file icon.
+- Recent Setup also keeps the Setup pages you open by clicking through Setup, not only those opened with Navigator.
+- Faster palette search in orgs with many users: records no longer wait for the user lookup, and each shows as soon as it arrives. A search you've typed past is stopped instead of running on.
+- The popup's Navigate tab has one row of five shortcuts: Home, Setup, Schema (Object Manager), Console (Developer Console) and Users. Flows and the Inbound and Outbound change sets are still a search away. You can keep up to 25 bookmarks (was 10); the list scrolls under the shortcuts. Adding a page that's already bookmarked says so instead of adding it twice.
+- The popup's Recent tab shows records and Setup pages side by side, up to 9 Setup pages (was 7). Each record shows its object under its name; hover a cut-off name to see it all. The palette and the popup show 10 recently viewed records by default (was 20).
+
+### Fixed
+- A new custom object could stay missing from search and the palette for hours, because Chrome reused an older copy of the org's object list. Navigator now checks with Salesforce first.
+
 ## 5.1.1
 
 ### Added

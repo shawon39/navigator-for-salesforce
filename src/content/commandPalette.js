@@ -17,6 +17,8 @@
         GROUPS,
         VERBS,
         VERB_SHORT,
+        COMMANDS,
+        sortLimits,
         SETUP_PAGES,
         FALLBACK_OBJECTS,
         isRelevantObject,
@@ -29,17 +31,19 @@
         pickBonus,
         addPick,
         iconSvg,
+        ICON_TONES,
         UI_ICONS,
         looksLikeRecordId,
         pastedLink,
         highlightPositions,
         escapeHtml,
+        lightningOrigin,
         navigate,
         recordUrl,
     } = window.SFEN_CMDK_DATA;
+    const SETUP_ALIASES = window.SFEN_SETUP_ALIASES || {};
 
-    const DEFAULT_PLACEHOLDER =
-        "Search Salesforce — objects, setup, records, bookmarks…";
+    const DEFAULT_PLACEHOLDER = "Search Setup, objects, records and bookmarks";
 
     // ---- State -----------------------------------------------------------
     let staticCatalog = [];
@@ -50,29 +54,54 @@
     let liveEnabled = true;
     let paletteEnabled = true; // settings.commandPalette
     let objectsRequested = false;
-    let adminItems = []; // profiles, permission sets, flows (fetched once)
+    let adminItems = []; // profiles, permission sets, flows, Apex, metadata types, newest first
     let adminRequested = false;
+    let adminLoaded = false; // adminItems arrived at least once (they can be empty)
+    let adminFailed = false; // the last ask failed; the next open asks again
+    let adminAskedAt = 0; // when adminItems were last asked for; an open refetches them after ADMIN_MAX_AGE
+    const ADMIN_MAX_AGE = 10 * 60 * 1000;
     let appItems = null; // the user's Lightning apps, in App Launcher order, once fetched
     let appsRequested = false;
     let fieldsCache = {}; // object API name -> [{api,label,type,key}] for the "fields" verb
     let fieldsFailed = {}; // object API names whose fields failed to load (retried on the next open)
     let fieldsKey = null; // object whose fields are being fetched; a response for another is ignored
+    let listViewsCache = {}; // object API name -> [{id,label,api}] or "failed", for the "list" verb
+    let listViewsKey = null; // object whose list views are being fetched
+    let listRecentCache = {}; // object API name -> your last 5 viewed [{id,name}], loaded with its list views
+    let countCache = {}; // object API name -> { total, recordTypes } or "failed", for the "count" verb
+    let countKey = null; // object whose records are being counted
+    let limitsData = null; // [{name,max,remaining}] or "failed", for Org Limits; refetched per open
+    let limitsLoading = false;
+    let recentCache = {}; // object API name -> your last 20 viewed records, for the "recent" verb
+    let recentCount = SFEN_SETTINGS.DEFAULTS.recentCount; // settings.recentCount: recently viewed records shown
+    let showPackageApex = false; // settings.showPackageApex: the apex list includes managed-package code
+    let recentKey = null; // object whose last viewed records are being fetched
+    let activeUsers = null; // active users who logged in last, for "users" with nothing typed; refetched per open
+    let activeUsersLoading = false;
     let catalogCache = null; // fullCatalog() result; reset when its sources change
     let currentQuery = ""; // last query passed to render()
     let expandedKey = null; // url of the row whose ⋯ actions are expanded
     let activeVerb = null; // active command verb key (VERBS), or null
+    let shortcutsOpen = false; // the Shortcuts list shows in place of the board
     let autoVerbWord = null; // verb word as typed when "word " switched it on; null when locked
     let inspectKey = null; // "Type/Id" currently fetched for the record inspector
     let inspectRecord = null; // fetched record fields for the record inspector
     const describeCache = {}; // "host/Type" -> { fieldApiName: label } for the inspector
     let liveRecordsTerm = ""; // search term liveRecords were returned for
     let orgName = ""; // current org's saved or default name, shown in the search bar
-    let orgKind = ""; // SFEN_ORGS.orgType of the current org (dot color)
+    let orgKind = ""; // SFEN_ORGS.orgType of the current org (its type tag)
     let savedOrgs = []; // saved orgs (quickOrgs), listed by the "org" verb
     let currentOrg = null; // the saved org this page belongs to, if any
     let tabColors = false; // settings.orgTabColors: org color icons instead of type dots
     let orgColorMap = Object.create(null); // org key -> color name (SFEN_ORG_COLORS.assign)
     let paletteDark = false; // the palette's resolved theme, for icon shades
+    let peekOpen = false; // the record preview beside the results is showing
+    let peekTimer = null;
+    let peekEntry = null; // the result row the preview shows
+    const peekCache = {}; // record Id -> peek record, "loading" or "failed"
+    let hop = null; // the current record's lookups ("hop" action)
+    let hopKey = null; // record Id hop was requested for
+    let hopAt = 0; // when hop was requested
 
     // Key hints: ⌘ on Mac, Ctrl elsewhere.
     const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "⌘" : "Ctrl+";
@@ -88,6 +117,15 @@
                     let keywords = `${label} ${category || ""} setup`;
                     if (label === "Users") keywords += " manage users list";
                     items.push({ label, hint: "Setup", group: GROUPS.SETUP, url, keywords });
+                });
+                // Opens the Org Limits view in the palette, not a page (see choose).
+                items.push({
+                    label: "Org Limits",
+                    hint: "Limits",
+                    group: GROUPS.SETUP,
+                    url: "/lightning/setup/SystemOverview/home",
+                    keywords: "org limits usage api requests storage email",
+                    openLimits: true,
                 });
                 (res.sfTabs || []).forEach((t) => {
                     if (t && t.name && SFEN_URL.isSafePath(t.link))
@@ -127,9 +165,16 @@
         const raw = query.trim();
         const q = raw.toLowerCase();
         const out = [];
-        // Pasting a 15/18-char record Id jumps straight to that record.
+        // Pasting a 15/18-char record Id jumps straight to that record. Its
+        // preview names it once loaded; Ids of things that aren't records
+        // (a profile, a class) keep the plain row.
         if (looksLikeRecordId(raw)) {
-            out.push({ label: "Open record: " + raw, hint: "ID", group: GROUPS.ACTION, url: "/" + raw });
+            const known = peekRecord(raw);
+            out.push(
+                known
+                    ? { label: known.name, sub: `${known.typeLabel} · ${raw}`, hint: "ID", group: GROUPS.ACTION, url: recordUrl(known.type, raw), recordId: raw }
+                    : { label: "Open record: " + raw, hint: "ID", group: GROUPS.ACTION, url: "/" + raw, recordId: raw }
+            );
         }
         // A pasted link to an org's page opens that page in this org;
         // renderList explains the ones that can't.
@@ -149,12 +194,20 @@
             [GROUPS.APP]: 8,
             [GROUPS.OBJECT]: 0,
             [GROUPS.RECORD]: 0,
+            [GROUPS.RELATED]: 9,
         };
+        const alias = SETUP_ALIASES[q];
         const scored = [];
-        for (const item of fullCatalog()) {
+        for (const item of fullCatalog().concat(hopItems())) {
             const itemQuery = packageQuery(item, q);
             if (itemQuery === null) continue;
-            const sc = SFEN_URL.matchScore(itemQuery, item.label, item.keywords);
+            // Admin shorthand ("psg") ranks just under an exact name. A lookup
+            // of the record you're on also matches its field as a name, so
+            // "acc" on an Opportunity finds its Account like a page named so.
+            const sc =
+                item.group === GROUPS.SETUP && item.label === alias
+                    ? 950
+                    : Math.max(SFEN_URL.matchScore(itemQuery, item.label, item.keywords), item.field ? SFEN_URL.matchScore(itemQuery, item.field) : -1);
             if (sc >= 0)
                 scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) - (item.pkg ? PACKAGE_PENALTY : 0) + boost(item.url) });
         }
@@ -179,6 +232,7 @@
             [GROUPS.APP]: 6,
             [GROUPS.APEX]: 6,
             [GROUPS.CMDT]: 4,
+            [GROUPS.RELATED]: 6,
         };
         const counts = {};
         for (const s of scored) {
@@ -223,8 +277,9 @@
             }
             liveObjects = resp.sobjects
                 .filter(isRelevantObject)
-                .map((s) => ({ api: s.name, label: s.label, plural: s.labelPlural }));
+                .map((s) => ({ api: s.name, label: s.label, plural: s.labelPlural, prefix: s.keyPrefix }));
             catalogCache = null;
+            loadHop(); // a /lightning/r/{Id}/view page needs the objects to know its record
             if (opened) render(inputEl.value);
         });
     }
@@ -232,12 +287,18 @@
     // Profiles, permission sets, flows, Apex classes and triggers, and custom
     // metadata types — fetched once, fuzzy-searched like objects. Each carries
     // a hint so the result type is obvious.
+    // The old list stays in use until the refetched one arrives.
     function loadAdmin() {
+        if (Date.now() - adminAskedAt > ADMIN_MAX_AGE) adminRequested = false;
         if (!liveEnabled || adminRequested) return;
         adminRequested = true;
+        adminFailed = false;
+        adminAskedAt = Date.now();
         ask("admin", {}, (resp) => {
             if (!resp || !liveEnabled) {
                 adminRequested = false;
+                adminFailed = !!liveEnabled;
+                if (opened && activeVerb && VERBS[activeVerb].kind === "admin") render(inputEl.value);
                 return;
             }
             const profiles = (resp.profiles || []).map((p) => ({
@@ -296,8 +357,9 @@
                     : null,
             }));
             adminItems = profiles.concat(permSets, flows, apex, metadataTypes);
+            adminLoaded = true;
             catalogCache = null;
-            if (opened && inputEl.value.trim()) render(inputEl.value);
+            if (opened && (inputEl.value.trim() || activeVerb)) render(inputEl.value);
         });
     }
 
@@ -339,6 +401,50 @@
         });
     }
 
+    // One object's list views for the "list" verb, cached for the page's life.
+    function loadListViews(api) {
+        if (listViewsCache[api] || listViewsKey === api) return;
+        listViewsKey = api;
+        setLoading("listViews", true);
+        ask("listViews", { object: api }, (resp) => {
+            if (listViewsKey !== api) return; // stale: another object, or the verb was cleared
+            listViewsKey = null;
+            setLoading("listViews", false);
+            listViewsCache[api] = resp ? resp.listViews || [] : "failed";
+            listRecentCache[api] = (resp && resp.records) || [];
+            if (opened && activeVerb === "list") render(inputEl.value);
+        });
+    }
+
+    // One object's record counts for the "count" verb, refetched per open.
+    function loadCounts(api) {
+        if (countCache[api] || countKey === api) return;
+        countKey = api;
+        setLoading("count", true);
+        ask("count", { object: api }, (resp) => {
+            if (countKey !== api) return; // stale: another object, or the verb was cleared
+            countKey = null;
+            setLoading("count", false);
+            countCache[api] = resp || "failed";
+            if (opened && activeVerb === "count") render(inputEl.value);
+        });
+    }
+
+    // One object's last viewed records for the "recent" verb, refetched per open.
+    function loadObjectRecent(api) {
+        if (recentCache[api] || recentKey === api) return;
+        recentKey = api;
+        setLoading("recent", true);
+        ask("recent", { object: api }, (resp) => {
+            if (recentKey !== api) return; // stale: another object, or the verb was cleared
+            recentKey = null;
+            setLoading("recent", false);
+            // Objects RecentlyViewed doesn't track fail; they show nothing, like no records.
+            recentCache[api] = ((resp && resp.records) || []).map(mapRecord);
+            if (opened && activeVerb === "recent") render(inputEl.value);
+        });
+    }
+
     // ---- Record -> palette item ------------------------------------------
     function userSub(r) {
         const parts = [];
@@ -349,15 +455,6 @@
         return parts.join(" · ");
     }
 
-    function userActions(id) {
-        return [
-            { label: "Login as — new tab", hint: "Login", kind: "loginAs", userId: id, incognito: false },
-            { label: "Login as — Incognito", hint: "Login", kind: "loginAs", userId: id, incognito: true },
-            { label: "Copy User Id", hint: "Copy", kind: "copy", text: id },
-            { label: "Manage in Setup", hint: "Setup", kind: "nav", url: recordUrl("User", id) },
-        ];
-    }
-
     function mapRecord(r) {
         const type = r.attributes ? r.attributes.type : "Record";
         const name = r.Name || r.CaseNumber || r.ContractNumber || r.OrderNumber || r.Id;
@@ -366,13 +463,13 @@
             hint: type,
             group: GROUPS.RECORD,
             url: recordUrl(type, r.Id),
+            recordId: r.Id, // → previews it (Peek)
             keywords: `${name} ${type} record`,
         };
         if (type === "User") {
             // Users are also found by Username and Alias; rank those matches too.
             item.keywords += ` ${r.Username || ""} ${r.Alias || ""}`;
             item.sub = userSub(r);
-            item.actions = userActions(r.Id);
             item.user = r; // raw fields for the "login" verb
         }
         return item;
@@ -397,28 +494,90 @@
         });
     }
 
+    // ---- Peek and hop ---------------------------------------
+    // A record's preview ("peek" action), cached for the page's life (failed
+    // ones until the next open). Returns it once loaded, else null and loads
+    // it; then, while open, the results render again, or with onLoad, that.
+    function peekRecord(id, onLoad) {
+        const got = peekCache[id];
+        if (got && typeof got === "object") return got;
+        if (!got && liveEnabled) {
+            peekCache[id] = "loading";
+            ask("peek", { recordId: id }, (resp) => {
+                peekCache[id] = resp ? resp.record : "failed";
+                if (opened) onLoad ? onLoad() : render(inputEl.value);
+            });
+        }
+        return null;
+    }
+
+    // The record you're on: its lookups, for the board's "This record" rows
+    // and search. Refreshed when older than a minute, so edited lookups catch up.
+    function loadHop() {
+        const ctx = currentRecordContext();
+        if (!ctx || !liveEnabled || (hopKey === ctx.id && Date.now() - hopAt < 60000)) return;
+        if (hopKey !== ctx.id) hop = null;
+        hopKey = ctx.id;
+        hopAt = Date.now();
+        ask("hop", { recordId: ctx.id }, (resp) => {
+            if (hopKey !== ctx.id) return; // stale: another record since
+            if (!resp) {
+                hopAt = 0; // retry on the next open
+                return;
+            }
+            hop = resp;
+            if (opened && !activeVerb && !inputEl.value.trim()) render("");
+        });
+    }
+
+    // Rows for the record you're on: the records it links to.
+    function hopItems() {
+        const ctx = currentRecordContext();
+        if (!hop || !ctx || hopKey !== ctx.id) return [];
+        return hop.lookups.map((l) => ({
+            label: l.name,
+            hint: l.label,
+            group: GROUPS.RELATED,
+            iconGroup: GROUPS.RECORD,
+            url: recordUrl(l.type, l.id, hop.type),
+            recordId: l.type === "RecordType" ? null : l.id, // a record type has no preview
+            keywords: `${l.name} ${l.label} ${l.type}`,
+            field: l.label, // searched as a second name (see compute)
+        }));
+    }
+
     let searchTimer = null;
     let searchSeq = 0; // bumped per request; a response for an older one is ignored
+    let liveParts = {}; // latest results per action ("users", "search"); liveRecords joins them
     // Search records for `term`. A term under 2 characters (or "") just drops
     // the live results and any search still in flight.
     function runLiveSearch(term) {
         const seq = ++searchSeq;
         if (!liveEnabled || term.trim().length < 2) {
             liveRecords = [];
+            liveParts = {};
             liveRecordsTerm = "";
             setLoading("search", false);
             return;
         }
         setLoading("search", true);
-        // The "login" verb queries users directly; plain search covers all records.
-        const action = activeVerb && VERBS[activeVerb].kind === "login" ? "users" : "search";
-        ask(action, { term }, (resp) => {
-            if (seq !== searchSeq) return;
-            setLoading("search", false);
-            // A failed search counts as "no matches" (so "login" doesn't wait forever).
-            liveRecords = resp ? (resp.records || []).map(mapRecord) : [];
-            liveRecordsTerm = term;
-            if (opened) render(inputEl.value);
+        // The "login" and "users" verbs list users only. Plain search asks for its 5 users
+        // and the other records apart and shows each as it arrives: in an org
+        // with many users the user query can be much the slower one. A part
+        // keeps the previous term's rows until its answer replaces them.
+        const usersOnly = activeVerb && (VERBS[activeVerb].kind === "login" || VERBS[activeVerb].kind === "users");
+        const parts = usersOnly ? { users: {} } : { users: { limit: 5 }, search: {} };
+        let pending = Object.keys(parts).length;
+        Object.keys(parts).forEach((action) => {
+            ask(action, { term, ...parts[action] }, (resp) => {
+                if (seq !== searchSeq) return;
+                if (--pending === 0) setLoading("search", false);
+                // A failed search counts as "no matches" (so "login" doesn't wait forever).
+                liveParts[action] = resp ? (resp.records || []).map(mapRecord) : [];
+                liveRecords = (liveParts.users || []).concat(liveParts.search || []);
+                liveRecordsTerm = term;
+                if (opened) render(inputEl.value);
+            });
         });
     }
 
@@ -453,7 +612,7 @@
     }
 
     // ---- Overlay UI ------------------------------------------------------
-    let overlayHost, shadow, inputEl, listEl, footerEl, loaderEl, panelEl, orgEl, noticeEl;
+    let overlayHost, shadow, inputEl, listEl, footerEl, loaderEl, panelEl, orgEl, noticeEl, peekEl;
     let opened = false;
     let activeIndex = 0;
     let footerCount = "";
@@ -528,7 +687,7 @@
         inputEl = document.createElement("input");
         inputEl.className = "search";
         inputEl.type = "text";
-        inputEl.placeholder = "Search Salesforce — objects, setup, records, bookmarks…";
+        inputEl.placeholder = DEFAULT_PLACEHOLDER;
         inputEl.setAttribute("spellcheck", "false");
         inputEl.setAttribute("autocomplete", "off");
         inputEl.setAttribute("role", "searchbox");
@@ -541,7 +700,7 @@
 
         orgEl = document.createElement("span");
         orgEl.className = "org";
-        orgEl.innerHTML = '<span class="org-dot org-mark"></span><span class="org-name"></span>';
+        orgEl.innerHTML = '<span class="org-dot org-mark"></span><span class="org-name"></span><span class="org-tag"></span>';
 
         searchWrap.appendChild(inputEl);
         searchWrap.appendChild(loaderEl);
@@ -561,9 +720,18 @@
         noticeEl.className = "notice";
         noticeEl.hidden = true;
 
+        // The record preview (Peek) sits beside the results.
+        peekEl = document.createElement("div");
+        peekEl.className = "peek";
+        peekEl.hidden = true;
+        const body = document.createElement("div");
+        body.className = "body";
+        body.appendChild(listEl);
+        body.appendChild(peekEl);
+
         panel.appendChild(searchWrap);
         panel.appendChild(noticeEl);
-        panel.appendChild(listEl);
+        panel.appendChild(body);
         panel.appendChild(footerEl);
         backdrop.appendChild(panel);
         shadow.appendChild(backdrop);
@@ -575,36 +743,58 @@
         });
     }
 
+    // A footer hint: its keys as keycaps, then what they do.
+    function keyHint(keys, text) {
+        return `<span class="fk">${keys.map((k) => `<kbd>${k}</kbd>`).join("")}${text}</span>`;
+    }
+
     // Footer key hints for the current mode; the right-aligned .footer-count
-    // is filled separately (setFooterCount).
+    // is filled separately (setFooterCount). Shift+Enter (background tab) is
+    // left out for room; the Shortcuts list names it.
     function footerHtml() {
+        const mod = MOD.replace("+", "");
         if (activeVerb && VERBS[activeVerb].kind === "org") {
             return (
-                '<span><kbd>↑↓</kbd> move</span>' +
-                '<span><kbd>↵</kbd> open in new tab</span>' +
-                '<span><kbd>→</kbd> this page there</span>' +
-                '<span><kbd>esc</kbd> close</span>' +
+                keyHint(["↑", "↓"], "Move") +
+                keyHint(["↵"], "Open in new tab") +
+                keyHint(["→"], "This page there") +
+                keyHint(["Esc"], "Close") +
+                '<span class="footer-count"></span>'
+            );
+        }
+        if (activeVerb === "count") {
+            return (
+                keyHint(["↑", "↓"], "Move") +
+                (fieldsTarget(inputEl.value) ? "" : keyHint(["↵"], "Count records")) +
+                keyHint(["⌫"], "Back to search") +
+                '<span class="footer-count"></span>'
+            );
+        }
+        if (activeVerb && VERBS[activeVerb].kind === "limits") {
+            return (
+                "<span>Type to filter</span>" +
+                keyHint(["⌫"], "Back to search") +
+                keyHint(["Esc"], "Close") +
                 '<span class="footer-count"></span>'
             );
         }
         if (activeVerb && VERBS[activeVerb].kind === "login") {
             return (
-                '<span><kbd>↵</kbd> log in</span>' +
-                `<span><kbd>${MOD}↵</kbd> incognito</span>` +
-                '<span><kbd>⌫</kbd> back to search</span>' +
+                keyHint(["↵"], "Log in") +
+                keyHint([mod, "↵"], "Incognito") +
+                keyHint(["⌫"], "Back to search") +
                 '<span class="footer-count"></span>'
             );
         }
         return (
-            '<span><kbd>↑↓</kbd> move</span>' +
-            '<span><kbd>↵</kbd> open</span>' +
-            `<span><kbd>${MOD}↵</kbd> new tab</span>` +
-            '<span><kbd>→</kbd> actions</span>' +
-            // In the "fields" verb's object step, Tab completes the object instead.
-            (activeVerb === "fields" && !fieldsTarget(inputEl.value)
-                ? '<span><kbd>tab</kbd> search fields</span>'
-                : '<span><kbd>tab</kbd> lock verb</span>') +
-            '<span><kbd>esc</kbd> close</span>' +
+            keyHint(["↑", "↓"], "Move") +
+            keyHint(["↵"], "Open") +
+            keyHint([mod, "↵"], "New tab") +
+            keyHint(["→"], '<span class="right-key">Actions</span>') +
+            // In the "fields" and "list" verbs' object step, Tab completes the object instead.
+            ((activeVerb === "fields" || activeVerb === "list") && !fieldsTarget(inputEl.value)
+                ? keyHint(["Tab"], `Search ${activeVerb === "list" ? "list views" : "fields"}`)
+                : keyHint(["Tab"], "Lock command")) +
             '<span class="footer-count"></span>'
         );
     }
@@ -658,6 +848,9 @@
         marker.classList.add("org-mark");
         orgEl.querySelector(".org-mark").replaceWith(marker);
         orgEl.querySelector(".org-name").textContent = orgName;
+        const tag = orgEl.querySelector(".org-tag");
+        tag.className = "org-tag " + orgKind;
+        tag.textContent = SFEN_ORGS.TYPES[orgKind] || "";
         orgEl.hidden = !orgName || !!(activeVerb && VERBS[activeVerb].kind === "inspect");
     }
 
@@ -677,11 +870,13 @@
     function startsSetupName(verb, arg) {
         if (!arg.trim()) return false;
         const typed = (verb + " " + arg).toLowerCase().replace(/\s+/g, " ").trimEnd();
-        return SETUP_PAGES.some(([label]) => label.toLowerCase().startsWith(typed));
+        // "org limits" finds the Org Limits result rather than the org verb.
+        return SETUP_PAGES.some(([label]) => label.toLowerCase().startsWith(typed)) || "org limits".startsWith(typed);
     }
 
     function onInput() {
         if (!opened) return;
+        shortcutsOpen = false; // typing leaves the Shortcuts list for the search
         expandedKey = null;
         clearTimeout(searchTimer);
         // Too short to search: drop the live results (and any search in flight) now.
@@ -708,8 +903,8 @@
         } else {
             render(inputEl.value);
         }
-        // Verb results are local, except "login", which searches users.
-        if (activeVerb && VERBS[activeVerb].kind !== "login") return;
+        // Verb results are local, except "login" and "users", which search users.
+        if (activeVerb && VERBS[activeVerb].kind !== "login" && VERBS[activeVerb].kind !== "users") return;
         const term = inputEl.value;
         if (term.trim().length >= 2 && !pastedLink(term, host)) searchTimer = setTimeout(() => runLiveSearch(term), 140);
     }
@@ -729,10 +924,16 @@
 
     const flatResults = []; // one entry per visible .result row, in DOM order
 
-    function groupHeader(text) {
+    function groupHeader(text, count) {
         const h = document.createElement("li");
         h.className = "group-header";
         h.textContent = text;
+        if (count) {
+            const n = document.createElement("span");
+            n.className = "group-count";
+            n.textContent = count;
+            h.appendChild(n);
+        }
         h.setAttribute("aria-hidden", "true");
         return h;
     }
@@ -749,7 +950,12 @@
         const icon = document.createElement("span");
         icon.className = "icon";
         if (!isSub && item.org) icon.appendChild(orgMarker(item.org, 16));
-        else icon.innerHTML = iconSvg(isSub ? GROUPS.ACTION : item.group);
+        else if (isSub) icon.innerHTML = iconSvg(GROUPS.ACTION);
+        else {
+            const g = item.iconGroup || item.group;
+            icon.innerHTML = iconSvg(g);
+            icon.classList.add("tone-" + (ICON_TONES[g] || "setup"));
+        }
 
         const wrap = document.createElement("span");
         wrap.className = "label-wrap";
@@ -758,12 +964,6 @@
         label.innerHTML = isSub
             ? escapeHtml(item.label)
             : highlight(item.label, item.highlightQuery != null ? item.highlightQuery : currentQuery);
-        if (!isSub && item.api) {
-            const api = document.createElement("span");
-            api.className = "api mono";
-            api.textContent = item.api;
-            label.appendChild(api);
-        }
         wrap.appendChild(label);
         if (!isSub && item.sub) {
             const sub = document.createElement("span");
@@ -774,10 +974,18 @@
 
         li.appendChild(icon);
         li.appendChild(wrap);
+        // The API name sits at the right edge, so the label reads first.
+        if (!isSub && item.api) {
+            const api = document.createElement("span");
+            api.className = "api mono";
+            api.textContent = item.api;
+            li.appendChild(api);
+        }
         // Group headers already name Setup/object/bookmark rows; only records
         // (their object type), actions (e.g. "ID"), apps (console or not) and
-        // fields (their data type) carry a trailing hint.
-        const hinted = [GROUPS.RECORD, GROUPS.ACTION, GROUPS.APP, GROUPS.FIELD, GROUPS.ORG, GROUPS.APEX];
+        // fields (their data type) carry a trailing hint, as do the current
+        // record's rows (the lookup's field).
+        const hinted = [GROUPS.RECORD, GROUPS.ACTION, GROUPS.APP, GROUPS.FIELD, GROUPS.ORG, GROUPS.APEX, GROUPS.RELATED];
         if (!isSub && hinted.includes(item.group)) {
             const hint = document.createElement("span");
             hint.className = "hint";
@@ -789,23 +997,181 @@
             const more = document.createElement("button");
             more.className = "more";
             more.type = "button";
-            more.textContent = "⋯";
+            more.innerHTML = "<kbd>→</kbd>Actions";
             more.setAttribute("aria-label", "More actions");
             more.addEventListener("click", (e) => {
                 e.stopPropagation();
                 toggleExpand(item.url);
             });
             li.appendChild(more);
+        } else if (!isSub && peekable(item)) {
+            const more = document.createElement("button");
+            more.className = "more";
+            more.type = "button";
+            more.innerHTML = "<kbd>→</kbd>Preview";
+            more.setAttribute("aria-label", "Preview");
+            more.addEventListener("click", (e) => {
+                e.stopPropagation();
+                setActive(idx);
+                setPeek(!peekOpen);
+            });
+            li.appendChild(more);
         }
 
         const enter = document.createElement("span");
         enter.className = "enter";
-        enter.innerHTML = UI_ICONS.enter;
+        enter.innerHTML = "<kbd>↵</kbd>";
         li.appendChild(enter);
 
-        li.addEventListener("mousemove", () => setActive(idx));
-        li.addEventListener("click", (e) => choose(idx, e.metaKey || e.ctrlKey));
+        li.addEventListener("mousemove", () => activeIndex !== idx && setActive(idx));
+        li.addEventListener("click", (e) => choose(idx, e.metaKey || e.ctrlKey, e.shiftKey));
         return li;
+    }
+
+    // ---- Peek ------------------------------------------------------------
+    // → on a record shows its key fields beside the results, and the preview
+    // follows the selection until ← or Esc.
+    function peekable(item) {
+        return !!(item && !item.__action && item.recordId && !(item.actions && item.actions.length));
+    }
+
+    function setPeek(on) {
+        peekOpen = on;
+        clearTimeout(peekTimer);
+        if (!peekEl) return;
+        peekEl.hidden = !on;
+        panelEl.classList.toggle("peek-mode", on);
+        peekEntry = null;
+        if (on) renderPeek();
+        else peekEl.textContent = ""; // don't leave record values in the page
+    }
+
+    function peekNote(text) {
+        const n = document.createElement("div");
+        n.className = "peek-note";
+        n.textContent = text;
+        peekEl.appendChild(n);
+    }
+
+    function renderPeek() {
+        if (!peekOpen || !peekEl) return;
+        clearTimeout(peekTimer);
+        peekEl.textContent = "";
+        // Reaching the panel can cross rows that aren't records (the board's
+        // right column), so the preview stays on the last record.
+        if (peekable(flatResults[activeIndex])) peekEntry = flatResults[activeIndex];
+        const i = flatResults.indexOf(peekEntry);
+        const entry = flatResults[i];
+        if (!peekable(entry)) return peekNote("Select a record to preview it.");
+        if (!liveEnabled) return peekNote("Live org access is off (turn it on in Settings).");
+        const id = entry.recordId;
+        const rec = peekCache[id];
+        if (rec === "failed") return peekNote("There's no preview for this record.");
+        if (!rec || rec === "loading") {
+            peekNote("Loading…");
+            // Wait a moment, so moving through the list doesn't load every row.
+            if (!rec) peekTimer = setTimeout(() => peekRecord(id, renderPeek), 150);
+            return;
+        }
+        const head = document.createElement("div");
+        head.className = "peek-head";
+        head.innerHTML =
+            `<span class="peek-tile">${UI_ICONS.record}</span>` +
+            '<span class="peek-head-text"><div class="peek-title"></div><div class="peek-type"></div></span>';
+        head.querySelector(".peek-title").textContent = rec.name;
+        head.querySelector(".peek-type").textContent = rec.typeLabel;
+        peekEl.appendChild(head);
+
+        // Each field's name above its value.
+        // A copy button shows a check (or turns red) for a moment.
+        const copy = (b, text) => {
+            if (b.classList.contains("copied") || b.classList.contains("failed")) return;
+            const done = (cls) => {
+                b.classList.add(cls);
+                if (cls === "copied") b.innerHTML = UI_ICONS.check;
+                setTimeout(() => {
+                    b.classList.remove(cls);
+                    b.innerHTML = UI_ICONS.copy;
+                }, 1500);
+            };
+            writeClipboard(text).then(() => done("copied"), () => done("failed"));
+        };
+
+        const list = document.createElement("div");
+        list.className = "peek-fields";
+        // The Id comes last (a user's is already there, as User Id).
+        const fields = rec.type === "User" ? rec.fields : rec.fields.concat({ label: "Record Id", value: rec.id, lookup: null });
+        fields.forEach((f) => {
+            const row = document.createElement("div");
+            row.className = "peek-field";
+            const label = document.createElement("span");
+            label.className = "peek-label";
+            label.textContent = f.label;
+            let val;
+            if (f.lookup) {
+                // A lookup opens the record it points to.
+                val = document.createElement("button");
+                val.type = "button";
+                val.className = "peek-link";
+                val.addEventListener("click", () => {
+                    close();
+                    navigate(recordUrl(f.lookup.type, f.lookup.id, rec.type), false);
+                });
+            } else {
+                val = document.createElement("span");
+                val.className = "peek-val" + (f.value ? "" : " dim");
+            }
+            val.textContent = f.value || "Empty";
+            row.append(label, val);
+            if (f.value && !f.lookup) {
+                // Hovering a value shows a button that copies it.
+                const b = document.createElement("button");
+                b.type = "button";
+                b.className = "peek-icon";
+                b.title = "Copy " + f.label;
+                b.setAttribute("aria-label", b.title);
+                b.innerHTML = UI_ICONS.copy;
+                b.addEventListener("click", () => copy(b, f.value));
+                row.appendChild(b);
+            }
+            list.appendChild(row);
+        });
+        peekEl.appendChild(list);
+
+        // Labeled buttons, at the bottom while the fields scroll. Enter or a
+        // click on the row already opens the record, so there's no Open.
+        const actions = document.createElement("div");
+        actions.className = "peek-actions";
+        const addRow = (buttons) => {
+            const row = document.createElement("div");
+            row.className = "peek-row";
+            buttons.forEach(([icon, text, onClick]) => {
+                const b = document.createElement("button");
+                b.type = "button";
+                b.className = "peek-btn";
+                b.innerHTML = (icon ? UI_ICONS[icon] : "") + "<span></span>";
+                b.lastChild.textContent = text;
+                b.addEventListener("click", () => onClick(b));
+                row.appendChild(b);
+            });
+            actions.appendChild(row);
+        };
+        if (rec.type === "User") {
+            addRow([
+                [null, "Login as", () => runAction({ kind: "loginAs", userId: rec.id, incognito: false })],
+                [null, "Login as · Incognito", () => runAction({ kind: "loginAs", userId: rec.id, incognito: true })],
+            ]);
+        }
+        const copyLink = (b) =>
+            writeClipboard(lightningOrigin() + entry.url).then(() => {
+                b.lastChild.textContent = "Copied";
+                setTimeout(() => (b.lastChild.textContent = "Copy link"), 1500);
+            }, () => flashFooter("Copy failed"));
+        addRow([
+            ["newTab", "New tab", () => choose(i, true)],
+            ["link", "Copy link", copyLink],
+        ]);
+        peekEl.appendChild(actions);
     }
 
     // Append result rows to `container`, expanding ⋯ actions inline for the row
@@ -831,7 +1197,8 @@
         flatResults.length = 0;
         setFooterCount("");
         paintOrg();
-        if (activeVerb) renderVerb(query);
+        if (shortcutsOpen) renderShortcuts();
+        else if (activeVerb) renderVerb(query);
         else if (query.trim()) renderList(query);
         else renderBoard();
     }
@@ -860,11 +1227,17 @@
                 ? "Type an app name…"
                 : kind === "org"
                 ? "Type an org name…"
+                : kind === "limits"
+                ? "Filter limits…"
+                : kind === "users"
+                ? "Type a user's name…"
+                : kind === "admin"
+                ? `Filter ${VERBS[key].label.toLowerCase()}…`
                 : "Type an object name…";
         renderChip();
         resetFooter();
         if (kind === "inspect") fetchInspect();
-        if (kind === "login") runLiveSearch(inputEl.value);
+        if (kind === "login" || kind === "users") runLiveSearch(inputEl.value);
         render(inputEl.value);
         focusInput();
     }
@@ -877,6 +1250,13 @@
         setLoading("inspect", false);
         fieldsKey = null;
         setLoading("fields", false);
+        listViewsKey = null;
+        setLoading("listViews", false);
+        countKey = null;
+        setLoading("count", false);
+        recentKey = null;
+        setLoading("recent", false);
+        setLoading("limits", false);
         inputEl.placeholder = DEFAULT_PLACEHOLDER;
         renderChip();
         resetFooter();
@@ -932,11 +1312,27 @@
             renderOrgs(query);
             return;
         }
-        if (activeVerb === "fields") {
+        if (VERBS[activeVerb].kind === "recent") {
+            renderRecentVerb(query);
+            return;
+        }
+        if (VERBS[activeVerb].kind === "limits") {
+            renderLimits(query);
+            return;
+        }
+        if (VERBS[activeVerb].kind === "admin") {
+            renderAdminVerb(VERBS[activeVerb], query);
+            return;
+        }
+        if (VERBS[activeVerb].kind === "users") {
+            renderUsers(query);
+            return;
+        }
+        if (activeVerb === "fields" || activeVerb === "list" || activeVerb === "count") {
             resetFooter(); // the Tab hint differs between the object and field steps
             const target = fieldsTarget(query);
             if (target) {
-                renderFields(target.obj, target.text);
+                ({ list: renderListViews, fields: renderFields, count: renderCounts })[activeVerb](target.obj, target.text);
                 return;
             }
         }
@@ -970,6 +1366,80 @@
         listEl.appendChild(groupHeader(GROUPS.APP));
         renderRows(listEl, items);
         setActive(0);
+    }
+
+    // "recent" verb: your last viewed records (settings.recentCount), or the
+    // best matching object's once one is typed. With none there's nothing to show.
+    function renderRecentVerb(query) {
+        panelEl.classList.remove("board-mode");
+        if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
+        const q = query.trim();
+        let obj = null;
+        let bestScore = -1;
+        if (q) {
+            objectSource().forEach((o) => {
+                const sc = objectScore(q.toLowerCase(), o);
+                if (sc > bestScore) {
+                    obj = o;
+                    bestScore = sc;
+                }
+            });
+            if (!obj) return showEmpty(`No objects match “${q}”`);
+        }
+        const records = obj ? recentCache[obj.api] : recentRecords;
+        if (!records) {
+            loadObjectRecent(obj.api);
+            return showEmpty("Loading recent records…");
+        }
+        if (!records.length) return;
+        listEl.appendChild(groupHeader(obj ? `Recent ${obj.plural || obj.label || obj.api}` : "Recent records"));
+        renderRows(listEl, records.slice(0, recentCount));
+        setActive(0);
+    }
+
+    // Org Limits: a bar per limit, most used first, filtered by name. The
+    // rows only show numbers: Enter does nothing on them.
+    function renderLimits(query) {
+        panelEl.classList.remove("board-mode");
+        if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
+        if (limitsData === "failed") {
+            return showEmpty("Couldn't load limits", "Seeing org limits needs the View Setup and Configuration permission.");
+        }
+        if (!limitsData) {
+            loadLimits();
+            return showEmpty("Loading limits…");
+        }
+        const q = query.trim();
+        const rows = sortLimits(limitsData).filter((l) => !q || SFEN_URL.matchScore(q, l.label, l.name) >= 0);
+        setFooterCount(`${rows.length} of ${limitsData.length} limits`);
+        if (!rows.length) return showEmpty(q ? `No limits match “${q}”` : "No limits");
+        listEl.appendChild(groupHeader("Most used first"));
+        rows.forEach((l) => listEl.appendChild(limitRow(l)));
+    }
+
+    function limitRow(l) {
+        const li = document.createElement("li");
+        // Red from 80% used, amber from 50%.
+        li.className = "limit " + (l.pct >= 0.8 ? "high" : l.pct >= 0.5 ? "mid" : "low") + (l.used ? "" : " unused");
+        li.title = l.name;
+        li.innerHTML = '<span class="limit-name"></span><span class="limit-bar"><span></span></span><span class="limit-num"></span><span class="limit-pct"></span>';
+        li.querySelector(".limit-name").textContent = l.label;
+        li.querySelector(".limit-bar span").style.width = Math.min(100, l.pct * 100) + "%";
+        li.querySelector(".limit-num").textContent = `${l.used.toLocaleString()} / ${l.max.toLocaleString()}`;
+        li.querySelector(".limit-pct").textContent = l.used && l.pct < 0.01 ? "<1%" : Math.round(l.pct * 100) + "%";
+        return li;
+    }
+
+    function loadLimits() {
+        if (limitsLoading) return;
+        limitsLoading = true;
+        setLoading("limits", true);
+        ask("limits", {}, (resp) => {
+            limitsLoading = false;
+            setLoading("limits", false);
+            limitsData = resp ? resp.limits || [] : "failed";
+            if (opened && activeVerb === "limits") render(inputEl.value);
+        });
     }
 
     // "org" verb: saved orgs, pinned first. Enter opens the org in a new tab;
@@ -1017,10 +1487,10 @@
         };
     }
 
-    // "fields" verb, second step: "<object> <field text>" searches that object's
-    // fields. The object is the longest run of leading words that exactly names
-    // one (API name first, then label or plural label), else the best match for
-    // the first word.
+    // "fields" and "list" verbs, second step: "<object> <text>" searches that
+    // object's fields or list views. The object is the longest run of leading
+    // words that exactly names one (API name first, then label or plural
+    // label), else the best match for the first word.
     // While the text is still the start of a multi-word object label ("invoice
     // l" -> Invoice Line) it stays in the object step. Returns { obj, text } or
     // null for the object step.
@@ -1090,6 +1560,81 @@
         setActive(0);
     }
 
+    function renderListViews(obj, text) {
+        panelEl.classList.remove("board-mode");
+        if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
+        const name = obj.label || obj.api;
+        const views = listViewsCache[obj.api];
+        if (views === "failed") return showEmpty(`Couldn't load list views for ${name}`);
+        if (!views) {
+            loadListViews(obj.api);
+            return showEmpty("Loading list views…");
+        }
+        const q = text.trim();
+        // "list account 2": your 2nd last viewed Account comes first, above
+        // any list views matching "2".
+        const rec = /^[1-5]$/.test(q) && (listRecentCache[obj.api] || [])[q - 1];
+        const scored = views
+            .map((v) => ({ v, sc: q ? SFEN_URL.matchScore(q, v.label, v.api) : 0 }))
+            .filter((s) => s.sc >= 0)
+            .sort((a, b) => b.sc - a.sc || a.v.label.localeCompare(b.v.label));
+        setFooterCount(`${scored.length} of ${views.length} list views`);
+        if (!scored.length && !rec) return showEmpty(`No ${name} list views match “${q}”`);
+        if (rec) {
+            listEl.appendChild(groupHeader(`Last viewed ${name} #${q}`));
+            renderRows(listEl, [
+                { label: rec.name, hint: name, group: GROUPS.RECORD, url: recordUrl(obj.api, rec.id), recordId: rec.id },
+            ]);
+        }
+        if (scored.length) {
+            listEl.appendChild(groupHeader(`${name} list views`));
+            renderRows(
+                listEl,
+                scored.slice(0, 50).map(({ v }) => ({
+                    label: v.label,
+                    group: GROUPS.OBJECT,
+                    url: `/lightning/o/${obj.api}/list?filterName=${v.id}`,
+                    highlightQuery: q,
+                }))
+            );
+        }
+        setActive(0);
+    }
+
+    // "count" verb, second step: the object's total, then each record type's.
+    // The rows only show numbers: Enter does nothing on them.
+    function renderCounts(obj, text) {
+        panelEl.classList.remove("board-mode");
+        if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
+        const name = obj.label || obj.api;
+        const plural = obj.plural || name;
+        const counts = countCache[obj.api];
+        if (counts === "failed") return showEmpty(`Couldn't count ${plural}`);
+        if (!counts) {
+            loadCounts(obj.api);
+            return showEmpty(`Counting ${plural}…`);
+        }
+        const q = text.trim();
+        const row = (label, n, sub) => ({
+            label,
+            sub,
+            hint: n.toLocaleString(),
+            group: GROUPS.RECORD,
+            highlightQuery: q,
+        });
+        const types = counts.recordTypes
+            .map((t) => ({ t, sc: q ? SFEN_URL.matchScore(q, t.name, "") : 0 }))
+            .filter((s) => s.sc >= 0)
+            .sort((a, b) => b.sc - a.sc || b.t.count - a.t.count || a.t.name.localeCompare(b.t.name))
+            .map(({ t }) => row(t.name, t.count, t.active ? "" : "Inactive"));
+        if (counts.recordTypes.length) setFooterCount(`${counts.recordTypes.length} record types`);
+        if (q && !types.length) return showEmpty(`No ${name} record types match “${q}”`);
+        listEl.appendChild(groupHeader(`${name} records`));
+        renderRows(listEl, (q ? [] : [row(`All ${plural}`, counts.total)]).concat(types));
+        listEl.querySelectorAll(".enter").forEach((el) => el.remove()); // no ↵ to offer
+        setActive(0);
+    }
+
     // "login" verb: users from the "users" lookup. Enter logs in as the user in a
     // new tab (like the ⋯ "Login as — new tab" action); Ctrl/⌘+Enter uses Incognito.
     function renderLogin(query) {
@@ -1103,6 +1648,108 @@
         listEl.appendChild(groupHeader("Users"));
         users.forEach((item) => listEl.appendChild(makeLoginRow(item)));
         setActive(0);
+    }
+
+    // "users" verb: like "login", but Enter opens the user's record and →
+    // previews them.
+    function renderUsers(query) {
+        panelEl.classList.remove("board-mode");
+        if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
+        const q = query.trim();
+        if (q.length < 2) {
+            // Too short to search: the active users who logged in last, filtered by a first letter.
+            if (!activeUsers) {
+                loadActiveUsers();
+                return showEmpty("Loading users…");
+            }
+            const shown = q ? activeUsers.filter((i) => SFEN_URL.matchScore(q, i.label, i.keywords) >= 0) : activeUsers;
+            if (!shown.length) return showEmpty("Type a name to find a user");
+            listEl.appendChild(groupHeader("Active users, last logged in first"));
+            renderRows(listEl, shown);
+            setActive(0);
+            return;
+        }
+        const users = liveRecords.filter((i) => i.user);
+        if (!users.length) {
+            return showEmpty(liveRecordsTerm === query ? `No users match “${query.trim()}”` : "Searching users…");
+        }
+        listEl.appendChild(groupHeader("Users"));
+        renderRows(listEl, users);
+        setActive(0);
+    }
+
+    // "flows", "profiles", "permsets" and "apex": every item of that kind from
+    // the "admin" lookup, or the ones matching what's typed. Enter opens one.
+    function renderAdminVerb(verb, query) {
+        panelEl.classList.remove("board-mode");
+        if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
+        if (!adminLoaded) {
+            // A failed ask waits for the next open, not every keystroke.
+            if (adminFailed) return showEmpty(`Couldn't load ${verb.label.toLowerCase()}`, "Close and reopen the palette to try again.");
+            loadAdmin();
+            return showEmpty("Loading…");
+        }
+        // Managed-package code is hidden in Setup, so package Apex shows only
+        // with the header's "Show package code" ticked.
+        const apex = verb.group === GROUPS.APEX;
+        const all = adminItems.filter((i) => i.group === verb.group && (!apex || showPackageApex || !i.pkg));
+        const q = query.trim();
+        // Matches by score; ties, and the list with nothing typed, stay newest first.
+        const items = q
+            ? all
+                  .map((item) => ({ item, sc: SFEN_URL.matchScore(q, item.label, item.keywords) }))
+                  .filter((s) => s.sc >= 0)
+                  .sort((a, b) => b.sc - a.sc)
+                  .map((s) => s.item)
+            : all;
+        const shown = items.slice(0, q ? 50 : 20);
+        setFooterCount(`${shown.length} of ${all.length}`);
+        const title = q ? verb.label : `${verb.label}, last modified first`;
+        // The apex header always shows, so its checkbox can be ticked with no matches.
+        if (apex) listEl.appendChild(apexHeader(title));
+        if (!items.length) return showEmpty(q ? `No ${verb.label.toLowerCase()} match “${q}”` : `No ${verb.label.toLowerCase()}`);
+        if (!apex) listEl.appendChild(groupHeader(title));
+        renderRows(listEl, shown.map((item) => ({ ...item, highlightQuery: q })));
+        setActive(0);
+    }
+
+    // The apex list's header with its "Show package code" checkbox, which
+    // saves settings.showPackageApex.
+    function apexHeader(title) {
+        const h = groupHeader(title);
+        h.removeAttribute("aria-hidden");
+        const label = document.createElement("label");
+        label.className = "pkg-toggle";
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = showPackageApex;
+        box.addEventListener("change", () => {
+            showPackageApex = box.checked;
+            render(inputEl.value);
+            focusInput();
+            if (!extAlive()) return;
+            chrome.storage.sync.get("settings", (res) => {
+                if (chrome.runtime.lastError) return;
+                const s = SFEN_SETTINGS.normalize(res && res.settings);
+                s.showPackageApex = showPackageApex;
+                chrome.storage.sync.set({ settings: s });
+            });
+        });
+        label.append(box, "Show package code");
+        h.appendChild(label);
+        return h;
+    }
+
+    function loadActiveUsers() {
+        if (activeUsersLoading) return;
+        activeUsersLoading = true;
+        setLoading("activeUsers", true);
+        ask("users", { term: "", active: true }, (resp) => {
+            activeUsersLoading = false;
+            setLoading("activeUsers", false);
+            activeUsers = ((resp && resp.records) || []).map(mapRecord);
+            if (opened && activeVerb && VERBS[activeVerb].kind === "users") render(inputEl.value);
+        });
     }
 
     // Inactive users render dimmed and aren't selectable (not in flatResults).
@@ -1154,16 +1801,21 @@
     // types that aren't objects in Object Manager (reports, dashboards).
     function currentObject() {
         const m = location.pathname.match(/^\/lightning\/(r|o|setup\/ObjectManager)\/([A-Za-z][A-Za-z0-9_]*)\//);
-        const api = m && m[2].toLowerCase();
+        const ctx = currentRecordContext(); // also names the type of /lightning/r/{Id}/view
+        const api = (ctx ? ctx.type : m ? m[2] : "").toLowerCase();
         const obj = api && objectSource().find((o) => o.api.toLowerCase() === api);
-        return obj ? { obj, setup: m[1].length > 1 } : null;
+        return obj ? { obj, setup: !!m && m[1].length > 1 } : null;
     }
 
     // Parse the current record's type + Id from a /lightning/r/{Type}/{Id}/...
-    // URL, for the record inspector.
+    // URL, for the record inspector. A record just created opens at
+    // /lightning/r/{Id}/view instead; its Id's prefix names the object then.
     function currentRecordContext() {
         const m = location.pathname.match(/\/lightning\/r\/([^/]+)\/([^/]+)\//);
-        return m ? { type: m[1], id: m[2] } : null;
+        if (m) return { type: m[1], id: m[2] };
+        const bare = location.pathname.match(/^\/lightning\/r\/([A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?)\/view$/);
+        const obj = bare && objectSource().find((o) => o.prefix === bare[1].slice(0, 3));
+        return obj ? { type: obj.api, id: bare[1] } : null;
     }
 
     function fetchInspect() {
@@ -1210,12 +1862,13 @@
             '<span class="insp-title-wrap"><span class="insp-title"></span>' +
             '<span class="insp-type"><span class="insp-type-name"></span> · <span class="mono"></span></span></span>' +
             '<button class="insp-action" type="button">Copy Id</button>' +
-            '<button class="insp-action" type="button">Copy JSON</button>';
+            '<button class="insp-action" type="button">Copy JSON</button>' +
+            '<button class="insp-action" type="button" title="Copy only the fields that have a value">Copy JSON (no blanks)</button>';
         head.querySelector(".insp-title").textContent =
             inspectRecord.Name || inspectRecord.CaseNumber || ctx.id;
         head.querySelector(".insp-type-name").textContent = ctx.type;
         head.querySelector(".insp-type .mono").textContent = ctx.id;
-        const [copyIdBtn, copyJsonBtn] = head.querySelectorAll(".insp-action");
+        const [copyIdBtn, copyJsonBtn, copyFilledBtn] = head.querySelectorAll(".insp-action");
         copyIdBtn.addEventListener("click", () =>
             copyWithFeedback(copyIdBtn, inspectRecord.Id || ctx.id)
         );
@@ -1223,6 +1876,14 @@
             const data = { ...inspectRecord };
             delete data.attributes;
             copyWithFeedback(copyJsonBtn, JSON.stringify(data, null, 2));
+        });
+        copyFilledBtn.addEventListener("click", () => {
+            const data = {};
+            Object.keys(inspectRecord).forEach((k) => {
+                const v = inspectRecord[k];
+                if (k !== "attributes" && v !== null && v !== "") data[k] = v;
+            });
+            copyWithFeedback(copyFilledBtn, JSON.stringify(data, null, 2));
         });
         wrap.appendChild(head);
 
@@ -1338,30 +1999,84 @@
         order.forEach((g) => {
             const items = byGroup[g];
             if (!items.length) return;
-            listEl.appendChild(groupHeader(g));
+            listEl.appendChild(groupHeader(g, items.length));
             renderRows(listEl, items);
         });
         setActive(0);
     }
 
-    // A hint line teaching the command verbs and their short forms; each verb
-    // is clickable.
+    // The board's commands (COMMANDS in the data file) as keywords under their
+    // group's name, with Shortcuts last. A keyword starts its command. Go to
+    // comes before Setup so the short groups share the first line and Setup's
+    // six commands get the second.
     function buildCmdBar() {
         const bar = document.createElement("div");
         bar.className = "cmd-bar";
-        bar.append("Start with ");
-        [["new", ", "], ["list", ", "], ["fields", ", "], ["app", ", "], ["org", ", "], ["login", " or "], ["record", " — or paste a record Id."]].forEach(
-            ([verb, after]) => {
+        ["Objects", "Records", "Go to", "Setup"].forEach((name) => {
+            const group = document.createElement("span");
+            group.className = "cmd-group";
+            const label = document.createElement("span");
+            label.className = "cmd-label";
+            label.textContent = name;
+            group.appendChild(label);
+            COMMANDS.filter((c) => c.group === name).forEach((c) => {
                 const btn = document.createElement("button");
                 btn.type = "button";
                 btn.className = "cmd-verb";
-                btn.textContent = verb;
-                btn.addEventListener("click", () => setVerb(verb, ""));
-                const short = Object.keys(VERB_SHORT).find((k) => VERB_SHORT[k] === verb);
-                bar.append(btn, ` (${short})${after}`);
-            }
-        );
+                btn.textContent = c.verb;
+                btn.title = c.text;
+                btn.addEventListener("click", () => setVerb(c.verb, ""));
+                group.appendChild(btn);
+            });
+            bar.appendChild(group);
+        });
+        const help = document.createElement("button");
+        help.type = "button";
+        help.className = "cmd-help";
+        help.textContent = "Shortcuts";
+        help.addEventListener("click", () => setShortcuts(true));
+        bar.appendChild(help);
         return bar;
+    }
+
+    function setShortcuts(on) {
+        shortcutsOpen = on;
+        render(inputEl.value);
+        focusInput();
+    }
+
+    // Shortcuts: every command with its short form, what it does and an
+    // example; a name starts the command. Typing, Back or Esc returns to the board.
+    function renderShortcuts() {
+        panelEl.classList.add("board-mode");
+        const el = (tag, cls, text) => {
+            const n = document.createElement(tag);
+            if (cls) n.className = cls;
+            if (text !== undefined) n.textContent = text;
+            return n;
+        };
+        const li = el("li", "help");
+        const head = el("div", "help-head");
+        const back = el("button", "help-back", "Back");
+        back.type = "button";
+        back.addEventListener("click", () => setShortcuts(false));
+        head.append(el("span", "help-title", "Shortcuts"), back);
+        li.append(
+            head,
+            el("p", "help-intro", "Type a command, or its short form, then what you're looking for. Shift+Enter opens a result in a background tab.")
+        );
+        COMMANDS.forEach((c) => {
+            const row = el("div", "help-row");
+            const name = el("button", "help-name", c.verb);
+            name.type = "button";
+            name.addEventListener("click", () => {
+                shortcutsOpen = false;
+                setVerb(c.verb, "");
+            });
+            row.append(name, el("span", "help-short", c.short || ""), el("span", "help-text", c.text), el("code", "", c.example));
+            li.appendChild(row);
+        });
+        listEl.appendChild(li);
     }
 
     // No-search overview: two columns — left Recent+Records, right Bookmarks+Setup Tabs.
@@ -1384,10 +2099,12 @@
                 },
             ]);
         }
+        // On a record, the records it links to.
+        boardSection(listEl, GROUPS.RELATED, hopItems().slice(0, 8));
         // Stored entries name their org (a string); a row's `org` is a saved
         // org, drawn as its color dot, so leave it out.
         const recent = recents.slice(0, 7).map(({ org, ...r }) => ({ ...r, group: GROUPS.RECENT }));
-        const records = recentRecords.slice(0, 20);
+        const records = recentRecords.slice(0, recentCount);
         const bookmarks = staticCatalog.filter((i) => i.group === GROUPS.BOOKMARK).slice(0, 8);
         const setupTabs = staticCatalog.filter((i) => i.group === GROUPS.SETUP_TAB).slice(0, 8);
 
@@ -1467,11 +2184,27 @@
         const entry = flatResults[i];
         if (entry && entry.loginUserId)
             setFooterCount(`You'll land on this same page as ${entry.label.split(" ")[0]}`);
+        const rightKey = footerEl && footerEl.querySelector(".right-key");
+        if (rightKey) rightKey.textContent = peekable(entry) ? "Preview" : "Actions";
+        renderPeek();
     }
 
-    function runAction(action, newTab) {
+    // Shift+Enter: open `url` in a background tab and keep the palette open.
+    function openInBackground(url) {
+        const full = /^https?:\/\//.test(url) ? url : lightningOrigin() + url;
+        try {
+            chrome.runtime.sendMessage({ type: "openTab", url: full });
+            flashFooter("Opened in a background tab");
+        } catch (e) {
+            /* context invalidated */
+        }
+    }
+
+    function runAction(action, newTab, background) {
         if (!opened) return;
-        if (action.kind === "nav") {
+        if (action.kind === "nav" && background) {
+            openInBackground(action.url);
+        } else if (action.kind === "nav") {
             close();
             navigate(action.url, newTab || !!action.newTab);
         } else if (action.kind === "copy") {
@@ -1498,22 +2231,42 @@
         }
     }
 
-    function choose(i, newTab) {
+    function choose(i, newTab, background) {
         if (!opened) return;
         const entry = flatResults[i];
         if (!entry) return;
         if (entry.__action) {
-            runAction(entry.__action, newTab);
+            runAction(entry.__action, newTab, background);
             return;
         }
         if (entry.loginUserId) {
             runAction({ kind: "loginAs", userId: entry.loginUserId, incognito: !!newTab });
             return;
         }
+        if (entry.openLimits) {
+            setVerb("limits", "");
+            return;
+        }
+        // "count account" + Enter counts Accounts: the object row goes to the
+        // count step. The count rows themselves do nothing.
+        if (activeVerb === "count") {
+            if (entry.objectApi) completeObject(entry);
+            return;
+        }
         pushRecent(entry);
         if (entry.group !== GROUPS.ACTION) recordPick(entry.url);
+        if (background) return openInBackground(entry.url);
         close();
         navigate(entry.url, newTab || !!entry.newTab);
+    }
+
+    // On an object row, complete "<object> " to search its fields or list views,
+    // or count it. The label is used when it names the object back, else the API name.
+    function completeObject(entry) {
+        const byLabel = fieldsTarget(entry.label + " ");
+        inputEl.value = (byLabel && byLabel.obj.api === entry.objectApi ? entry.label : entry.objectApi) + " ";
+        onInput();
+        focusInput();
     }
 
     function onInputKeydown(e) {
@@ -1525,16 +2278,11 @@
                 e.preventDefault();
                 setVerb(key, inputEl.value.trim().slice(first.length).trim());
             }
-        } else if (e.key === "Tab" && activeVerb === "fields") {
-            // On an object row, complete "<object> " to search its fields. The
-            // label is used when it names the object back, else the API name.
+        } else if (e.key === "Tab" && (activeVerb === "fields" || activeVerb === "list" || activeVerb === "count")) {
             const entry = flatResults[activeIndex];
             if (entry && entry.objectApi) {
                 e.preventDefault();
-                const byLabel = fieldsTarget(entry.label + " ");
-                inputEl.value =
-                    (byLabel && byLabel.obj.api === entry.objectApi ? entry.label : entry.objectApi) + " ";
-                onInput();
+                completeObject(entry);
             }
         } else if (e.key === "Backspace" && activeVerb && inputEl.value === "") {
             // Backspace on an empty argument removes the verb chip.
@@ -1551,15 +2299,21 @@
             if (entry && !entry.__action && entry.actions && entry.actions.length) {
                 e.preventDefault();
                 if (expandedKey !== entry.url) toggleExpand(entry.url);
+            } else if (peekable(entry) && !peekOpen) {
+                e.preventDefault();
+                setPeek(true);
             }
         } else if (e.key === "ArrowLeft") {
             if (expandedKey) {
                 e.preventDefault();
                 toggleExpand(expandedKey);
+            } else if (peekOpen) {
+                e.preventDefault();
+                setPeek(false);
             }
         } else if (e.key === "Enter") {
             e.preventDefault();
-            choose(activeIndex, e.metaKey || e.ctrlKey);
+            choose(activeIndex, e.metaKey || e.ctrlKey, e.shiftKey);
         }
         e.stopPropagation();
     }
@@ -1573,9 +2327,16 @@
         }
     }
 
+    let lastSelection = ""; // page selection at the last open
     // fromKey: opened by the page key (see below), not the Chrome command.
     function open(fromKey) {
         if (!paletteEnabled) return;
+        // Text selected on the page (a name, an Id) becomes the search, once:
+        // a selection left behind doesn't fill every later open. Read before
+        // the palette takes focus.
+        const selected = String((window.getSelection && window.getSelection()) || "").replace(/\s+/g, " ").trim();
+        const picked = selected !== lastSelection ? selected : "";
+        lastSelection = selected;
         ensureOverlay();
         opened = true;
         overlayHost.classList.add("open");
@@ -1588,9 +2349,13 @@
         runLiveSearch(""); // drop live results and any search in flight
         expandedKey = null;
         activeVerb = null;
+        shortcutsOpen = false;
         autoVerbWord = null;
         inspectKey = null;
         inspectRecord = null;
+        setPeek(false);
+        // Previews are refetched per open, so a record edited since shows its new values.
+        Object.keys(peekCache).forEach((id) => delete peekCache[id]);
         renderChip();
         resetFooter();
         render("");
@@ -1598,7 +2363,18 @@
         loadRecent();
         loadAdmin();
         loadApps();
+        loadHop();
         fieldsFailed = {}; // retry objects whose fields failed to load
+        // Refetched per open: the last viewed records change as you browse.
+        listViewsCache = {};
+        countCache = {};
+        recentCache = {};
+        if (!limitsLoading) limitsData = null;
+        if (!activeUsersLoading) activeUsers = null;
+        if (picked.length >= 2 && picked.length <= 80) {
+            inputEl.value = picked;
+            onInput();
+        }
         // Robust focus: wait for paint, then re-assert on the next tick so we
         // win even if Lightning grabs focus back during the open animation.
         requestAnimationFrame(() =>
@@ -1617,10 +2393,13 @@
         runLiveSearch("");
         inspectKey = null; // a late record response is then ignored
         fieldsKey = null; // likewise a late fields response
+        listViewsKey = null;
+        countKey = null;
         setLoading(null);
         // Don't leave the last results (record values, users) in the page.
         listEl.textContent = "";
         flatResults.length = 0;
+        setPeek(false);
     }
 
     function toggle(fromKey) {
@@ -1697,6 +2476,8 @@
             if (res.settings && typeof res.settings.commandPalette === "boolean") {
                 paletteEnabled = res.settings.commandPalette;
             }
+            recentCount = SFEN_SETTINGS.normalize(res.settings).recentCount;
+            showPackageApex = SFEN_SETTINGS.normalize(res.settings).showPackageApex;
         });
         chrome.storage.onChanged.addListener((changes, area) => {
             if (!extAlive()) return;
@@ -1707,6 +2488,8 @@
                 if (changes.settings) {
                     const s = changes.settings.newValue || {};
                     if (typeof s.liveOrgAccess === "boolean") liveEnabled = s.liveOrgAccess;
+                    recentCount = SFEN_SETTINGS.normalize(s).recentCount;
+                    showPackageApex = SFEN_SETTINGS.normalize(s).showPackageApex;
                     if (!liveEnabled) {
                         // Drop everything fetched from the org right away; turning
                         // it back on fetches again.
@@ -1716,11 +2499,29 @@
                         fieldsCache = {};
                         fieldsKey = null;
                         setLoading("fields", false);
+                        listViewsCache = {};
+                        listRecentCache = {};
+                        listViewsKey = null;
+                        setLoading("listViews", false);
+                        countCache = {};
+                        countKey = null;
+                        setLoading("count", false);
+                        recentCache = {};
+                        recentKey = null;
+                        setLoading("recent", false);
+                        limitsData = null;
+                        activeUsers = null;
                         recentRecords = [];
                         catalogCache = null;
                         objectsRequested = false;
                         adminRequested = false;
+                        adminLoaded = false;
+                        adminFailed = false;
                         appsRequested = false;
+                        hop = null;
+                        hopKey = null;
+                        Object.keys(peekCache).forEach((id) => delete peekCache[id]);
+                        setPeek(false);
                         runLiveSearch("");
                         if (opened) render(inputEl.value);
                     }
@@ -1738,6 +2539,22 @@
     } catch (e) {
         /* context invalidated */
     }
+
+    // ---- Setup visits ----------------------------------------------------
+    // Recent Setup also keeps the Setup pages you reach without Navigator,
+    // by clicking through Setup: landing on a page of the Setup list records
+    // it under its name. Lightning changes pages without a reload, so the
+    // address is checked every second.
+    const SETUP_BY_PATH = new Map(SETUP_PAGES.map(([label, url]) => [url, label]));
+    let lastPath = "";
+    const visitTimer = setInterval(() => {
+        if (!extAlive()) return clearInterval(visitTimer);
+        const path = location.pathname;
+        if (path === lastPath) return;
+        lastPath = path;
+        const label = SETUP_BY_PATH.get(path);
+        if (label && !(recents[0] && recents[0].url === path)) pushRecent({ label, hint: "Setup", group: GROUPS.SETUP, url: path });
+    }, 1000);
 
     // ---- Open via the Alt+K Chrome command ------------------------------
     // Alt+K is a browser command (see manifest), captured before the page and
@@ -1778,7 +2595,8 @@
     }
 
     // Escape isn't a command, so it stays an in-page handler: collapse an open
-    // ⋯ menu first, then a verb chip; only then close the palette.
+    // ⋯ menu first, then the preview, then the Shortcuts list, then a verb
+    // chip; only then close the palette.
     document.addEventListener(
         "keydown",
         (e) => {
@@ -1786,6 +2604,8 @@
                 e.preventDefault();
                 e.stopPropagation();
                 if (expandedKey) toggleExpand(expandedKey);
+                else if (peekOpen) setPeek(false);
+                else if (shortcutsOpen) setShortcuts(false);
                 else if (activeVerb) clearVerb();
                 else close();
             }
