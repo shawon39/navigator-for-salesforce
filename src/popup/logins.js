@@ -161,6 +161,7 @@
     function startRename(row, org) {
         const before = savedOrgs;
         row.className = "nv-row is-org is-editing";
+        row.draggable = false; // so selecting text in the name box doesn't drag the row
         row.innerHTML = '<span class="nv-row-text"><input type="text" class="nv-row-input" aria-label="Org name"></span>';
         row.prepend(marker(org));
         const input = row.querySelector("input");
@@ -266,6 +267,31 @@
         mk("pencil", "Rename", () => startRename(row, org));
         mk("x", "Remove", () => removeOrg(row, org));
         row.appendChild(acts);
+
+        // Drag to reorder within a group: pinned among pinned, the rest among the rest.
+        row.draggable = true;
+        row.addEventListener("dragstart", (e) => {
+            row.classList.add("is-dragging");
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", "org:" + org.id);
+        });
+        row.addEventListener("dragend", () => row.classList.remove("is-dragging"));
+        row.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+        });
+        row.addEventListener("drop", (e) => {
+            e.preventDefault();
+            // Only our own rows carry an org id; ignore dropped text and links.
+            const data = e.dataTransfer.getData("text/plain");
+            const src = savedOrgs.find((o) => "org:" + o.id === data);
+            if (!src || src === org || src.pinned !== org.pinned) return;
+            // Dragging down lands after the target, dragging up lands before it.
+            const after = savedOrgs.indexOf(src) < savedOrgs.indexOf(org);
+            const next = savedOrgs.filter((o) => o !== src);
+            next.splice(next.indexOf(org) + (after ? 1 : 0), 0, src);
+            persist(next);
+        });
         return row;
     }
 
