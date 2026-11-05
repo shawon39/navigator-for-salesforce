@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Drag saved orgs in the popup's Orgs tab to reorder them, within Pinned or All orgs.
+
 ## 5.2.0
 
 ### Added
