@@ -1640,7 +1640,20 @@
     function renderLogin(query) {
         panelEl.classList.remove("board-mode");
         if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
-        if (query.trim().length < 2) return showEmpty("Type a name to find a user");
+        const q = query.trim();
+        if (q.length < 2) {
+            // Too short to search: the active users who logged in last, as in "users".
+            if (!activeUsers) {
+                loadActiveUsers();
+                return showEmpty("Loading users…");
+            }
+            const shown = q ? activeUsers.filter((i) => SFEN_URL.matchScore(q, i.label, i.keywords) >= 0) : activeUsers;
+            if (!shown.length) return showEmpty("Type a name to find a user");
+            listEl.appendChild(groupHeader("Active users, last logged in first"));
+            shown.forEach((item) => listEl.appendChild(makeLoginRow(item)));
+            setActive(0);
+            return;
+        }
         const users = liveRecords.filter((i) => i.user);
         if (!users.length) {
             return showEmpty(liveRecordsTerm === query ? `No users match “${query.trim()}”` : "Searching users…");
@@ -1748,7 +1761,7 @@
             activeUsersLoading = false;
             setLoading("activeUsers", false);
             activeUsers = ((resp && resp.records) || []).map(mapRecord);
-            if (opened && activeVerb && VERBS[activeVerb].kind === "users") render(inputEl.value);
+            if (opened && activeVerb && (VERBS[activeVerb].kind === "users" || VERBS[activeVerb].kind === "login")) render(inputEl.value);
         });
     }
 
@@ -2191,7 +2204,7 @@
 
     // Shift+Enter: open `url` in a background tab and keep the palette open.
     function openInBackground(url) {
-        const full = /^https?:\/\//.test(url) ? url : lightningOrigin() + url;
+        const full = /^https?:\/\//.test(url) ? url : lightningOrigin(url) + url;
         try {
             chrome.runtime.sendMessage({ type: "openTab", url: full });
             flashFooter("Opened in a background tab");

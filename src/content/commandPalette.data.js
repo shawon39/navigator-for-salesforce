@@ -255,9 +255,11 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
 `;
 
     // ---- Navigation ------------------------------------------------------
-    function lightningOrigin() {
+    function lightningOrigin(url) {
         let origin = window.location.origin;
-        if (origin.includes("my.salesforce-setup.com")) {
+        // Setup pages stay on the Setup host: going via lightning.force.com
+        // adds a redirect back here that sometimes returns a 404.
+        if (origin.includes("my.salesforce-setup.com") && !(url || "").startsWith("/lightning/setup/")) {
             origin = origin.replace(
                 "my.salesforce-setup.com",
                 "lightning.force.com"
@@ -267,7 +269,7 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
     }
 
     function navigate(url, newTab) {
-        const full = /^https?:\/\//.test(url) ? url : lightningOrigin() + url;
+        const full = /^https?:\/\//.test(url) ? url : lightningOrigin(url) + url;
         if (newTab) window.open(full, "_blank");
         else window.location.href = full;
     }
