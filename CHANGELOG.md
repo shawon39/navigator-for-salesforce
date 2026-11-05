@@ -5,6 +5,9 @@
 ### Added
 - Drag saved orgs in the popup's Orgs tab to reorder them, within Pinned or All orgs.
 
+### Changed
+- Log in as: with nothing typed, the palette now lists the 20 active internal users who logged in last, so you can pick one without searching. Typing still searches all users.
+
 ### Fixed
 - Opening a Setup page from the palette or popup while already in Setup no longer sometimes shows a blank "HTTP ERROR 404" page. The link now stays on Setup's own address instead of bouncing through the Lightning one.
 
