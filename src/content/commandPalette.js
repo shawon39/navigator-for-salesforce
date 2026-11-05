@@ -2191,7 +2191,7 @@
 
     // Shift+Enter: open `url` in a background tab and keep the palette open.
     function openInBackground(url) {
-        const full = /^https?:\/\//.test(url) ? url : lightningOrigin() + url;
+        const full = /^https?:\/\//.test(url) ? url : lightningOrigin(url) + url;
         try {
             chrome.runtime.sendMessage({ type: "openTab", url: full });
             flashFooter("Opened in a background tab");

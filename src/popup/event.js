@@ -16,14 +16,18 @@
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         // Salesforce check is handled in popup.js; tab.url is undefined off Salesforce.
         if (!tab || !SFEN_URL.isSalesforceUrl(tab.url)) return;
-        const baseUrl = new URL(tab.url).origin.replace("my.salesforce-setup.com", "lightning.force.com");
+        const origin = new URL(tab.url).origin;
+        // Setup pages stay on the Setup host: going via lightning.force.com
+        // adds a redirect back that sometimes returns a 404.
+        const baseUrl = (path) =>
+            path.startsWith("/lightning/setup/") ? origin : origin.replace("my.salesforce-setup.com", "lightning.force.com");
 
         Object.keys(PAGES).forEach((id) => {
             const el = document.getElementById(id);
             if (!el) return;
             const url = PAGES[id];
             // Real href for right-click / modifier clicks.
-            el.href = baseUrl + url;
+            el.href = baseUrl(url) + url;
             el.addEventListener("click", (event) => {
                 if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
                     event.preventDefault();
@@ -42,7 +46,7 @@
                     }
 
                     const go = (path) => {
-                        chrome.tabs.update(tab.id, { url: baseUrl + path });
+                        chrome.tabs.update(tab.id, { url: baseUrl(path) + path });
 
                         // Check autoClose setting before closing window
                         chrome.storage.sync.get(['settings'], (result) => {
