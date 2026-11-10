@@ -10,6 +10,7 @@
 
 ### Fixed
 - Opening a Setup page from the palette or popup while already in Setup no longer sometimes shows a blank "HTTP ERROR 404" page. The link now stays on Setup's own address instead of bouncing through the Lightning one.
+- Opening a saved org from the popup or palette no longer sometimes shows a blank "HTTP ERROR 404" page. Orgs now open at their My Domain address instead of the bare Lightning one.
 
 ## 5.2.0
 

@@ -65,6 +65,14 @@
         return m ? m[1] + ".my.salesforce.com" : null;
     }
 
+    // Where a saved org opens: its My Domain, which lands on the org's home or
+    // its login page. Orgs are saved under their Lightning host, whose bare
+    // root has no page: it only bounces to My Domain and sometimes returns a
+    // 404. Hosts that aren't an org's own (sites, login) open as they are.
+    function openUrl(host) {
+        return "https://" + (myDomainHost(host) || host) + "/";
+    }
+
     // The page at `href` (path and query) in a saved org, to compare the same
     // Setup page or list across orgs. The hash is dropped: login loses it.
     // null when the org or the path can't be used, and for pages about one
@@ -92,5 +100,5 @@
         return my ? "https://" + my + path : null;
     }
 
-    window.SFEN_ORGS = { TYPES, shortHost, orgType, defaultName, displayName, myDomainHost, samePageUrl };
+    window.SFEN_ORGS = { TYPES, shortHost, orgType, defaultName, displayName, myDomainHost, openUrl, samePageUrl };
 })();
