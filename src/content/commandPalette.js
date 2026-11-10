@@ -1478,7 +1478,7 @@
             sub: `${SFEN_ORGS.TYPES[SFEN_ORGS.orgType(org)]} · ${SFEN_ORGS.shortHost(org.host)}`,
             hint: here ? "This tab" : "",
             group: GROUPS.ORG,
-            url: "https://" + org.host + "/",
+            url: SFEN_ORGS.openUrl(org.host),
             newTab: true,
             org,
             actions: samePage
