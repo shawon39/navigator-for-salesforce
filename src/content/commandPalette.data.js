@@ -333,12 +333,13 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
     }
 
     // Object rows show the label, plus the API name in mono when it differs.
-    // plural is what the object's tab shows ("Accounts"), matched like the label.
+    // plural is what the object's tab shows ("accounts"), lowercased so search
+    // can check it as a prefix without a copy per keystroke.
     function objectEntries(api, label, plural) {
         return [
             {
                 label: label || api,
-                plural,
+                plural: plural ? plural.toLowerCase() : "",
                 api: label && label !== api ? api : "",
                 hint: "Object",
                 group: GROUPS.OBJECT,

@@ -213,14 +213,15 @@
             // Admin shorthand ("psg") ranks just under an exact name. A lookup
             // of the record you're on also matches its field as a name, so
             // "acc" on an Opportunity finds its Account like a page named so.
-            // An object's plural ("accounts") finds it like its own label.
+            // An object's plural ("accounts") finds it like its own label when
+            // typed from the start; only then is it scored, to keep typing fast.
             const sc =
                 item.group === GROUPS.SETUP && item.label === alias
                     ? 950
                     : Math.max(
                           SFEN_URL.matchScore(itemQuery, item.label, item.keywords),
                           item.field ? SFEN_URL.matchScore(itemQuery, item.field) : -1,
-                          item.plural ? SFEN_URL.matchScore(itemQuery, item.plural) : -1
+                          item.plural && item.plural.startsWith(itemQuery) ? SFEN_URL.matchScore(itemQuery, item.plural) : -1
                       );
             if (sc >= 0)
                 scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) - (item.pkg ? PACKAGE_PENALTY : 0) + boost(item.url) });

@@ -691,9 +691,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             } else if (msg.action === "tabs") {
                 // Every tab the user can open in Lightning, standard (Home,
                 // Reports) and custom (object, Visualforce, web, Lightning page
-                // and component tabs), as the path it opens. Nav items come 25
-                // to a page; other page types are left out.
-                let d = await sfFetch(host, `/services/data/${SF_API_VERSION}/ui-api/nav-items?formFactor=Large`);
+                // and component tabs), as the path it opens; other page types
+                // are left out. Pages of 25 by default took seconds one after
+                // another, so ask for 200; no maximum is documented, so fall
+                // back to the default if Salesforce refuses that size.
+                const navItems = `/services/data/${SF_API_VERSION}/ui-api/nav-items?formFactor=Large`;
+                let d = await sfFetch(host, navItems + "&pageSize=200").catch(() => sfFetch(host, navItems));
                 let items = d.navItems || [];
                 for (let p = 1; p < 20 && SFEN_URL.isSafePath(d.nextPageUrl); p++) {
                     d = await sfFetch(host, d.nextPageUrl);

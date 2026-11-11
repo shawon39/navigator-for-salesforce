@@ -75,7 +75,7 @@ console.log("PASS objectScore picks the object a plural names");
 // Search rows carry the plural their tab shows, so "accounts" scores like an
 // exact name instead of a loose letter match on the label.
 const acc = window.SFEN_CMDK_DATA.objectEntries("Account", "Account", "Accounts")[0];
-assert.strictEqual(acc.plural, "Accounts");
+assert.strictEqual(acc.plural, "accounts");
 assert.strictEqual(matchScore("accounts", acc.plural), 1000);
 assert(matchScore("accounts", acc.label, acc.keywords) < 300);
 console.log("PASS object rows match their plural (tab) label");

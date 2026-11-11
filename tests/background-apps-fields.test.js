@@ -122,11 +122,23 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
         { label: "My VF Tab", url: "/lightning/n/My_VF_Tab" },
     ]);
     assert.deepStrictEqual(fetchCalls, [
-        "https://acme.my.salesforce.com/services/data/v60.0/ui-api/nav-items?formFactor=Large",
+        "https://acme.my.salesforce.com/services/data/v60.0/ui-api/nav-items?formFactor=Large&pageSize=200",
         "https://acme.my.salesforce.com/services/data/v60.0/ui-api/nav-items?page=1&pageSize=25",
     ]);
-    route = () => null;
     console.log("PASS tabs: named, object and custom tab paths; Classic-only, bad names, other types and unsafe next page left out");
+
+    // A refused page size falls back to Salesforce's default.
+    route = (url) => {
+        if (url.includes("pageSize=200")) return { ok: false, status: 400, json: async () => [{ message: "bad pageSize" }] };
+        if (url.includes("/ui-api/nav-items")) return json({ navItems: [nav("Home", "standard__namedPage", { pageName: "home" })] });
+        return null;
+    };
+    fetchCalls = [];
+    r = await send({ action: "tabs" });
+    assert.deepStrictEqual(r.tabs, [{ label: "Home", url: "/lightning/page/home" }]);
+    assert.strictEqual(fetchCalls[1], "https://acme.my.salesforce.com/services/data/v60.0/ui-api/nav-items?formFactor=Large");
+    route = () => null;
+    console.log("PASS tabs: a refused page size falls back to the default");
 
     // ---- fields ----
     let pages = 0;
