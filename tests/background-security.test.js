@@ -31,7 +31,7 @@ const ctx = {
             get: async ({ url }) => ({ value: "TOKEN-" + url }),
             getAll: async () => cookies,
         },
-        storage: { sync: { get: async () => storage } },
+        storage: { sync: { get: async () => storage }, onChanged: { addListener() {} } },
         tabs: { create: async (o) => created.push(o.url), query: async () => [], update: async () => {} },
         windows: { create: async (o) => created.push(o.url) },
         commands: { onCommand: { addListener() {} }, getAll: (cb) => cb(commands) },

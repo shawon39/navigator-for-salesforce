@@ -631,6 +631,7 @@
             () =>
                 new Promise((resolve) =>
                     chrome.storage.sync.clear(() => {
+                        chrome.storage.session.clear(); // the org lists the worker keeps
                         chrome.storage.local.clear(() => {
                             settings = S.normalize(null);
                             orgColors = {};

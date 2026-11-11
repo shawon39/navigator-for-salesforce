@@ -15,7 +15,7 @@
         shortcutNotice: true, // the palette says when its Chrome shortcut isn't set
         setupTabs: true,
         headerPopupButton: true,
-        showManaged: false,
+        showManaged: true,
         showPackageApex: false, // the palette's apex list includes managed-package code
         orgTabColors: false, // tab icons colored per saved org (see orgColors.js)
         popupTabs: { recent: true, navigate: true, objects: true, orgs: true },

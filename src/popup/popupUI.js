@@ -432,21 +432,15 @@
         }
         objState = "loading";
         renderObjects($("popupSearch").value);
-        ask("objects").then((resp) => {
+        // fresh: the org's list now, not the copy the worker keeps for the
+        // palette. The worker sends only the objects worth listing.
+        ask("objects", { fresh: true }).then((resp) => {
             if (!resp) {
                 objState = "error";
                 renderObjects($("popupSearch").value);
                 return;
             }
             liveObjects = (resp.sobjects || [])
-                .filter(
-                    (s) =>
-                        s.queryable &&
-                        s.layoutable &&
-                        s.keyPrefix &&
-                        !s.deprecatedAndHidden &&
-                        !/(ChangeEvent|__Share|__History|__Feed|__Tag|Share|History|Feed|__e|__mdt|__b|__x)$/.test(s.name)
-                )
                 .map((s) => ({ api: s.name, label: s.label }))
                 .sort((a, b) => a.label.localeCompare(b.label));
             objState = "ready";

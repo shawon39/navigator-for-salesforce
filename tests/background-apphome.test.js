@@ -30,7 +30,7 @@ const ctx = {
             get: async ({ url }) => ({ value: "TOKEN-" + url }),
             getAll: async () => cookies,
         },
-        storage: { sync: { get: async () => storage } },
+        storage: { sync: { get: async () => storage }, onChanged: { addListener() {} } },
         tabs: { create: async (o) => created.push(o.url), query: async () => [{ id: 7, url: "https://acme.lightning.force.com/lightning/r/Account/001/view" }], update: async (id, o) => created.push(o.url) },
         windows: { create: async (o) => created.push(o.url) },
         commands: { onCommand: { addListener: (f) => (ctx.__cmd = f) }, getAll: (cb) => cb(commands) },

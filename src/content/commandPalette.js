@@ -21,7 +21,6 @@
         sortLimits,
         SETUP_PAGES,
         FALLBACK_OBJECTS,
-        isRelevantObject,
         objectEntries,
         objectActions,
         objectScore,
@@ -55,13 +54,18 @@
     let paletteEnabled = true; // settings.commandPalette
     let objectsRequested = false;
     let adminItems = []; // profiles, permission sets, flows, Apex, metadata types, newest first
+    let adminLists = {}; // adminItems by kind, from the "admin" and "apex" answers
     let adminRequested = false;
-    let adminLoaded = false; // adminItems arrived at least once (they can be empty)
+    let adminLoaded = false; // the "admin" answer arrived at least once (it can be empty)
     let adminFailed = false; // the last ask failed; the next open asks again
+    let apexLoaded = false; // the same two for the "apex" answer (Apex classes and triggers)
+    let apexFailed = false;
     let adminAskedAt = 0; // when adminItems were last asked for; an open refetches them after ADMIN_MAX_AGE
     const ADMIN_MAX_AGE = 10 * 60 * 1000;
     let appItems = null; // the user's Lightning apps, in App Launcher order, once fetched
     let appsRequested = false;
+    let tabItems = null; // the user's standard and custom tabs, once fetched
+    let tabsRequested = false;
     let fieldsCache = {}; // object API name -> [{api,label,type,key}] for the "fields" verb
     let fieldsFailed = {}; // object API names whose fields failed to load (retried on the next open)
     let fieldsKey = null; // object whose fields are being fetched; a response for another is ignored
@@ -86,6 +90,7 @@
     let autoVerbWord = null; // verb word as typed when "word " switched it on; null when locked
     let inspectKey = null; // "Type/Id" currently fetched for the record inspector
     let inspectRecord = null; // fetched record fields for the record inspector
+    let inspectFilledOnly = false; // the inspector's "Non-empty only" checkbox
     const describeCache = {}; // "host/Type" -> { fieldApiName: label } for the inspector
     let liveRecordsTerm = ""; // search term liveRecords were returned for
     let orgName = ""; // current org's saved or default name, shown in the search bar
@@ -149,13 +154,19 @@
                 ? liveObjects
                 : FALLBACK_OBJECTS.map((n) => ({ api: n, label: n }));
         source.forEach((o) =>
-            objectEntries(o.api, o.label).forEach((e) => items.push(e))
+            objectEntries(o.api, o.label, o.plural).forEach((e) => items.push(e))
         );
         return items;
     }
 
     function fullCatalog() {
-        if (!catalogCache) catalogCache = staticCatalog.concat(objectCatalog(), adminItems, appItems || []);
+        if (!catalogCache) {
+            // An object's tab opens the same page as its row in Objects, so only one shows.
+            const objects = objectCatalog();
+            const objectUrls = new Set(objects.map((o) => o.url));
+            const tabs = (tabItems || []).filter((t) => !objectUrls.has(t.url));
+            catalogCache = staticCatalog.concat(objects, adminItems, appItems || [], tabs);
+        }
         return catalogCache;
     }
 
@@ -204,10 +215,16 @@
             // Admin shorthand ("psg") ranks just under an exact name. A lookup
             // of the record you're on also matches its field as a name, so
             // "acc" on an Opportunity finds its Account like a page named so.
+            // An object's plural ("accounts") finds it like its own label when
+            // typed from the start; only then is it scored, to keep typing fast.
             const sc =
                 item.group === GROUPS.SETUP && item.label === alias
                     ? 950
-                    : Math.max(SFEN_URL.matchScore(itemQuery, item.label, item.keywords), item.field ? SFEN_URL.matchScore(itemQuery, item.field) : -1);
+                    : Math.max(
+                          SFEN_URL.matchScore(itemQuery, item.label, item.keywords),
+                          item.field ? SFEN_URL.matchScore(itemQuery, item.field) : -1,
+                          item.plural && item.plural.startsWith(itemQuery) ? SFEN_URL.matchScore(itemQuery, item.plural) : -1
+                      );
             if (sc >= 0)
                 scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) - (item.pkg ? PACKAGE_PENALTY : 0) + boost(item.url) });
         }
@@ -230,6 +247,7 @@
             [GROUPS.PROFILE]: 6,
             [GROUPS.PERMSET]: 6,
             [GROUPS.APP]: 6,
+            [GROUPS.TAB]: 6,
             [GROUPS.APEX]: 6,
             [GROUPS.CMDT]: 4,
             [GROUPS.RELATED]: 6,
@@ -260,6 +278,13 @@
                         return;
                     }
                     cb(resp);
+                    // A list kept from an earlier page came at once; ask the org
+                    // for its current one, used only if it differs. A failed
+                    // refresh keeps the kept list.
+                    if (resp.cached)
+                        ask(action, { ...extra, fresh: true }, (fresh) => {
+                            if (fresh && JSON.stringify({ ...fresh, cached: true }) !== JSON.stringify(resp)) cb(fresh);
+                        });
                 }
             );
         } catch (e) {
@@ -275,30 +300,35 @@
                 objectsRequested = false; // retry on the next open
                 return;
             }
-            liveObjects = resp.sobjects
-                .filter(isRelevantObject)
-                .map((s) => ({ api: s.name, label: s.label, plural: s.labelPlural, prefix: s.keyPrefix }));
+            // The worker sends only the objects worth listing.
+            liveObjects = resp.sobjects.map((s) => ({ api: s.name, label: s.label, plural: s.labelPlural, prefix: s.keyPrefix }));
             catalogCache = null;
             loadHop(); // a /lightning/r/{Id}/view page needs the objects to know its record
             if (opened) render(inputEl.value);
         });
     }
 
-    // Profiles, permission sets, flows, Apex classes and triggers, and custom
-    // metadata types — fetched once, fuzzy-searched like objects. Each carries
-    // a hint so the result type is obvious.
+    // Profiles, permission sets, flows and custom metadata types ("admin"),
+    // and Apex classes and triggers ("apex", asked apart so slow Apex paging
+    // doesn't hold up the rest): fetched once, fuzzy-searched like objects.
+    // Each carries a hint so the result type is obvious.
     // The old list stays in use until the refetched one arrives.
     function loadAdmin() {
         if (Date.now() - adminAskedAt > ADMIN_MAX_AGE) adminRequested = false;
         if (!liveEnabled || adminRequested) return;
         adminRequested = true;
         adminFailed = false;
+        apexFailed = false;
         adminAskedAt = Date.now();
+        // A failed answer is asked for again on the next open.
+        const failed = () => {
+            adminRequested = false;
+            if (opened && activeVerb && VERBS[activeVerb].kind === "admin") render(inputEl.value);
+        };
         ask("admin", {}, (resp) => {
             if (!resp || !liveEnabled) {
-                adminRequested = false;
                 adminFailed = !!liveEnabled;
-                if (opened && activeVerb && VERBS[activeVerb].kind === "admin") render(inputEl.value);
+                failed();
                 return;
             }
             const profiles = (resp.profiles || []).map((p) => ({
@@ -326,7 +356,28 @@
                 flow: f.DurableId, // lets Recent Setup follow newer versions
                 keywords: `${f.Label || ""} ${f.ApiName || ""} flow ${f.ProcessType || ""}`,
             }));
-            const apex = (resp.apexClasses || [])
+            const metadataTypes = (resp.metadataTypes || []).map((m) => ({
+                label: m.Label,
+                api: m.Label !== m.ApiName ? m.ApiName : "",
+                hint: "Custom Metadata Type",
+                group: GROUPS.CMDT,
+                url: `/lightning/setup/CustomMetadata/page?address=%2F${m.Id}%3Fsetupid%3DCustomMetadata`,
+                keywords: `${m.Label} ${m.ApiName} custom metadata type cmdt`,
+                actions: m.KeyPrefix
+                    ? [{ label: "Manage records", hint: "Records", kind: "nav", url: `/lightning/setup/CustomMetadata/page?address=%2F${m.KeyPrefix}` }]
+                    : null,
+            }));
+            Object.assign(adminLists, { profiles, permSets, flows, metadataTypes });
+            adminLoaded = true;
+            mergeAdmin();
+        });
+        ask("apex", {}, (resp) => {
+            if (!resp || !liveEnabled) {
+                apexFailed = !!liveEnabled;
+                failed();
+                return;
+            }
+            adminLists.apex = (resp.apexClasses || [])
                 .map((c) => ({
                     label: c.Name,
                     hint: c.NamespacePrefix ? `Apex Class · ${c.NamespacePrefix}` : "Apex Class",
@@ -345,22 +396,16 @@
                         keywords: `${t.Name} ${t.Object || ""} ${t.NamespacePrefix || ""} apex trigger code`,
                     }))
                 );
-            const metadataTypes = (resp.metadataTypes || []).map((m) => ({
-                label: m.Label,
-                api: m.Label !== m.ApiName ? m.ApiName : "",
-                hint: "Custom Metadata Type",
-                group: GROUPS.CMDT,
-                url: `/lightning/setup/CustomMetadata/page?address=%2F${m.Id}%3Fsetupid%3DCustomMetadata`,
-                keywords: `${m.Label} ${m.ApiName} custom metadata type cmdt`,
-                actions: m.KeyPrefix
-                    ? [{ label: "Manage records", hint: "Records", kind: "nav", url: `/lightning/setup/CustomMetadata/page?address=%2F${m.KeyPrefix}` }]
-                    : null,
-            }));
-            adminItems = profiles.concat(permSets, flows, apex, metadataTypes);
-            adminLoaded = true;
-            catalogCache = null;
-            if (opened && (inputEl.value.trim() || activeVerb)) render(inputEl.value);
+            apexLoaded = true;
+            mergeAdmin();
         });
+    }
+
+    function mergeAdmin() {
+        const l = adminLists;
+        adminItems = [].concat(l.profiles || [], l.permSets || [], l.flows || [], l.apex || [], l.metadataTypes || []);
+        catalogCache = null;
+        if (opened && (inputEl.value.trim() || activeVerb)) render(inputEl.value);
     }
 
     // The user's Lightning apps — fetched once, searched like admin items and
@@ -383,6 +428,27 @@
             }));
             catalogCache = null;
             if (opened && (activeVerb || inputEl.value.trim())) render(inputEl.value);
+        });
+    }
+
+    // Standard and custom tabs: fetched once, searched like apps.
+    function loadTabs() {
+        if (!liveEnabled || tabsRequested) return;
+        tabsRequested = true;
+        ask("tabs", {}, (resp) => {
+            if (!resp || !liveEnabled) {
+                tabsRequested = false;
+                return;
+            }
+            tabItems = (resp.tabs || []).map((t) => ({
+                label: t.label,
+                hint: "Tab",
+                group: GROUPS.TAB,
+                url: t.url,
+                keywords: `${t.label} tab`,
+            }));
+            catalogCache = null;
+            if (opened && inputEl.value.trim()) render(inputEl.value);
         });
     }
 
@@ -906,7 +972,7 @@
         // Verb results are local, except "login" and "users", which search users.
         if (activeVerb && VERBS[activeVerb].kind !== "login" && VERBS[activeVerb].kind !== "users") return;
         const term = inputEl.value;
-        if (term.trim().length >= 2 && !pastedLink(term, host)) searchTimer = setTimeout(() => runLiveSearch(term), 140);
+        if (term.trim().length >= 2 && !pastedLink(term, host)) searchTimer = setTimeout(() => runLiveSearch(term), 60);
     }
 
     function highlight(label, query) {
@@ -1696,15 +1762,16 @@
     function renderAdminVerb(verb, query) {
         panelEl.classList.remove("board-mode");
         if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
-        if (!adminLoaded) {
+        // Apex comes in its own answer, so its verb waits for that one only.
+        const apex = verb.group === GROUPS.APEX;
+        if (!(apex ? apexLoaded : adminLoaded)) {
             // A failed ask waits for the next open, not every keystroke.
-            if (adminFailed) return showEmpty(`Couldn't load ${verb.label.toLowerCase()}`, "Close and reopen the palette to try again.");
+            if (apex ? apexFailed : adminFailed) return showEmpty(`Couldn't load ${verb.label.toLowerCase()}`, "Close and reopen the palette to try again.");
             loadAdmin();
             return showEmpty("Loading…");
         }
         // Managed-package code is hidden in Setup, so package Apex shows only
         // with the header's "Show package code" ticked.
-        const apex = verb.group === GROUPS.APEX;
         const all = adminItems.filter((i) => i.group === verb.group && (!apex || showPackageApex || !i.pkg));
         const q = query.trim();
         // Matches by score; ties, and the list with nothing typed, stay newest first.
@@ -1874,17 +1941,13 @@
         head.innerHTML =
             '<span class="insp-title-wrap"><span class="insp-title"></span>' +
             '<span class="insp-type"><span class="insp-type-name"></span> · <span class="mono"></span></span></span>' +
-            '<button class="insp-action" type="button">Copy Id</button>' +
             '<button class="insp-action" type="button">Copy JSON</button>' +
             '<button class="insp-action" type="button" title="Copy only the fields that have a value">Copy JSON (no blanks)</button>';
         head.querySelector(".insp-title").textContent =
             inspectRecord.Name || inspectRecord.CaseNumber || ctx.id;
         head.querySelector(".insp-type-name").textContent = ctx.type;
         head.querySelector(".insp-type .mono").textContent = ctx.id;
-        const [copyIdBtn, copyJsonBtn, copyFilledBtn] = head.querySelectorAll(".insp-action");
-        copyIdBtn.addEventListener("click", () =>
-            copyWithFeedback(copyIdBtn, inspectRecord.Id || ctx.id)
-        );
+        const [copyJsonBtn, copyFilledBtn] = head.querySelectorAll(".insp-action");
         copyJsonBtn.addEventListener("click", () => {
             const data = { ...inspectRecord };
             delete data.attributes;
@@ -1898,6 +1961,18 @@
             });
             copyWithFeedback(copyFilledBtn, JSON.stringify(data, null, 2));
         });
+        const filledLabel = document.createElement("label");
+        filledLabel.className = "pkg-toggle";
+        const filledBox = document.createElement("input");
+        filledBox.type = "checkbox";
+        filledBox.checked = inspectFilledOnly;
+        filledBox.addEventListener("change", () => {
+            inspectFilledOnly = filledBox.checked;
+            render(inputEl.value);
+            focusInput();
+        });
+        filledLabel.append(filledBox, "Non-empty only");
+        head.insertBefore(filledLabel, copyJsonBtn);
         wrap.appendChild(head);
 
         const labels = describeCache[host + "/" + ctx.type] || {};
@@ -1905,9 +1980,13 @@
         const keys = Object.keys(inspectRecord).filter((k) => k !== "attributes");
         const shown = keys.filter(
             (k) =>
-                !filter ||
-                k.toLowerCase().includes(filter) ||
-                (labels[k] || "").toLowerCase().includes(filter)
+                (!inspectFilledOnly ||
+                    (inspectRecord[k] !== null &&
+                        inspectRecord[k] !== undefined &&
+                        inspectRecord[k] !== "")) &&
+                (!filter ||
+                    k.toLowerCase().includes(filter) ||
+                    (labels[k] || "").toLowerCase().includes(filter))
         );
         inputEl.placeholder = `Filter ${keys.length} fields`;
         setFooterCount(`${shown.length} of ${keys.length} fields`);
@@ -1995,7 +2074,7 @@
             return showEmpty(
                 `No matches for “${query.trim()}”`,
                 (liveEnabled
-                    ? "Search looks through Setup, objects, records, apps, flows, profiles, permission sets, Apex, custom metadata types and your bookmarks. "
+                    ? "Search looks through Setup, objects, records, apps, tabs, flows, profiles, permission sets, Apex, custom metadata types and your bookmarks. "
                     : "Live org access is off, so only Setup, objects, Setup tabs and your bookmarks are searched. ") + verbs
             );
         }
@@ -2376,6 +2455,7 @@
         loadRecent();
         loadAdmin();
         loadApps();
+        loadTabs();
         loadHop();
         fieldsFailed = {}; // retry objects whose fields failed to load
         // Refetched per open: the last viewed records change as you browse.
@@ -2508,7 +2588,9 @@
                         // it back on fetches again.
                         liveObjects = null;
                         adminItems = [];
+                        adminLists = {};
                         appItems = null;
+                        tabItems = null;
                         fieldsCache = {};
                         fieldsKey = null;
                         setLoading("fields", false);
@@ -2530,7 +2612,10 @@
                         adminRequested = false;
                         adminLoaded = false;
                         adminFailed = false;
+                        apexLoaded = false;
+                        apexFailed = false;
                         appsRequested = false;
+                        tabsRequested = false;
                         hop = null;
                         hopKey = null;
                         Object.keys(peekCache).forEach((id) => delete peekCache[id]);
