@@ -10,6 +10,7 @@
 ### Changed
 - Log in as: with nothing typed, the palette now lists the 20 active internal users who logged in last, so you can pick one without searching. Typing still searches all users.
 - Record fields view: the Copy Id button is gone from the header. Hover the Id row, the first in the list, and use its Copy.
+- Show managed-package objects is now on by default, so the popup's Objects tab lists installed packages' objects too.
 
 ### Fixed
 - Opening a Setup page from the palette or popup while already in Setup no longer sometimes shows a blank "HTTP ERROR 404" page. The link now stays on Setup's own address instead of bouncing through the Lightning one.
