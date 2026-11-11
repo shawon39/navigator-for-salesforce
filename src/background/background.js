@@ -12,8 +12,8 @@ const SF_API_VERSION = "v60.0";
 
 // Record search resolves a display name per matched object type (see the
 // "search" action). Most objects expose Name; these standard ones use a
-// different name field. SEARCH_NOISE mirrors OBJECT_NOISE in
-// commandPalette.data.js to drop system/non-navigable objects from results.
+// different name field. SEARCH_NOISE drops system/non-navigable objects from
+// results and from the "objects" list.
 const SEARCH_NAME_FIELDS = { Case: "CaseNumber", Order: "OrderNumber", Contract: "ContractNumber" };
 const SEARCH_NOISE = /(ChangeEvent|__Share|__History|__Feed|__Tag|Share|History|Feed|__e|__mdt|__b|__x)$/;
 
@@ -300,7 +300,63 @@ async function sfRecordUi(host, id, layoutType) {
 }
 
 // Actions that read org data; all are gated by the liveOrgAccess setting.
-const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "tabs", "fields", "flowVersions", "peek", "hop", "listViews", "count", "limits"]);
+const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "apex", "describe", "context", "apps", "tabs", "fields", "flowVersions", "peek", "hop", "listViews", "count", "limits"]);
+
+// The org lists the palette loads on every page. A copy of each is kept per
+// org in storage.session (cleared when the browser closes, not open to
+// pages), so a new page gets it at once; the palette then asks again with
+// `fresh` for the org's current list. A copy names the session it came from
+// by a hash, never the sid itself, so another user never gets it.
+const LIST_ACTIONS = new Set(["objects", "admin", "apex", "apps", "tabs"]);
+
+// { key, who, apiHost, data }: data is the kept copy, or null.
+async function listSlot(host, action) {
+    try {
+        const session = await sfGetSession(host);
+        if (!session) return null;
+        const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(session.token));
+        const who = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+        const key = `orgList ${action} ${session.apiHost}`;
+        const kept = (await chrome.storage.session.get(key))[key];
+        return { key, who, apiHost: session.apiHost, data: kept && kept.who === who ? JSON.parse(kept.json) : null };
+    } catch (e) {
+        return null; // no copy: answer from the org
+    }
+}
+
+// Kept as JSON text: it stores faster than thousands of small objects and
+// keeps key order, so the palette can tell a fresh list from its copy.
+// storage.session holds 10 MB in all: when full, drop the other orgs' lists
+// and try once more, else go on without a copy (the old one is out of date).
+async function keepList(slot, data) {
+    if (!slot) return;
+    const entry = { [slot.key]: { who: slot.who, json: JSON.stringify(data) } };
+    try {
+        await chrome.storage.session.set(entry);
+    } catch (e) {
+        try {
+            const others = Object.keys(await chrome.storage.session.get(null)).filter(
+                (k) => k.startsWith("orgList ") && !k.endsWith(" " + slot.apiHost)
+            );
+            await chrome.storage.session.remove(others);
+            await chrome.storage.session.set(entry);
+        } catch (e2) {
+            await chrome.storage.session.remove(slot.key).catch(() => {});
+        }
+    }
+}
+
+// Answer with a list fetched from the org, then keep it for the next page.
+function answerList(slot, data, sendResponse) {
+    sendResponse({ ok: true, ...data });
+    return keepList(slot, data);
+}
+
+// Live org access turned off: forget the kept lists at once.
+chrome.storage.onChanged.addListener((changes, area) => {
+    const s = area === "sync" && changes.settings && changes.settings.newValue;
+    if (s && s.liveOrgAccess === false) chrome.storage.session.clear();
+});
 
 // Why a palette message must be refused, or null when it's allowed.
 function paletteDenied(msg, sender) {
@@ -382,12 +438,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     throw new Error("Live org access is off");
                 }
             }
+            const slot = LIST_ACTIONS.has(msg.action) ? await listSlot(host, msg.action) : null;
+            if (slot && slot.data && msg.fresh !== true) {
+                sendResponse({ ok: true, ...slot.data, cached: true });
+                return;
+            }
             if (msg.action === "objects") {
                 const data = await sfFetch(
                     host,
                     `/services/data/${SF_API_VERSION}/sobjects/`
                 );
-                sendResponse({ ok: true, sobjects: data.sobjects || [] });
+                // Only the objects the palette and popup list, with only the
+                // fields they read: the whole list is megabytes on a big org.
+                const sobjects = (data.sobjects || [])
+                    .filter((s) => s.queryable === true && s.layoutable === true && !!s.keyPrefix && !s.deprecatedAndHidden && !SEARCH_NOISE.test(s.name))
+                    .map((s) => ({ name: s.name, label: s.label, labelPlural: s.labelPlural, keyPrefix: s.keyPrefix }));
+                await answerList(slot, { sobjects }, sendResponse);
             } else if (msg.action === "recent") {
                 // Use a SOQL query on RecentlyViewed (same mechanism as the
                 // context query, which works) instead of the REST /recent
@@ -552,11 +618,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     org: (data.records || [])[0] || null,
                     user,
                 });
-            } else if (msg.action === "admin") {
-                // Searchable admin metadata: profiles, permission sets, flows,
-                // Apex classes and triggers, custom metadata types. Fetched in
-                // the palette's background, newest first, and fuzzy-filtered
-                // client-side; the palette refetches it after 10 minutes.
+            } else if (msg.action === "admin" || msg.action === "apex") {
+                // Searchable admin metadata: profiles, permission sets, flows
+                // and custom metadata types ("admin"), or Apex classes and
+                // triggers ("apex", asked apart: they page slowly on big orgs
+                // and would hold up the rest). Fetched in the palette's
+                // background, newest first, and fuzzy-filtered client-side;
+                // the palette refetches them after 10 minutes.
                 // pages: batches of up to 2,000 to follow; a batch that fails
                 // keeps the ones before it.
                 const q = async (soql, pages = 1) => {
@@ -573,7 +641,57 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     }
                     return records;
                 };
-                const [profiles, permissionSets, flows, classes, triggers, entities] = await Promise.all([
+                if (msg.action === "apex") {
+                    const [classes, triggers] = await Promise.all([
+                        // The org's own code first, then managed packages'.
+                        q("SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000", 5),
+                        q(
+                            "SELECT Id, Name, NamespacePrefix, TableEnumOrId FROM ApexTrigger " +
+                            "ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000",
+                            5
+                        ),
+                    ]);
+                    // Only the fields the palette uses, with Ids checked: they go into Setup URLs.
+                    const ns = (r) => (typeof r.NamespacePrefix === "string" && API_NAME_RE.test(r.NamespacePrefix) ? r.NamespacePrefix : null);
+                    const apexClasses = classes
+                        .filter((c) => RECORD_ID_RE.test(c.Id || "") && typeof c.Name === "string")
+                        .map((c) => ({ Id: c.Id, Name: c.Name, NamespacePrefix: ns(c) }));
+                    // A trigger's TableEnumOrId is the object's API name, or for a
+                    // custom object its 01I Id, which is that object's EntityDefinition
+                    // DurableId: look those names up, 100 Ids to a query. Ids are
+                    // compared on their first 15 characters (either length can come back).
+                    const tableOf = (t) => (typeof t.TableEnumOrId === "string" ? t.TableEnumOrId : "");
+                    const objectIds = [...new Set(triggers.map(tableOf).filter((v) => CUSTOM_OBJECT_ID_RE.test(v)))];
+                    const batches = [];
+                    for (let i = 0; i < objectIds.length; i += 100) batches.push(objectIds.slice(i, i + 100));
+                    const named = await Promise.all(
+                        batches.map((ids) => {
+                            const list = [...new Set(ids.flatMap((id) => [id, id.slice(0, 15)]))].map((id) => `'${id}'`).join(",");
+                            return q(`SELECT DurableId, QualifiedApiName FROM EntityDefinition WHERE DurableId IN (${list})`);
+                        })
+                    );
+                    const objectNames = {};
+                    named.flat().forEach((e) => {
+                        if (CUSTOM_OBJECT_ID_RE.test(e.DurableId || "") && API_NAME_RE.test(e.QualifiedApiName || ""))
+                            objectNames[e.DurableId.slice(0, 15)] = e.QualifiedApiName;
+                    });
+                    const apexTriggers = triggers
+                        .filter((t) => RECORD_ID_RE.test(t.Id || "") && typeof t.Name === "string")
+                        .map((t) => {
+                            const table = tableOf(t);
+                            return {
+                                Id: t.Id,
+                                Name: t.Name,
+                                NamespacePrefix: ns(t),
+                                // Not RECORD_ID_RE: standard names like ServiceAppointment
+                                // are 15 or 18 letters too.
+                                Object: CUSTOM_OBJECT_ID_RE.test(table) ? objectNames[table.slice(0, 15)] || null : API_NAME_RE.test(table) ? table : null,
+                            };
+                        });
+                    await answerList(slot, { apexClasses, apexTriggers }, sendResponse);
+                    return;
+                }
+                const [profiles, permissionSets, flows, entities] = await Promise.all([
                     q("SELECT Id, Name FROM Profile ORDER BY LastModifiedDate DESC LIMIT 10000", 5),
                     q(
                         "SELECT Id, Name, Label, Type FROM PermissionSet " +
@@ -591,13 +709,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         "FROM FlowDefinitionView ORDER BY LastModifiedDate DESC NULLS LAST LIMIT 10000",
                         5
                     ),
-                    // The org's own code first, then managed packages'.
-                    q("SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000", 5),
-                    q(
-                        "SELECT Id, Name, NamespacePrefix, TableEnumOrId FROM ApexTrigger " +
-                        "ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000",
-                        5
-                    ),
                     // EntityDefinition ignores LIMIT and can't page; custom
                     // metadata types fit in one batch. DurableId is the type's
                     // 01I id that its Setup page takes.
@@ -606,43 +717,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         "FROM EntityDefinition WHERE QualifiedApiName LIKE '%__mdt'"
                     ),
                 ]);
-                // Only the fields the palette uses, with Ids checked: they go into Setup URLs.
-                const ns = (r) => (typeof r.NamespacePrefix === "string" && API_NAME_RE.test(r.NamespacePrefix) ? r.NamespacePrefix : null);
-                const apexClasses = classes
-                    .filter((c) => RECORD_ID_RE.test(c.Id || "") && typeof c.Name === "string")
-                    .map((c) => ({ Id: c.Id, Name: c.Name, NamespacePrefix: ns(c) }));
-                // A trigger's TableEnumOrId is the object's API name, or for a
-                // custom object its 01I Id, which is that object's EntityDefinition
-                // DurableId: look those names up, 100 Ids to a query. Ids are
-                // compared on their first 15 characters (either length can come back).
-                const tableOf = (t) => (typeof t.TableEnumOrId === "string" ? t.TableEnumOrId : "");
-                const objectIds = [...new Set(triggers.map(tableOf).filter((v) => CUSTOM_OBJECT_ID_RE.test(v)))];
-                const batches = [];
-                for (let i = 0; i < objectIds.length; i += 100) batches.push(objectIds.slice(i, i + 100));
-                const named = await Promise.all(
-                    batches.map((ids) => {
-                        const list = [...new Set(ids.flatMap((id) => [id, id.slice(0, 15)]))].map((id) => `'${id}'`).join(",");
-                        return q(`SELECT DurableId, QualifiedApiName FROM EntityDefinition WHERE DurableId IN (${list})`);
-                    })
-                );
-                const objectNames = {};
-                named.flat().forEach((e) => {
-                    if (CUSTOM_OBJECT_ID_RE.test(e.DurableId || "") && API_NAME_RE.test(e.QualifiedApiName || ""))
-                        objectNames[e.DurableId.slice(0, 15)] = e.QualifiedApiName;
-                });
-                const apexTriggers = triggers
-                    .filter((t) => RECORD_ID_RE.test(t.Id || "") && typeof t.Name === "string")
-                    .map((t) => {
-                        const table = tableOf(t);
-                        return {
-                            Id: t.Id,
-                            Name: t.Name,
-                            NamespacePrefix: ns(t),
-                            // Not RECORD_ID_RE: standard names like ServiceAppointment
-                            // are 15 or 18 letters too.
-                            Object: CUSTOM_OBJECT_ID_RE.test(table) ? objectNames[table.slice(0, 15)] || null : API_NAME_RE.test(table) ? table : null,
-                        };
-                    });
                 // LIKE's "_" matches any character, so check the suffix again.
                 const metadataTypes = entities
                     .filter((e) => CUSTOM_OBJECT_ID_RE.test(e.DurableId || "") && /__mdt$/.test(e.QualifiedApiName || ""))
@@ -653,7 +727,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                         KeyPrefix: KEY_PREFIX_RE.test(e.KeyPrefix || "") ? e.KeyPrefix : null,
                     }))
                     .sort((a, b) => a.Label.localeCompare(b.Label));
-                sendResponse({ ok: true, profiles, permissionSets, flows, apexClasses, apexTriggers, metadataTypes });
+                // Only the fields the palette reads (no "attributes").
+                const data = {
+                    profiles: profiles.map((p) => ({ Id: p.Id, Name: p.Name })),
+                    permissionSets: permissionSets.map((p) => ({ Id: p.Id, Name: p.Name, Label: p.Label })),
+                    flows: flows.map((f) => ({
+                        DurableId: f.DurableId,
+                        ApiName: f.ApiName,
+                        Label: f.Label,
+                        ProcessType: f.ProcessType,
+                        ActiveVersionId: f.ActiveVersionId,
+                        LatestVersionId: f.LatestVersionId,
+                    })),
+                    metadataTypes,
+                };
+                await answerList(slot, data, sendResponse);
             } else if (msg.action === "apps") {
                 // The user's Lightning apps in App Launcher order. UserAppMenuItem
                 // is the user's visible app list; AppDefinition (every app in the
@@ -687,7 +775,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     if (!d || !/^[A-Za-z0-9]{15,18}$/.test(d.DurableId || "")) return;
                     apps.push({ id: d.DurableId, label: i.Label || d.Label, console: d.NavType === "Console" });
                 });
-                sendResponse({ ok: true, apps });
+                await answerList(slot, { apps }, sendResponse);
             } else if (msg.action === "tabs") {
                 // Every tab the user can open in Lightning, standard (Home,
                 // Reports) and custom (object, Visualforce, web, Lightning page
@@ -712,7 +800,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     else if (type === "standard__namedPage" && API_NAME_RE.test(a.pageName || "")) url = `/lightning/page/${a.pageName}`;
                     if (url && n.availableInLightning !== false && typeof n.label === "string") tabs.push({ label: n.label, url });
                 });
-                sendResponse({ ok: true, tabs });
+                await answerList(slot, { tabs }, sendResponse);
             } else if (msg.action === "flowVersions") {
                 // Recent Setup keeps a flow's definition id (300…) next to the
                 // version link it opened. Map each to the flow's current version

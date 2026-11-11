@@ -11,6 +11,7 @@
 - Log in as: with nothing typed, the palette now lists the 20 active internal users who logged in last, so you can pick one without searching. Typing still searches all users.
 - Record fields view: the Copy Id button is gone from the header. Hover the Id row, the first in the list, and use its Copy.
 - Show managed-package objects is now on by default, so the popup's Objects tab lists installed packages' objects too.
+- The palette loads faster: your org's objects, apps, tabs, flows, profiles, permission sets and Apex show at once on every new page (kept per org and user until Chrome closes, and refreshed in the background), Apex no longer holds up the other lists, and record search starts sooner as you type.
 
 ### Fixed
 - Opening a Setup page from the palette or popup while already in Setup no longer sometimes shows a blank "HTTP ERROR 404" page. The link now stays on Setup's own address instead of bouncing through the Lightning one.

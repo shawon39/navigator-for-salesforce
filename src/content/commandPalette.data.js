@@ -320,18 +320,6 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
         "Contract", "Order", "Product2", "Asset", "Task", "Event", "User", "Quote",
     ];
 
-    // System / non-navigable object suffixes to hide from the live list.
-    const OBJECT_NOISE = /(ChangeEvent|__Share|__History|__Feed|__Tag|Share|History|Feed|__e|__mdt|__b|__x)$/;
-    function isRelevantObject(s) {
-        return (
-            s.queryable === true &&
-            s.layoutable === true &&
-            !!s.keyPrefix &&
-            !s.deprecatedAndHidden &&
-            !OBJECT_NOISE.test(s.name)
-        );
-    }
-
     // Object rows show the label, plus the API name in mono when it differs.
     // plural is what the object's tab shows ("accounts"), lowercased so search
     // can check it as a prefix without a copy per keystroke.
@@ -708,7 +696,6 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
         GROUPS,
         SETUP_PAGES,
         FALLBACK_OBJECTS,
-        OBJECT_NOISE,
         ICONS,
         ICON_TONES,
         UI_ICONS,
@@ -717,7 +704,6 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
         COMMANDS,
         limitLabel,
         sortLimits,
-        isRelevantObject,
         objectEntries,
         objectActions,
         objectScore,

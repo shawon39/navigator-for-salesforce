@@ -22,7 +22,7 @@ const ctx = {
     chrome: {
         runtime: { id: "EXT", onMessage: { addListener: (f) => (listener = f) }, onInstalled: { addListener() {} }, getURL: (p) => p },
         cookies: { get: async ({ url }) => ({ value: "TOKEN-" + url }), getAll: async () => [] },
-        storage: { sync: { get: async () => storage } },
+        storage: { sync: { get: async () => storage }, onChanged: { addListener() {} } },
         tabs: { create: async () => {}, query: async () => [], update: async () => {} },
         windows: { create: async () => {} },
         commands: { onCommand: { addListener() {} }, getAll: (cb) => cb([]) },

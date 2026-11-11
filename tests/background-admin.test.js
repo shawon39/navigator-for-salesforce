@@ -1,7 +1,9 @@
 // Background worker: the "admin" action (palette search over profiles,
-// permission sets, flows, Apex classes and triggers, and custom metadata
-// types). Ids are checked before they reach the palette's Setup URLs, a
-// failing query only drops its own list, and live access gates it.
+// permission sets, flows and custom metadata types) and the "apex" action
+// (Apex classes and triggers, asked apart so they don't hold up the rest).
+// Ids are checked before they reach the palette's Setup URLs, only the fields
+// the palette reads are sent, a failing query only drops its own list, and
+// live access gates both.
 const fs = require("fs");
 const vm = require("vm");
 const assert = require("assert");
@@ -22,7 +24,7 @@ const ctx = {
     chrome: {
         runtime: { id: "EXT", onMessage: { addListener: (f) => (listener = f) }, onInstalled: { addListener() {} }, getURL: (p) => p },
         cookies: { get: async ({ url }) => ({ value: "TOKEN-" + url }), getAll: async () => [] },
-        storage: { sync: { get: async () => storage } },
+        storage: { sync: { get: async () => storage }, onChanged: { addListener() {} } },
         tabs: { create: async () => {}, query: async () => [], update: async () => {} },
         windows: { create: async () => {} },
         commands: { onCommand: { addListener() {} }, getAll: (cb) => cb([]) },
@@ -69,24 +71,49 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
                 { DurableId: "Account", QualifiedApiName: "Bad__mdt", Label: "Bad id", KeyPrefix: "m02" },
                 { DurableId: "01I000000000006AAA", QualifiedApiName: "Weird__mdt", Label: "Weird prefix", KeyPrefix: "m0/" },
             ] });
-        if (q.includes("FROM Profile")) return json({ records: [{ Id: "00e000000000001AAA", Name: "System Administrator" }] });
+        if (q.includes("FROM Profile")) return json({ records: [{ attributes: attrs("Profile"), Id: "00e000000000001AAA", Name: "System Administrator" }] });
+        if (q.includes("FROM PermissionSet"))
+            return json({ records: [{ attributes: attrs("PermissionSet"), Id: "0PS000000000001AAA", Name: "Sales_Ops", Label: "Sales Ops", Type: "Regular" }] });
+        if (q.includes("FROM FlowDefinitionView"))
+            return json({ records: [{
+                attributes: attrs("FlowDefinitionView"), DurableId: "300000000000001AAA", ApiName: "Lead_Router", Label: "Lead Router",
+                ProcessType: "AutoLaunchedFlow", IsActive: true, ActiveVersionId: "301000000000001AAA", LatestVersionId: "301000000000002AAA",
+            }] });
         return null;
     };
     fetchCalls = [];
     let r = await send({ action: "admin" });
     assert.strictEqual(r.ok, true, JSON.stringify(r));
-    const qs = fetchCalls.map(soql);
-    assert(qs.includes("SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000"));
-    assert(qs.includes("SELECT Id, Name, NamespacePrefix, TableEnumOrId FROM ApexTrigger ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000"));
+    let qs = fetchCalls.map(soql);
     assert(qs.some((s) => s.startsWith("SELECT Id, Name FROM Profile ORDER BY LastModifiedDate DESC")));
     assert(qs.some((s) => s.includes("FROM FlowDefinitionView ORDER BY LastModifiedDate DESC NULLS LAST")));
     assert(qs.includes("SELECT DurableId, QualifiedApiName, Label, NamespacePrefix, KeyPrefix FROM EntityDefinition WHERE QualifiedApiName LIKE '%__mdt'"));
+    assert(!qs.some((s) => /FROM Apex(Class|Trigger)|DurableId IN/.test(s)));
+    assert.strictEqual(r.apexClasses, undefined);
+    console.log("PASS admin queries profiles, permission sets, flows and metadata types, not Apex");
+
+    assert.deepStrictEqual(r.profiles, [{ Id: "00e000000000001AAA", Name: "System Administrator" }]);
+    assert.deepStrictEqual(r.permissionSets, [{ Id: "0PS000000000001AAA", Name: "Sales_Ops", Label: "Sales Ops" }]);
+    assert.deepStrictEqual(r.flows, [{
+        DurableId: "300000000000001AAA", ApiName: "Lead_Router", Label: "Lead Router",
+        ProcessType: "AutoLaunchedFlow", ActiveVersionId: "301000000000001AAA", LatestVersionId: "301000000000002AAA",
+    }]);
+    console.log("PASS admin sends only the fields the palette reads (no attributes)");
+
+    fetchCalls = [];
+    r = await send({ action: "apex" });
+    assert.strictEqual(r.ok, true, JSON.stringify(r));
+    qs = fetchCalls.map(soql);
+    assert(qs.includes("SELECT Id, Name, NamespacePrefix FROM ApexClass ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000"));
+    assert(qs.includes("SELECT Id, Name, NamespacePrefix, TableEnumOrId FROM ApexTrigger ORDER BY NamespacePrefix NULLS FIRST, LastModifiedDate DESC LIMIT 10000"));
     assert(qs.includes(
         "SELECT DurableId, QualifiedApiName FROM EntityDefinition WHERE DurableId IN " +
         "('01I000000000001AAA','01I000000000001','01I000000000002')"
     ));
+    assert(!qs.some((s) => /FROM (Profile|PermissionSet|FlowDefinitionView)|LIKE '%__mdt'/.test(s)));
     assert(fetchCalls.every((u) => u.startsWith("https://acme.my.salesforce.com/services/data/v60.0/query/")));
-    console.log("PASS admin queries ApexClass, ApexTrigger and EntityDefinition through REST query");
+    assert.deepStrictEqual(Object.keys(r).sort(), ["apexClasses", "apexTriggers", "ok"]);
+    console.log("PASS apex queries ApexClass, ApexTrigger and EntityDefinition through REST query");
 
     assert.deepStrictEqual(r.apexClasses, [
         { Id: "01p000000000001AAA", Name: "AccountService", NamespacePrefix: null },
@@ -103,6 +130,7 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     console.log("PASS Apex rows trimmed to the fields the palette uses; bad Ids dropped");
     console.log("PASS triggers name their object: 18-letter standard names kept, custom objects looked up by 01I Id");
 
+    r = await send({ action: "admin" });
     assert.deepStrictEqual(r.metadataTypes, [
         { Id: "01I000000000008AAA", ApiName: "acme__Config__mdt", Label: "Config", KeyPrefix: null },
         { Id: "01I000000000009AAA", ApiName: "Feature_Flag__mdt", Label: "Feature Flag", KeyPrefix: "m00" },
@@ -111,11 +139,24 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     console.log("PASS custom metadata types: __mdt only, 01I ids only, key prefix checked, sorted by label");
 
     // One failing query drops only its own list.
-    route = (url) => (soql(url).includes("FROM ApexClass") ? { ok: false, status: 400, json: async () => [{ errorCode: "INVALID_TYPE" }] } : null);
+    route = (url) => {
+        const q = soql(url);
+        if (q.includes("FROM ApexClass")) return { ok: false, status: 400, json: async () => [{ errorCode: "INVALID_TYPE" }] };
+        if (q.includes("FROM ApexTrigger")) return json({ records: [{ Id: "01q000000000001AAA", Name: "AccountTrigger", NamespacePrefix: null, TableEnumOrId: "Account" }] });
+        return null;
+    };
+    r = await send({ action: "apex" });
+    assert.deepStrictEqual([r.ok, r.apexClasses, r.apexTriggers.map((t) => t.Name)], [true, [], ["AccountTrigger"]]);
+    r = await send({ action: "admin" });
+    assert.deepStrictEqual([r.ok, r.metadataTypes, r.profiles], [true, [], []]);
+    console.log("PASS a forbidden Apex query leaves the rest of the search working");
+
+    // Slow Apex paging doesn't hold up profiles, permission sets and flows.
+    route = (url) => (soql(url).includes("FROM ApexClass") ? new Promise(() => {}) : null);
+    send({ action: "apex" }); // never answers here
     r = await send({ action: "admin" });
     assert.strictEqual(r.ok, true);
-    assert.deepStrictEqual([r.apexClasses, r.apexTriggers, r.metadataTypes, r.profiles], [[], [], [], []]);
-    console.log("PASS a forbidden Apex query leaves the rest of the search working");
+    console.log("PASS admin answers while Apex is still loading");
 
     // Later batches are followed; one that fails keeps the batches before it.
     route = (url) => {
@@ -131,9 +172,11 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
 
     storage = { settings: { liveOrgAccess: false } };
     fetchCalls = [];
-    r = await send({ action: "admin" });
-    assert.deepStrictEqual([r.ok, r.error, fetchCalls.length], [false, "Live org access is off", 0]);
+    for (const action of ["admin", "apex"]) {
+        r = await send({ action });
+        assert.deepStrictEqual([r.ok, r.error, fetchCalls.length], [false, "Live org access is off", 0]);
+    }
     storage = {};
-    console.log("PASS admin gated by liveOrgAccess");
+    console.log("PASS admin and apex gated by liveOrgAccess");
     console.log("ALL PASS");
 })().catch((e) => { console.error("FAIL", e); process.exit(1); });

@@ -21,7 +21,6 @@
         sortLimits,
         SETUP_PAGES,
         FALLBACK_OBJECTS,
-        isRelevantObject,
         objectEntries,
         objectActions,
         objectScore,
@@ -55,9 +54,12 @@
     let paletteEnabled = true; // settings.commandPalette
     let objectsRequested = false;
     let adminItems = []; // profiles, permission sets, flows, Apex, metadata types, newest first
+    let adminLists = {}; // adminItems by kind, from the "admin" and "apex" answers
     let adminRequested = false;
-    let adminLoaded = false; // adminItems arrived at least once (they can be empty)
+    let adminLoaded = false; // the "admin" answer arrived at least once (it can be empty)
     let adminFailed = false; // the last ask failed; the next open asks again
+    let apexLoaded = false; // the same two for the "apex" answer (Apex classes and triggers)
+    let apexFailed = false;
     let adminAskedAt = 0; // when adminItems were last asked for; an open refetches them after ADMIN_MAX_AGE
     const ADMIN_MAX_AGE = 10 * 60 * 1000;
     let appItems = null; // the user's Lightning apps, in App Launcher order, once fetched
@@ -276,6 +278,13 @@
                         return;
                     }
                     cb(resp);
+                    // A list kept from an earlier page came at once; ask the org
+                    // for its current one, used only if it differs. A failed
+                    // refresh keeps the kept list.
+                    if (resp.cached)
+                        ask(action, { ...extra, fresh: true }, (fresh) => {
+                            if (fresh && JSON.stringify({ ...fresh, cached: true }) !== JSON.stringify(resp)) cb(fresh);
+                        });
                 }
             );
         } catch (e) {
@@ -291,30 +300,35 @@
                 objectsRequested = false; // retry on the next open
                 return;
             }
-            liveObjects = resp.sobjects
-                .filter(isRelevantObject)
-                .map((s) => ({ api: s.name, label: s.label, plural: s.labelPlural, prefix: s.keyPrefix }));
+            // The worker sends only the objects worth listing.
+            liveObjects = resp.sobjects.map((s) => ({ api: s.name, label: s.label, plural: s.labelPlural, prefix: s.keyPrefix }));
             catalogCache = null;
             loadHop(); // a /lightning/r/{Id}/view page needs the objects to know its record
             if (opened) render(inputEl.value);
         });
     }
 
-    // Profiles, permission sets, flows, Apex classes and triggers, and custom
-    // metadata types — fetched once, fuzzy-searched like objects. Each carries
-    // a hint so the result type is obvious.
+    // Profiles, permission sets, flows and custom metadata types ("admin"),
+    // and Apex classes and triggers ("apex", asked apart so slow Apex paging
+    // doesn't hold up the rest): fetched once, fuzzy-searched like objects.
+    // Each carries a hint so the result type is obvious.
     // The old list stays in use until the refetched one arrives.
     function loadAdmin() {
         if (Date.now() - adminAskedAt > ADMIN_MAX_AGE) adminRequested = false;
         if (!liveEnabled || adminRequested) return;
         adminRequested = true;
         adminFailed = false;
+        apexFailed = false;
         adminAskedAt = Date.now();
+        // A failed answer is asked for again on the next open.
+        const failed = () => {
+            adminRequested = false;
+            if (opened && activeVerb && VERBS[activeVerb].kind === "admin") render(inputEl.value);
+        };
         ask("admin", {}, (resp) => {
             if (!resp || !liveEnabled) {
-                adminRequested = false;
                 adminFailed = !!liveEnabled;
-                if (opened && activeVerb && VERBS[activeVerb].kind === "admin") render(inputEl.value);
+                failed();
                 return;
             }
             const profiles = (resp.profiles || []).map((p) => ({
@@ -342,7 +356,28 @@
                 flow: f.DurableId, // lets Recent Setup follow newer versions
                 keywords: `${f.Label || ""} ${f.ApiName || ""} flow ${f.ProcessType || ""}`,
             }));
-            const apex = (resp.apexClasses || [])
+            const metadataTypes = (resp.metadataTypes || []).map((m) => ({
+                label: m.Label,
+                api: m.Label !== m.ApiName ? m.ApiName : "",
+                hint: "Custom Metadata Type",
+                group: GROUPS.CMDT,
+                url: `/lightning/setup/CustomMetadata/page?address=%2F${m.Id}%3Fsetupid%3DCustomMetadata`,
+                keywords: `${m.Label} ${m.ApiName} custom metadata type cmdt`,
+                actions: m.KeyPrefix
+                    ? [{ label: "Manage records", hint: "Records", kind: "nav", url: `/lightning/setup/CustomMetadata/page?address=%2F${m.KeyPrefix}` }]
+                    : null,
+            }));
+            Object.assign(adminLists, { profiles, permSets, flows, metadataTypes });
+            adminLoaded = true;
+            mergeAdmin();
+        });
+        ask("apex", {}, (resp) => {
+            if (!resp || !liveEnabled) {
+                apexFailed = !!liveEnabled;
+                failed();
+                return;
+            }
+            adminLists.apex = (resp.apexClasses || [])
                 .map((c) => ({
                     label: c.Name,
                     hint: c.NamespacePrefix ? `Apex Class · ${c.NamespacePrefix}` : "Apex Class",
@@ -361,22 +396,16 @@
                         keywords: `${t.Name} ${t.Object || ""} ${t.NamespacePrefix || ""} apex trigger code`,
                     }))
                 );
-            const metadataTypes = (resp.metadataTypes || []).map((m) => ({
-                label: m.Label,
-                api: m.Label !== m.ApiName ? m.ApiName : "",
-                hint: "Custom Metadata Type",
-                group: GROUPS.CMDT,
-                url: `/lightning/setup/CustomMetadata/page?address=%2F${m.Id}%3Fsetupid%3DCustomMetadata`,
-                keywords: `${m.Label} ${m.ApiName} custom metadata type cmdt`,
-                actions: m.KeyPrefix
-                    ? [{ label: "Manage records", hint: "Records", kind: "nav", url: `/lightning/setup/CustomMetadata/page?address=%2F${m.KeyPrefix}` }]
-                    : null,
-            }));
-            adminItems = profiles.concat(permSets, flows, apex, metadataTypes);
-            adminLoaded = true;
-            catalogCache = null;
-            if (opened && (inputEl.value.trim() || activeVerb)) render(inputEl.value);
+            apexLoaded = true;
+            mergeAdmin();
         });
+    }
+
+    function mergeAdmin() {
+        const l = adminLists;
+        adminItems = [].concat(l.profiles || [], l.permSets || [], l.flows || [], l.apex || [], l.metadataTypes || []);
+        catalogCache = null;
+        if (opened && (inputEl.value.trim() || activeVerb)) render(inputEl.value);
     }
 
     // The user's Lightning apps — fetched once, searched like admin items and
@@ -943,7 +972,7 @@
         // Verb results are local, except "login" and "users", which search users.
         if (activeVerb && VERBS[activeVerb].kind !== "login" && VERBS[activeVerb].kind !== "users") return;
         const term = inputEl.value;
-        if (term.trim().length >= 2 && !pastedLink(term, host)) searchTimer = setTimeout(() => runLiveSearch(term), 140);
+        if (term.trim().length >= 2 && !pastedLink(term, host)) searchTimer = setTimeout(() => runLiveSearch(term), 60);
     }
 
     function highlight(label, query) {
@@ -1733,15 +1762,16 @@
     function renderAdminVerb(verb, query) {
         panelEl.classList.remove("board-mode");
         if (!liveEnabled) return showEmpty("Live org access is off (enable it in Settings).");
-        if (!adminLoaded) {
+        // Apex comes in its own answer, so its verb waits for that one only.
+        const apex = verb.group === GROUPS.APEX;
+        if (!(apex ? apexLoaded : adminLoaded)) {
             // A failed ask waits for the next open, not every keystroke.
-            if (adminFailed) return showEmpty(`Couldn't load ${verb.label.toLowerCase()}`, "Close and reopen the palette to try again.");
+            if (apex ? apexFailed : adminFailed) return showEmpty(`Couldn't load ${verb.label.toLowerCase()}`, "Close and reopen the palette to try again.");
             loadAdmin();
             return showEmpty("Loading…");
         }
         // Managed-package code is hidden in Setup, so package Apex shows only
         // with the header's "Show package code" ticked.
-        const apex = verb.group === GROUPS.APEX;
         const all = adminItems.filter((i) => i.group === verb.group && (!apex || showPackageApex || !i.pkg));
         const q = query.trim();
         // Matches by score; ties, and the list with nothing typed, stay newest first.
@@ -2558,6 +2588,7 @@
                         // it back on fetches again.
                         liveObjects = null;
                         adminItems = [];
+                        adminLists = {};
                         appItems = null;
                         tabItems = null;
                         fieldsCache = {};
@@ -2581,6 +2612,8 @@
                         adminRequested = false;
                         adminLoaded = false;
                         adminFailed = false;
+                        apexLoaded = false;
+                        apexFailed = false;
                         appsRequested = false;
                         tabsRequested = false;
                         hop = null;
