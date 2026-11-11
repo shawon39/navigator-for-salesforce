@@ -72,6 +72,14 @@ for (const [query, expected] of [["contacts", "Contact"], ["leads", "Lead"], ["o
 }
 console.log("PASS objectScore picks the object a plural names");
 
+// Search rows carry the plural their tab shows, so "accounts" scores like an
+// exact name instead of a loose letter match on the label.
+const acc = window.SFEN_CMDK_DATA.objectEntries("Account", "Account", "Accounts")[0];
+assert.strictEqual(acc.plural, "Accounts");
+assert.strictEqual(matchScore("accounts", acc.plural), 1000);
+assert(matchScore("accounts", acc.label, acc.keywords) < 300);
+console.log("PASS object rows match their plural (tab) label");
+
 // A field found by its API name, and never by a non-match.
 assert(matchScore("tier_level", "Customer Tier", "Tier_Level__c") > 0);
 assert.strictEqual(matchScore("zzz", "Customer Tier", "Tier_Level__c"), -1);

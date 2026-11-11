@@ -62,6 +62,8 @@
     const ADMIN_MAX_AGE = 10 * 60 * 1000;
     let appItems = null; // the user's Lightning apps, in App Launcher order, once fetched
     let appsRequested = false;
+    let tabItems = null; // the user's standard and custom tabs, once fetched
+    let tabsRequested = false;
     let fieldsCache = {}; // object API name -> [{api,label,type,key}] for the "fields" verb
     let fieldsFailed = {}; // object API names whose fields failed to load (retried on the next open)
     let fieldsKey = null; // object whose fields are being fetched; a response for another is ignored
@@ -86,6 +88,7 @@
     let autoVerbWord = null; // verb word as typed when "word " switched it on; null when locked
     let inspectKey = null; // "Type/Id" currently fetched for the record inspector
     let inspectRecord = null; // fetched record fields for the record inspector
+    let inspectFilledOnly = false; // the inspector's "Non-empty only" checkbox
     const describeCache = {}; // "host/Type" -> { fieldApiName: label } for the inspector
     let liveRecordsTerm = ""; // search term liveRecords were returned for
     let orgName = ""; // current org's saved or default name, shown in the search bar
@@ -149,13 +152,19 @@
                 ? liveObjects
                 : FALLBACK_OBJECTS.map((n) => ({ api: n, label: n }));
         source.forEach((o) =>
-            objectEntries(o.api, o.label).forEach((e) => items.push(e))
+            objectEntries(o.api, o.label, o.plural).forEach((e) => items.push(e))
         );
         return items;
     }
 
     function fullCatalog() {
-        if (!catalogCache) catalogCache = staticCatalog.concat(objectCatalog(), adminItems, appItems || []);
+        if (!catalogCache) {
+            // An object's tab opens the same page as its row in Objects, so only one shows.
+            const objects = objectCatalog();
+            const objectUrls = new Set(objects.map((o) => o.url));
+            const tabs = (tabItems || []).filter((t) => !objectUrls.has(t.url));
+            catalogCache = staticCatalog.concat(objects, adminItems, appItems || [], tabs);
+        }
         return catalogCache;
     }
 
@@ -204,10 +213,15 @@
             // Admin shorthand ("psg") ranks just under an exact name. A lookup
             // of the record you're on also matches its field as a name, so
             // "acc" on an Opportunity finds its Account like a page named so.
+            // An object's plural ("accounts") finds it like its own label.
             const sc =
                 item.group === GROUPS.SETUP && item.label === alias
                     ? 950
-                    : Math.max(SFEN_URL.matchScore(itemQuery, item.label, item.keywords), item.field ? SFEN_URL.matchScore(itemQuery, item.field) : -1);
+                    : Math.max(
+                          SFEN_URL.matchScore(itemQuery, item.label, item.keywords),
+                          item.field ? SFEN_URL.matchScore(itemQuery, item.field) : -1,
+                          item.plural ? SFEN_URL.matchScore(itemQuery, item.plural) : -1
+                      );
             if (sc >= 0)
                 scored.push({ item, sc: sc + (GROUP_BONUS[item.group] || 0) - (item.pkg ? PACKAGE_PENALTY : 0) + boost(item.url) });
         }
@@ -230,6 +244,7 @@
             [GROUPS.PROFILE]: 6,
             [GROUPS.PERMSET]: 6,
             [GROUPS.APP]: 6,
+            [GROUPS.TAB]: 6,
             [GROUPS.APEX]: 6,
             [GROUPS.CMDT]: 4,
             [GROUPS.RELATED]: 6,
@@ -383,6 +398,27 @@
             }));
             catalogCache = null;
             if (opened && (activeVerb || inputEl.value.trim())) render(inputEl.value);
+        });
+    }
+
+    // Standard and custom tabs: fetched once, searched like apps.
+    function loadTabs() {
+        if (!liveEnabled || tabsRequested) return;
+        tabsRequested = true;
+        ask("tabs", {}, (resp) => {
+            if (!resp || !liveEnabled) {
+                tabsRequested = false;
+                return;
+            }
+            tabItems = (resp.tabs || []).map((t) => ({
+                label: t.label,
+                hint: "Tab",
+                group: GROUPS.TAB,
+                url: t.url,
+                keywords: `${t.label} tab`,
+            }));
+            catalogCache = null;
+            if (opened && inputEl.value.trim()) render(inputEl.value);
         });
     }
 
@@ -1874,17 +1910,13 @@
         head.innerHTML =
             '<span class="insp-title-wrap"><span class="insp-title"></span>' +
             '<span class="insp-type"><span class="insp-type-name"></span> · <span class="mono"></span></span></span>' +
-            '<button class="insp-action" type="button">Copy Id</button>' +
             '<button class="insp-action" type="button">Copy JSON</button>' +
             '<button class="insp-action" type="button" title="Copy only the fields that have a value">Copy JSON (no blanks)</button>';
         head.querySelector(".insp-title").textContent =
             inspectRecord.Name || inspectRecord.CaseNumber || ctx.id;
         head.querySelector(".insp-type-name").textContent = ctx.type;
         head.querySelector(".insp-type .mono").textContent = ctx.id;
-        const [copyIdBtn, copyJsonBtn, copyFilledBtn] = head.querySelectorAll(".insp-action");
-        copyIdBtn.addEventListener("click", () =>
-            copyWithFeedback(copyIdBtn, inspectRecord.Id || ctx.id)
-        );
+        const [copyJsonBtn, copyFilledBtn] = head.querySelectorAll(".insp-action");
         copyJsonBtn.addEventListener("click", () => {
             const data = { ...inspectRecord };
             delete data.attributes;
@@ -1898,6 +1930,18 @@
             });
             copyWithFeedback(copyFilledBtn, JSON.stringify(data, null, 2));
         });
+        const filledLabel = document.createElement("label");
+        filledLabel.className = "pkg-toggle";
+        const filledBox = document.createElement("input");
+        filledBox.type = "checkbox";
+        filledBox.checked = inspectFilledOnly;
+        filledBox.addEventListener("change", () => {
+            inspectFilledOnly = filledBox.checked;
+            render(inputEl.value);
+            focusInput();
+        });
+        filledLabel.append(filledBox, "Non-empty only");
+        head.insertBefore(filledLabel, copyJsonBtn);
         wrap.appendChild(head);
 
         const labels = describeCache[host + "/" + ctx.type] || {};
@@ -1905,9 +1949,13 @@
         const keys = Object.keys(inspectRecord).filter((k) => k !== "attributes");
         const shown = keys.filter(
             (k) =>
-                !filter ||
-                k.toLowerCase().includes(filter) ||
-                (labels[k] || "").toLowerCase().includes(filter)
+                (!inspectFilledOnly ||
+                    (inspectRecord[k] !== null &&
+                        inspectRecord[k] !== undefined &&
+                        inspectRecord[k] !== "")) &&
+                (!filter ||
+                    k.toLowerCase().includes(filter) ||
+                    (labels[k] || "").toLowerCase().includes(filter))
         );
         inputEl.placeholder = `Filter ${keys.length} fields`;
         setFooterCount(`${shown.length} of ${keys.length} fields`);
@@ -1995,7 +2043,7 @@
             return showEmpty(
                 `No matches for “${query.trim()}”`,
                 (liveEnabled
-                    ? "Search looks through Setup, objects, records, apps, flows, profiles, permission sets, Apex, custom metadata types and your bookmarks. "
+                    ? "Search looks through Setup, objects, records, apps, tabs, flows, profiles, permission sets, Apex, custom metadata types and your bookmarks. "
                     : "Live org access is off, so only Setup, objects, Setup tabs and your bookmarks are searched. ") + verbs
             );
         }
@@ -2376,6 +2424,7 @@
         loadRecent();
         loadAdmin();
         loadApps();
+        loadTabs();
         loadHop();
         fieldsFailed = {}; // retry objects whose fields failed to load
         // Refetched per open: the last viewed records change as you browse.
@@ -2509,6 +2558,7 @@
                         liveObjects = null;
                         adminItems = [];
                         appItems = null;
+                        tabItems = null;
                         fieldsCache = {};
                         fieldsKey = null;
                         setLoading("fields", false);
@@ -2531,6 +2581,7 @@
                         adminLoaded = false;
                         adminFailed = false;
                         appsRequested = false;
+                        tabsRequested = false;
                         hop = null;
                         hopKey = null;
                         Object.keys(peekCache).forEach((id) => delete peekCache[id]);

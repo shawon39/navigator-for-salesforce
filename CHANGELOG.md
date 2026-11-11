@@ -4,9 +4,12 @@
 
 ### Added
 - Drag saved orgs in the popup's Orgs tab to reorder them, within Pinned or All orgs.
+- Record fields view: tick Non-empty only to hide the fields with no value.
+- Search now finds your tabs, standard and custom (Home, Reports, object tabs, Visualforce, web, Lightning page and component tabs), in a new Tabs group. An object's tab name, like Accounts, finds the object under Objects.
 
 ### Changed
 - Log in as: with nothing typed, the palette now lists the 20 active internal users who logged in last, so you can pick one without searching. Typing still searches all users.
+- Record fields view: the Copy Id button is gone from the header. Hover the Id row, the first in the list, and use its Copy.
 
 ### Fixed
 - Opening a Setup page from the palette or popup while already in Setup no longer sometimes shows a blank "HTTP ERROR 404" page. The link now stays on Setup's own address instead of bouncing through the Lightning one.

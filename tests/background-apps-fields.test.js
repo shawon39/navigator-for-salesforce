@@ -1,6 +1,7 @@
-// Background worker: the "apps" (App Launcher list) and "fields" (per-object
-// FieldDefinition) actions, including validation, paging and live-access gating.
-// "apps" and "fields" palette actions, with a stubbed fetch.
+// Background worker: the "apps" (App Launcher list), "tabs" (UI API nav items)
+// and "fields" (per-object FieldDefinition) actions, including validation,
+// paging and live-access gating.
+// "apps", "tabs" and "fields" palette actions, with a stubbed fetch.
 const fs = require("fs");
 const vm = require("vm");
 const assert = require("assert");
@@ -96,6 +97,36 @@ const soql = (url) => decodeURIComponent((url.split("?q=")[1] || "").replace(/\+
     r = await send({ action: "apps" });
     assert.strictEqual(r.ok, false);
     console.log("PASS apps: API failure → ok:false (palette retries)");
+
+    // ---- tabs ----
+    const nav = (label, type, attributes, extra) => ({ label, pageReference: { type, attributes }, availableInLightning: true, ...extra });
+    route = (url) => {
+        if (url.includes("nav-items?page=1")) return json({ navItems: [
+            nav("My VF Tab", "standard__navItemPage", { apiName: "My_VF_Tab" }),
+            nav("Classic Only", "standard__navItemPage", { apiName: "Classic_Only" }, { availableInLightning: false }),
+            nav("Bad", "standard__navItemPage", { apiName: "../evil" }),
+            nav("Web", "standard__webPage", { url: "https://evil.example.com" }),
+        ], nextPageUrl: "@evil.example.com/x" });
+        if (url.includes("/ui-api/nav-items")) return json({ navItems: [
+            nav("Home", "standard__namedPage", { pageName: "home" }),
+            nav("Accounts", "standard__objectPage", { objectApiName: "Account", actionName: "home" }),
+        ], nextPageUrl: "/services/data/v60.0/ui-api/nav-items?page=1&pageSize=25" });
+        return null;
+    };
+    fetchCalls = [];
+    r = await send({ action: "tabs" });
+    assert.strictEqual(r.ok, true, JSON.stringify(r));
+    assert.deepStrictEqual(r.tabs, [
+        { label: "Home", url: "/lightning/page/home" },
+        { label: "Accounts", url: "/lightning/o/Account/home" },
+        { label: "My VF Tab", url: "/lightning/n/My_VF_Tab" },
+    ]);
+    assert.deepStrictEqual(fetchCalls, [
+        "https://acme.my.salesforce.com/services/data/v60.0/ui-api/nav-items?formFactor=Large",
+        "https://acme.my.salesforce.com/services/data/v60.0/ui-api/nav-items?page=1&pageSize=25",
+    ]);
+    route = () => null;
+    console.log("PASS tabs: named, object and custom tab paths; Classic-only, bad names, other types and unsafe next page left out");
 
     // ---- fields ----
     let pages = 0;

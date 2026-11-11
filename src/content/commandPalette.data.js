@@ -217,6 +217,7 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
 .insp-copy.failed, .insp-action.failed { color:var(--nv-danger); cursor:default; }
 .insp-action { flex-shrink:0; height:30px; padding:0 10px; border:0; border-radius:6px; background:transparent;
   color:var(--nv-primary-text); font:600 12px "Figtree","Segoe UI",system-ui,sans-serif; cursor:pointer; }
+.insp-head .pkg-toggle { flex-shrink:0; font-size:12px; color:var(--nv-text); white-space:nowrap; }
 .insp-key.labeled { display:flex; flex-direction:column; font-family:inherit; }
 .insp-label { font-size:13px; font-weight:500; }
 .insp-api { font-size:11px; color:var(--nv-text-3); }
@@ -300,6 +301,7 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
         PROFILE: "Profiles",
         PERMSET: "Permission Sets",
         APP: "Apps",
+        TAB: "Tabs",
         APEX: "Apex",
         CMDT: "Custom Metadata Types",
         FIELD: "Fields",
@@ -331,10 +333,12 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
     }
 
     // Object rows show the label, plus the API name in mono when it differs.
-    function objectEntries(api, label) {
+    // plural is what the object's tab shows ("Accounts"), matched like the label.
+    function objectEntries(api, label, plural) {
         return [
             {
                 label: label || api,
+                plural,
                 api: label && label !== api ? api : "",
                 hint: "Object",
                 group: GROUPS.OBJECT,
@@ -656,6 +660,7 @@ kbd { display:inline-flex; align-items:center; justify-content:center; min-width
         [GROUPS.PROFILE]: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
         [GROUPS.PERMSET]: '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
         [GROUPS.APP]: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+        [GROUPS.TAB]: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/>',
         [GROUPS.APEX]: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
         [GROUPS.CMDT]: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
         [GROUPS.ORG]: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',

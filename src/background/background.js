@@ -300,7 +300,7 @@ async function sfRecordUi(host, id, layoutType) {
 }
 
 // Actions that read org data; all are gated by the liveOrgAccess setting.
-const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "fields", "flowVersions", "peek", "hop", "listViews", "count", "limits"]);
+const DATA_ACTIONS = new Set(["objects", "recent", "record", "search", "users", "admin", "describe", "context", "apps", "tabs", "fields", "flowVersions", "peek", "hop", "listViews", "count", "limits"]);
 
 // Why a palette message must be refused, or null when it's allowed.
 function paletteDenied(msg, sender) {
@@ -688,6 +688,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     apps.push({ id: d.DurableId, label: i.Label || d.Label, console: d.NavType === "Console" });
                 });
                 sendResponse({ ok: true, apps });
+            } else if (msg.action === "tabs") {
+                // Every tab the user can open in Lightning, standard (Home,
+                // Reports) and custom (object, Visualforce, web, Lightning page
+                // and component tabs), as the path it opens. Nav items come 25
+                // to a page; other page types are left out.
+                let d = await sfFetch(host, `/services/data/${SF_API_VERSION}/ui-api/nav-items?formFactor=Large`);
+                let items = d.navItems || [];
+                for (let p = 1; p < 20 && SFEN_URL.isSafePath(d.nextPageUrl); p++) {
+                    d = await sfFetch(host, d.nextPageUrl);
+                    items = items.concat(d.navItems || []);
+                }
+                const tabs = [];
+                items.forEach((n) => {
+                    const type = n.pageReference && n.pageReference.type;
+                    const a = (n.pageReference && n.pageReference.attributes) || {};
+                    let url = null;
+                    if (type === "standard__objectPage" && API_NAME_RE.test(a.objectApiName || "")) url = `/lightning/o/${a.objectApiName}/home`;
+                    else if (type === "standard__navItemPage" && API_NAME_RE.test(a.apiName || "")) url = `/lightning/n/${a.apiName}`;
+                    else if (type === "standard__namedPage" && API_NAME_RE.test(a.pageName || "")) url = `/lightning/page/${a.pageName}`;
+                    if (url && n.availableInLightning !== false && typeof n.label === "string") tabs.push({ label: n.label, url });
+                });
+                sendResponse({ ok: true, tabs });
             } else if (msg.action === "flowVersions") {
                 // Recent Setup keeps a flow's definition id (300…) next to the
                 // version link it opened. Map each to the flow's current version
